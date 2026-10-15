@@ -1,0 +1,2660 @@
+{
+  "generated_at": "2026-10-15T15:53:29.602890+08:00",
+  "scope": "code and documentation only; user explicitly excluded data/artifacts",
+  "source_file_count": 438,
+  "secret_scan": "passed",
+  "raw_data_included": false,
+  "test_samples_included": false,
+  "model_weights_included": false,
+  "result_archives_included": false,
+  "upstream_repositories": [
+    {
+      "directory": "CoSIL",
+      "upstream": "https://github.com/ZJU-CTAG/CoSIL.git",
+      "upstream_head": "86dacd7d18c1198ff20da64595b7f1222d93281e",
+      "includes_local_code_changes": true
+    },
+    {
+      "directory": "GraphLocator",
+      "upstream": "https://github.com/oceaneLIU/GraphLocator.git",
+      "upstream_head": "2bb137cd946f0d29521d2277d6e0f636314e49c0",
+      "includes_local_code_changes": true
+    },
+    {
+      "directory": "CoSIL_new",
+      "upstream": "https://github.com/ZhonghaoJiang/CoSIL.git",
+      "upstream_head": "0568e423735b399d5b089996961fea9ae142e4c7",
+      "includes_local_code_changes": true
+    }
+  ],
+  "files": [
+    {
+      "path": "交接文档_v5_给Codex.md",
+      "bytes": 10519,
+      "sha256": "7f38f0799953e31eef9c3c49c18d35b362e79576fe7929193ca0adc05c62b731",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/AGENTS.md",
+      "bytes": 779,
+      "sha256": "e6757be50d9e8b698180ed70c2ca08b66042d300ee448f3c8f17cdf95ffc82ec",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/CoSIL_arXiv2025_2503.22424.pdf",
+      "bytes": 1029896,
+      "sha256": "0ec14250991d14eda90638f42f85bfbdc2029d8009422f36ab84f18700d5ed72",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/README.md",
+      "bytes": 2462,
+      "sha256": "fddd838ca17b9243b2172890b326ed1c43c893ccc975fd18eb5fe75b3121f96f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/ablation.sh",
+      "bytes": 4371,
+      "sha256": "014de38b756d6145da63e0a4c1b0963b5a1f266acf9e2f53eeb8777edac37a50",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/get_lite_structure.py",
+      "bytes": 1124,
+      "sha256": "5d161c0fba7f107ffb5f74af57cc2b9e3705294d954791ec2f5d2e2596ca2082",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/get_verified_structure.py",
+      "bytes": 2225,
+      "sha256": "11a3a38a2ae5c2941e7b34394fdc4f84649eecab97ddec468b6613fb98484f5b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/patch_gen.sh",
+      "bytes": 7685,
+      "sha256": "7ec128fb6b676f9a3c352413854e663afd43ea9ea523b5d836a2a0bea7fa48fd",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/requirments.txt",
+      "bytes": 74,
+      "sha256": "f12f351a3dcbee4dcc8fe87d9671d219d4caa003d726986089b0d9158a2376ed",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/run_lite.sh",
+      "bytes": 1046,
+      "sha256": "5d166336b11f3428e84601c9791be152df8bcf08b80196fde5134fcb3211ede5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/run_verified.sh",
+      "bytes": 1200,
+      "sha256": "9d932bdf616b14ed92d7de16884c16785376fa67898f0fcac8236088ede4d18f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/sample.sh",
+      "bytes": 1188,
+      "sha256": "30a94053ea7c6af7cbb1ef1d08bfae4445c84243b0db5a199f04eea3cd20e1cf",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/sample_dataset.py",
+      "bytes": 462,
+      "sha256": "9a767642cb7d883dfa077930a8b0becae31644fe37a260f4df775427a8e1249f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/部署文档_新版仓库对照实验.md",
+      "bytes": 5829,
+      "sha256": "a92d3ee274002e360e10149e95e705b2e61e9756eac8dc4cf7ac0f20c3af3c75",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/部署文档_服务器CoSIL+Qwen2.5Coder7B_含全量300.md",
+      "bytes": 8027,
+      "sha256": "83a1f531f21f8e1b7d270bf67de065faa12089fc8114ff14fffae3742c80e990",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/AFL.py",
+      "bytes": 41374,
+      "sha256": "54863ae6ae952f27b87c9c9f58cde1ca41fde77ef47b5db49cce8136a1e7136d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/AFL_localize_file.py",
+      "bytes": 9347,
+      "sha256": "f6e58a764a7a1692f5a8cc6017cf6f50d8073cc734db1e7bf15bbc18cc9bc9c1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/AFL_localize_func.py",
+      "bytes": 7096,
+      "sha256": "95d1b3fe3e15293f1136fdf1d940a0c8fdbebd29ab22b80ecc53f7867ce15ec8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/AFL_localize_line.py",
+      "bytes": 6957,
+      "sha256": "f6d4d15de545bd58f6acf04f6100cb73732defbebd6686ee2252b0b42a23b045",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/FL_prompt.py",
+      "bytes": 24348,
+      "sha256": "245ca39dfb35ebddf3b9702c11ed8c70c11284a61173f650d711a1808b44954e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/FL_tools.py",
+      "bytes": 4458,
+      "sha256": "2725c3799795defdc939d4514ece551d4525d0a9562f03c246c4c5d85422aa81",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/ablation_func.py",
+      "bytes": 6536,
+      "sha256": "b2d1a79af6bf9085717dbde899b79972688c5d20e5d8863194f72525c1dd7661",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/ablation_module_call_graph.py",
+      "bytes": 9231,
+      "sha256": "3950a31ff4e8cd6f67ddf316a411a23a4764d0cf24465619523dc8d1e9370b04",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/fl/ablation_reflection.py",
+      "bytes": 9236,
+      "sha256": "88742006b8061a68ffd970ef20d17608551642baf085e1fd9436acce5f882cf4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/util/api_requests.py",
+      "bytes": 7609,
+      "sha256": "5570564873d722274c7a052747e67d736a3129ef665bf0d50c344fd38754f7c6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/util/compress_file.py",
+      "bytes": 5864,
+      "sha256": "7f4c52df8cc6fc42654da16ebee97d8c3776e5ef4f1f0a78a7e47b3af33da696",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/util/model.py",
+      "bytes": 17937,
+      "sha256": "7f09f5e4f2444ed87b880de563606ff61f8457323e69b911d0f3d9cab7736172",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/util/parse_global_var.py",
+      "bytes": 2493,
+      "sha256": "019c168505ff47d54f395d46b287f57048f521d603dde2a8beb69c1895abe115",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/util/postprocess_data.py",
+      "bytes": 35651,
+      "sha256": "7a0c26a41f6e443661f5498b95d83dcdd3ca0488ed972de9b2cd3330f8aee0b7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/util/preprocess_data.py",
+      "bytes": 32775,
+      "sha256": "06094e03c59666d7248dffdd6373aaef842436220e8dca7dffa28b93307d5a25",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/afl/util/utils.py",
+      "bytes": 2470,
+      "sha256": "de3313b609ff87dfdaf02c8a9d1cf99f32a83f7e80c818b37e96128556d88e77",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/fl/FL.py",
+      "bytes": 26566,
+      "sha256": "f590e1c0f862917c7acb587d87a9d2ba9a1fb2dc9d6b4f3bdac33cf350d2b41b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/fl/Index.py",
+      "bytes": 11073,
+      "sha256": "b73702452d376bf34e9a1769ac91afaec099dcbf1b3f50df427d7a704528958d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/fl/combine.py",
+      "bytes": 2484,
+      "sha256": "9b149c10b66acd7540670f66a6ecb3cef1b0a5f1cd1783b943196e22403d2120",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/fl/localize.py",
+      "bytes": 23407,
+      "sha256": "ca032ae483083e484f35d0b934991d310758fcbf59d8538093755d13ac30ba98",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/fl/retrieve.py",
+      "bytes": 5569,
+      "sha256": "ead277e2718742581e443fbf36028ab349af927bb988740fc24baa9b3c932098",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/repair/repair.py",
+      "bytes": 28817,
+      "sha256": "674b7bc5b96da505f2f95d269d1c43706484276eb85dc61049cded1cf1b894ac",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/repair/rerank.py",
+      "bytes": 13571,
+      "sha256": "777e36543873960a7013f5f969d06fc125a2c221ede24835c809f9180244c3d9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/test/generate_reproduction_tests.py",
+      "bytes": 17104,
+      "sha256": "5ad389114967432d0b6c4baf533733b0e3b928e2bc2fe97d96b82ad926bd5c9d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/test/run_regression_tests.py",
+      "bytes": 8250,
+      "sha256": "5460d0e4245946e9665c5cc4c00a277cb7c2eddcdbf53984b606f08e2c3208b4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/test/run_reproduction_tests.py",
+      "bytes": 6230,
+      "sha256": "703f48f97dacbb3fbf49cb4fabfb8bb4726a6d75a200438b2cb9ef67e04310ca",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/test/run_tests.py",
+      "bytes": 21081,
+      "sha256": "540494ff524e480d0d7ccc5bad68ef633f31c6f1d97cf5c40cadecf7b6d53d78",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/test/select_regression_tests.py",
+      "bytes": 6739,
+      "sha256": "97a6ce367e5e683b93e525ef63819bb89b0473a1cbb5b45a07402927413a25bc",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/api_requests.py",
+      "bytes": 7490,
+      "sha256": "a2883dfec4d5228d1ef7722d6049006be5c37f562cf80a4fa3fe56b1652988f7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/compress_file.py",
+      "bytes": 5864,
+      "sha256": "7f4c52df8cc6fc42654da16ebee97d8c3776e5ef4f1f0a78a7e47b3af33da696",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/index_skeleton.py",
+      "bytes": 1803,
+      "sha256": "f49c36860f56278b0e2c238c92be4e938ec55c47f55f0b4b90629fd2a2a4994c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/model.py",
+      "bytes": 17943,
+      "sha256": "eaa3b35250da8f470f05278f3ff1314bf86fe84fefd3e831d709160a0ade35ae",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/parse_global_var.py",
+      "bytes": 2493,
+      "sha256": "019c168505ff47d54f395d46b287f57048f521d603dde2a8beb69c1895abe115",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/postprocess_data.py",
+      "bytes": 34120,
+      "sha256": "9ddd0f53dbdf696d4d4726d0f05f92073db7795cb62b441dbeb5f66146d05462",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/preprocess_data.py",
+      "bytes": 32781,
+      "sha256": "e05e56c655c375d9b86af012a04e4ad4c1dfcdfaa9159595beb20896f4a3e52e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/agentless/util/utils.py",
+      "bytes": 2470,
+      "sha256": "de3313b609ff87dfdaf02c8a9d1cf99f32a83f7e80c818b37e96128556d88e77",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/AFL_插桩版.py",
+      "bytes": 48638,
+      "sha256": "f767220c0ea53850ac299d250f611b0fd2aac1b08f51bfda7803c0f44be36e43",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/AFL_插桩版_分派修复.py",
+      "bytes": 141,
+      "sha256": "eef21de5b05707022690c403378cac4d452ce758977fdf461c7eb5efa8b3f830",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/FL_tools_注入版.py",
+      "bytes": 9888,
+      "sha256": "289a4b2c0a94a5059b7380bcd676bd8e8fdc7a10304096246e9f0c25f6251c63",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/analyze_experiment.py",
+      "bytes": 33522,
+      "sha256": "f6468ace519497d9a449a1134160ebb80c44162506fe09cc8720f1ce03df7725",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/analyze_experiment_300.py",
+      "bytes": 32402,
+      "sha256": "1b4cb620ac8f210687b31fbe72eacec0d7e0a36ac0ec4b62fce02521ae3cbc1f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/archive_experiment.py",
+      "bytes": 2756,
+      "sha256": "22488f8492e3b880b1ab4e4008588d8e4063534464468ea6d57d3cc31e664a64",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/archive_experiment_300.py",
+      "bytes": 2637,
+      "sha256": "66613a8b1842e032404c57ff2535c1544f7a232e48354031c0bc567d159a122d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/build_ground_truth_300.py",
+      "bytes": 12061,
+      "sha256": "9d80194b376efb2a073f628c630c2da9cf1014b75cbd080941039c55927c93d3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/build_result_matrix.py",
+      "bytes": 13800,
+      "sha256": "08c6cebe9d0c8214499c25884fc7b6901b4052113f50df2bf4f04e70643dfccd",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/check_implementation.py",
+      "bytes": 4181,
+      "sha256": "522b5ce6f0ec2443c0682911aac220a1f2df193808293d77184f1f528f6c62ed",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/fixed_search.py",
+      "bytes": 14942,
+      "sha256": "6726903808880f2aa737b041da32dc0fae3d74c880864bb5234f64dbdd58103c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/gen_annotations_300.py",
+      "bytes": 15995,
+      "sha256": "d101a411fc0c8212dfe738ef1c2c2cb698cf72175667df8694852c5273869170",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/pipeline_300.py",
+      "bytes": 9055,
+      "sha256": "5dae596fdab6b23220d7420a72b14a2aea17cbb4b28e68eb907d528aff241df1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/qwen300.sh",
+      "bytes": 772,
+      "sha256": "c56da88f85ec83b3e9a8568fdf68303337a16a245dc34c018d961a8431df3e0c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/qwen_model.py",
+      "bytes": 1641,
+      "sha256": "fed64e1667ae37630aeb37e8a685d84f7347880105e241933ead9d4e27c92427",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/run_experiment.py",
+      "bytes": 11014,
+      "sha256": "33dfe9b7aa7f6ae1f1acbf53930499658226d3a28fb0fa81df2fec0777f92d31",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/run_experiment.sh",
+      "bytes": 349,
+      "sha256": "836000457a30ebcad99841e720fc8cfa5753f0a93ea74d75e98540073d7c9c2c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/run_experiment_300.py",
+      "bytes": 14309,
+      "sha256": "a34f59ccf84f8eca9279cec5e96ba02f0a8f817bd696a58733f3d2a45cadbbd1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/start_qwen_repro.sh",
+      "bytes": 682,
+      "sha256": "4cc30d1c7923a8d3352938d59bac88fb8d16bbaa990e0d348653e0ebde9fdb69",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/test_analysis_300.py",
+      "bytes": 4701,
+      "sha256": "c88894cb3f64b363f2cb7a1ed7cf8b2774eb266ddbb263df29ebf2ef78f0bf2c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/test_fixed_search.py",
+      "bytes": 10656,
+      "sha256": "2af362888695df1683c70dc6ab456af99bf85ea3538e83afa9a99cdfd8ec4c0c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/test_ground_truth_300.py",
+      "bytes": 2206,
+      "sha256": "b0cef44252a8e784481157087745fa741524dff8d0c885eb44ce1ff45694f54b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/test_pipeline_300.py",
+      "bytes": 2652,
+      "sha256": "35d97b541a6c144c9ff30740381c0b964246b5d9b219daaaf32ceb25c6e3b99c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/tool_dispatch.py",
+      "bytes": 3969,
+      "sha256": "8c185bfb2bbebaf786aeb857a9655df8030ef23c447890153093a6aeef0f0fa6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261005_before_execution/original_/AFL.py",
+      "bytes": 41374,
+      "sha256": "54863ae6ae952f27b87c9c9f58cde1ca41fde77ef47b5db49cce8136a1e7136d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261005_before_execution/original_/FL_tools.py",
+      "bytes": 4458,
+      "sha256": "2725c3799795defdc939d4514ece551d4525d0a9562f03c246c4c5d85422aa81",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261005_before_execution/provided_/AFL_插桩版.py",
+      "bytes": 47205,
+      "sha256": "1123ce6d34e664da74cbd612650973acdf8a2af0a2ae4a1247c2d2cfcdcfa217",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261005_before_execution/provided_/FL_tools_注入版.py",
+      "bytes": 5801,
+      "sha256": "6273ab90ca898fa67e808d8d2075996f21389a6408dda90909d83acff550288d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261006_paper_alignment/AFL_插桩版_分派修复.py",
+      "bytes": 47940,
+      "sha256": "7116c76e138326050df8fbc885a487c91a51cdc31aaa611af34d665c73cba13f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261006_paper_alignment/FL_tools_注入版.py",
+      "bytes": 7538,
+      "sha256": "e5a212d496301310c9abc1b765edd8de5f4f4daf4dbb92b5f9f6853a01e2f1ee",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261006_paper_alignment/gen_annotations_300.py",
+      "bytes": 13692,
+      "sha256": "853055c746b77d5dc45ea02a2d10ee9919f30a754f62b28210b17f23f6f4b128",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v3b/backups/20261006_paper_alignment/实验计划_v3b_Qwen三臂注释.md",
+      "bytes": 13384,
+      "sha256": "a26024e589348d05552f0b01bb737aa9df4a66ce573a5468e01bf439ace53c69",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/__init__.py",
+      "bytes": 87,
+      "sha256": "dd068918a5f6b81b6645eca123cfdd9263c1a51fba9adb814073c0e2b9305963",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/analyze_historical_qwen_saved_val.py",
+      "bytes": 8780,
+      "sha256": "d9ea99cdbecd3b6cf8e84197055d9de30cf9d756e37816eb37fa69983749c5b7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/ast_source_cache.py",
+      "bytes": 1809,
+      "sha256": "c461a6232936847812e3e279c771f1eac5965182c78cb193603c73f0881e12d9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/audit_completed_ab_publication.py",
+      "bytes": 7815,
+      "sha256": "3936f9c73e72d77a063be74efa0a55b4ea225fa37e9b530fb9063720031d72e6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/audit_inputs.py",
+      "bytes": 17534,
+      "sha256": "d3a7489c8c3beee5e34c3be357b78871bdaeb1ee4ffd0738e1b80a92a5b78b82",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/build_pruner_data.py",
+      "bytes": 46073,
+      "sha256": "95d56df3bf8d3cbbf41d310c41ab71d2693275c6b57b8721fec43ceda3284372",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/build_v5_ab_overview.py",
+      "bytes": 27316,
+      "sha256": "56a2f033cd68a978c4f496395280a39cddf0a365052f0d7a5c324f93542448b2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/build_v5_ab_overview_v2.py",
+      "bytes": 28386,
+      "sha256": "90d0cbf7df43cc68a5050fc7c27e9fab22ba905e9dd5b1a1482a0957d1ae9f38",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/build_v5_ab_overview_v3.py",
+      "bytes": 29173,
+      "sha256": "e6176a3ba99be63d461880d99a5a7565858a152ce49c166d85c533619bf9c33e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/build_v5_overview.py",
+      "bytes": 18485,
+      "sha256": "c6ff6701b9a1d1bde3202bde3a00a8bd6f6bfe5b5854970e3dac5d283dfd9267",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/compare_noise_runtime.py",
+      "bytes": 12741,
+      "sha256": "bd26ec341a287b79d0cbcc204c0aff9ea88870fd2ed2f48894095f0131febdc4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/coordinate_completed_AB_reports.py",
+      "bytes": 22519,
+      "sha256": "15ba1bc33d6801ecef2ee0ab4a52b516b5e59d70cd80fcc9518ea75670c46282",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/coordinate_completed_AB_reports_v2.py",
+      "bytes": 27505,
+      "sha256": "71bb9375491d09b63f113bd2ffa5bbc7a50c7894f67ba6a6e031240a3bca4074",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/coordinate_completed_AB_reports_v3.py",
+      "bytes": 33127,
+      "sha256": "2b995eeea65960d7def8fcf01d53bf9dc5ea15b992f1fb3baec8fd02ca61bc6c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/download_models.py",
+      "bytes": 1433,
+      "sha256": "4ed1ddd8a610b5d08c4e1700c048085f15a76147f542d11bf59585bb51287ecd",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/enrich_review_call_evidence.py",
+      "bytes": 7302,
+      "sha256": "671b6543a5c438735dba669a5e328d88457b1e71f08a86b98c7293c084a62ab3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/final_data_audit.py",
+      "bytes": 23253,
+      "sha256": "cc4c124e99a366eaf73df2e570642bfb2811fe987992d4fc22793b20a0d1e331",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/freeze_exploratory_decision.py",
+      "bytes": 7911,
+      "sha256": "7ecbcb6995b9be63cac85daed53557fdd27b4e627b1fb78580a92fe27ee6e870",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/freeze_noise_disclosed_decision.py",
+      "bytes": 3178,
+      "sha256": "dcafdcbe565edbcdd458249d87356f6a0de469df3c260ca6afd905ce23a28d61",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/freeze_runtime_filtered_decision.py",
+      "bytes": 4199,
+      "sha256": "d605e737d06c54b0b3bfabb053c808fb276658e5e32c0868a2e234304160d386",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/judge_models.py",
+      "bytes": 17324,
+      "sha256": "3b5325c02b3b96d898ccf2dcc82db553f87c9b300663c82c6ec44ef60fc67c3d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/metrics.py",
+      "bytes": 30291,
+      "sha256": "1d90bfc3ae46269ae32571dd91d2071fd0d0637345dfea72cb6d10cd981b4156",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/noise_disclosed_policy.py",
+      "bytes": 20112,
+      "sha256": "fed6352310f5343ecf028a60bf15c3cc69fb23e68394347e375af58aa014ba5b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/plot_ab_matched_validation_curves.py",
+      "bytes": 4956,
+      "sha256": "32302b2b0871141eef2f30c380e9d17ed672d7d48cd7742c614870b4c3d627a9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/plot_validation_curves.py",
+      "bytes": 3804,
+      "sha256": "5fd9203d027dcfc2fd060154a3eec37c97a438c68b52973d0832536637d1f700",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/prepare_historical_qwen_pair_reuse.py",
+      "bytes": 17191,
+      "sha256": "68bbca13edca0c533eff4f3d0b228e433d3b8438099383a24216580e2d355535",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/prepare_noise_disclosed_data.py",
+      "bytes": 393,
+      "sha256": "ac79f3b444f60bf5ff46e587a28f0372410f7ea3226f8b3e44653314a51c73e3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/prepare_runtime_filtered_data.py",
+      "bytes": 23629,
+      "sha256": "a97ca76bb4ec6b0604a7cd53a32b28571e1e9f5a586a1674076d8cadaa94db67",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/pruner_pipeline.py",
+      "bytes": 4074,
+      "sha256": "29fb4c74b02e83b0c55bb59ec14b20105e4a5c95b19c71f559e89b14c67e7648",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/race_and_calibrate.py",
+      "bytes": 33849,
+      "sha256": "99b620975786f986543e91abab03941728aa623fd3d563a76346a7e291171dfd",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/refine_pruner_data.py",
+      "bytes": 34484,
+      "sha256": "7decc711b94dda810de8780f924ef315b8c6d7fcb0b1be560d883990a8783d33",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/refine_pruner_data_v3.py",
+      "bytes": 39849,
+      "sha256": "18075ca5a26c85bf2a692d74907460176061e00d8ca24bfad8038739d8a9b3e5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/refine_pruner_data_v3_fast.py",
+      "bytes": 3160,
+      "sha256": "bd3f16cb6130824204e78edd3a483540d2958d8b17cf7f3ce5f479650a0c16ec",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/report_gold_routes.py",
+      "bytes": 7894,
+      "sha256": "41557ed96ee9c3c3a69944a475790c1512de08e42cd9b848177ef8882cb04ca3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/report_noise_disclosed_A.py",
+      "bytes": 9788,
+      "sha256": "dc61764af6ac3c269e9aeb565147cbdf5854ec1126ad126737d26b15d4295929",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/run_noise_disclosed_A.py",
+      "bytes": 2048,
+      "sha256": "b0db4f80f4c0447532b482eba5ecec978f2aa8a745e2b2f8af69285fb630d26f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/run_pipeline.py",
+      "bytes": 30587,
+      "sha256": "3dd2c241a8b65a943e614a749ae06d89096767088994eae72417ac3624ae1f7c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/run_pipeline_sequence.py",
+      "bytes": 5337,
+      "sha256": "d789acfb5bfdbb1fac876e15e944e0f39bc2c1c808232b336964c735e4155fe2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/run_refinement_once.py",
+      "bytes": 2553,
+      "sha256": "7395ee3b7083a5722a79fa90c05045507a1f2967ac1065d38feb216de728344a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/run_refinement_v3_fast_once.py",
+      "bytes": 3504,
+      "sha256": "5518fa992e0f806c6750ad99f4436d063bd114ed35d93c2886c18c350209775d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/run_refinement_v3_once.py",
+      "bytes": 3018,
+      "sha256": "1dc97b8f4b94719645f0e5777d6e14268a2b4013f009c923f44f089067959113",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/run_training_pair.py",
+      "bytes": 9603,
+      "sha256": "6697de0a8d1d82c13b93312a0ff8738afc42ae3ba95ae5244809c6dd37f4eeb4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage.py",
+      "bytes": 29566,
+      "sha256": "0e0c93275db8b3d95a7481b1ecaf4db4478fad628f312e300db8d603178b76f0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_audit_B_packets.py",
+      "bytes": 8395,
+      "sha256": "d3053d5cadf5eb5e6a74d4dbab4e49caeac6678bcf229f0c7d115187c0bc2369",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_audit_B_reviewed.py",
+      "bytes": 12315,
+      "sha256": "d059c27ded412a380184c266360eaabd85ce59986894d23883f4b8f872ef1398",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_finalize.py",
+      "bytes": 3867,
+      "sha256": "43cd340b19fe0ace9f511014cfa898e6f8a0fbfbb4b2066cd0c0996027f1449f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_probe.py",
+      "bytes": 4034,
+      "sha256": "a50d72c25e202381621c2ef27068318f64097922e4d0ea5384f14465f9c027f7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_pytest.py",
+      "bytes": 858,
+      "sha256": "603951ce35c8a55e7c52c85b9307728c803812f4b8d0c72d1aeeb5b9abec8cc3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_regressions.py",
+      "bytes": 5030,
+      "sha256": "961322119bd2af770723066c4bc8b4d12d16f0ffbeb1443531ec5b492b4806db",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_report.py",
+      "bytes": 10014,
+      "sha256": "77932a25fa1ed4dd042eba9c6b5a63f2033c144f0f96367cdf94f63122230155",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_verified_input_precheck.py",
+      "bytes": 8541,
+      "sha256": "b0ed0d84feb70e61473ae819f740643cdfaed5830366e7492dcd63188d015e3c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_coverage_watch.py",
+      "bytes": 1381,
+      "sha256": "3f0584794049027bdc3928782ffe30d4c79b94e4fcb78c09e62b37e4b586651b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/runtime_filtered_policy.py",
+      "bytes": 43766,
+      "sha256": "96ef5737a9f9c8aac6a77ba92c593c9d090d7841978a1fa9ada35bf36bf468e5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/static_calls.py",
+      "bytes": 39671,
+      "sha256": "06abfb41ac155fcb5a04331c6ce9ff34e43758046a87b32de811206ac8a3f4c7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/test_refine_pruner_data.py",
+      "bytes": 14898,
+      "sha256": "016a5ef7cd57adf9225356a38f1e3eb61241fdaa3ed4d70a9c4b2708b8341558",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/test_refine_pruner_data_v3.py",
+      "bytes": 8390,
+      "sha256": "492dd3ffd3a7ee3cc65ab263eb5819380181e87f80525d9eb16d7682e04ef8bc",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/train_judges.py",
+      "bytes": 28248,
+      "sha256": "4eed677c224f9b5553e7e5091c9ec62703031de0c05860890054950bfa797c00",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/validate_static_graphs.py",
+      "bytes": 8491,
+      "sha256": "2b1663f3dff3597ee9c241049e289623af334ebfd6304f6cceebd785c5b3a1d1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/verified_expansion_preflight.py",
+      "bytes": 11528,
+      "sha256": "67c36b1f750b75305043f66dc0cd23d50a55a25d848ff1e3ffa4607a93c1cea5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/verify_noise_disclosed_guards.py",
+      "bytes": 5969,
+      "sha256": "7d645061983ef5ded1180f917f8a6ee7b31ee3a81a9d4fc35c3597b1b6f920fa",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5/verify_review_evidence.py",
+      "bytes": 23695,
+      "sha256": "7eb0584e49ba2ccc9b3c222d38a7ac1a418d6e7cbc9475552cd644ab9c396329",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports/__init__.py",
+      "bytes": 73,
+      "sha256": "dab54fb551d0917478b4f50425e439c8aace74914560e83cbe79b27783e92fa0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports/audit_e_log_witnesses.py",
+      "bytes": 6340,
+      "sha256": "68d7f155a9b3353733ae8a55c7b96a25c5a0ca7a81834663b9f4833ffcf03ef5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports/check_C_dynamic_resources_v2.py",
+      "bytes": 11628,
+      "sha256": "9755365b209dd382739756ade4859b06a6266bad43d64a7f17f6a2f698e48644",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports/compare_completed_b_c.py",
+      "bytes": 25198,
+      "sha256": "00717f29321d5ce308e766d5d0e4b7108a02b414a5f1af3d226a410ab6d7390d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports/sign_e_log_partial_review.py",
+      "bytes": 20475,
+      "sha256": "31d1750141f1ef1bf7d6c3a5d9269a19546dd3e2f3b2888f345b836f22b89c52",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v2/README.md",
+      "bytes": 1884,
+      "sha256": "a6bb2cfed983f0390e5fa76c8709f10c3ed2fd498b41f8abcec57d8baa405a57",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v2/__init__.py",
+      "bytes": 71,
+      "sha256": "59b6c660ff65645d848e52e62c0903caa9089e0abca576a7d0de94cdf7b4bfc3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v2/compare_completed_b_c.py",
+      "bytes": 32989,
+      "sha256": "a33706481879a26678f82e8e63769e3c955dbe07541c79c364628427f57c1ae8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v2/validate_completed_C_resource_run.py",
+      "bytes": 20697,
+      "sha256": "df968fd42d6bf627067f2a2a9dfdf49631292a6f486414601a9b32c5ff91af58",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v2/watch_completed_b_c.py",
+      "bytes": 12336,
+      "sha256": "c39b748ae46ee9b7813450481cc1ac71f133b69baddd0e5f95af315d89096569",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v3fix/__init__.py",
+      "bytes": 71,
+      "sha256": "59b6c660ff65645d848e52e62c0903caa9089e0abca576a7d0de94cdf7b4bfc3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v3fix/compare_completed_b_c.py",
+      "bytes": 33004,
+      "sha256": "11150165651f18576b59b306fcedd9f6fd564a4264651ae3076f4e368abfc5a0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_c_reports_resources_v3fix/validate_completed_C_resource_run.py",
+      "bytes": 21960,
+      "sha256": "ce6e289d55d201d7efe163a2ee3415b0ba7e5ba7e1dacff0c50f625d79236312",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded/__init__.py",
+      "bytes": 88,
+      "sha256": "d952b9261315fbce5dc02a3b489105c649a8e624b19727f613ccbf8d3ee16caf",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded/race_and_calibrate.py",
+      "bytes": 26955,
+      "sha256": "2d4ed6db57a57b51be0c5bae2a652359e03c130fa29fbab982f747a692f3fa27",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded/report_outcome.py",
+      "bytes": 8776,
+      "sha256": "055ea25760f3c10a872d34e9575da0cfa13de21566b3b3cd5b1fbddd77e8770e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded/run_sequence.py",
+      "bytes": 4399,
+      "sha256": "779158a886ef67e546036404407eb9a0c443f5ddd592d6fd53ccd9dbdc8fd76e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded/run_training_pair.py",
+      "bytes": 11418,
+      "sha256": "69f601a9c08864464e1b2fb6186f1b583500d9b148094f9fbe8ce1be06d141d3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded/train_judges.py",
+      "bytes": 24806,
+      "sha256": "a3ca9ad11fabcdc827d2cb6932022002e2ebf888d68853b262f117abc190b50c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v2/__init__.py",
+      "bytes": 88,
+      "sha256": "d952b9261315fbce5dc02a3b489105c649a8e624b19727f613ccbf8d3ee16caf",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v2/race_and_calibrate.py",
+      "bytes": 26968,
+      "sha256": "07a4062c831fb240ac28d5f26b0f0de8ba3bca160a2eeb36b8117354721c316f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v2/report_outcome.py",
+      "bytes": 9676,
+      "sha256": "fb4326e418cf2515d66c902893b416480b4b47de9eb6142fa20c7d01123fbf21",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v2/run_sequence.py",
+      "bytes": 5331,
+      "sha256": "1cfda29e9e7d9b740ce019e54c8fe479dd2dd0270a7bcaf859afdca7e23dfc51",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v2/run_training_pair.py",
+      "bytes": 18194,
+      "sha256": "7b8ab8d71385c1661b4a0ca5502526cd2c760195ef2d40585ac9c99b1a2f1634",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v2/train_judges.py",
+      "bytes": 25806,
+      "sha256": "ac71413a5adc6e0fd630a0fe19084045be0300cb658dd50434e91fcd341bac96",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v3/__init__.py",
+      "bytes": 88,
+      "sha256": "d952b9261315fbce5dc02a3b489105c649a8e624b19727f613ccbf8d3ee16caf",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v3/race_and_calibrate.py",
+      "bytes": 26968,
+      "sha256": "fd4711e3482435ea328be741a4a2534fc769ad14388db709af3aea94b8e56345",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v3/report_outcome.py",
+      "bytes": 9878,
+      "sha256": "ce3092f923bd21c0eb7e44feb5b4403231606efb083050745ce49e4411451386",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v3/run_sequence.py",
+      "bytes": 4662,
+      "sha256": "cd285da4721719fd824a2fcb84d63fc73dd97cf99f4d860a39021cc6cb54a44f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v3/run_training_pair.py",
+      "bytes": 18464,
+      "sha256": "aad0aa43d32769cd4ac26a6ac78755860fe139d032fb5b8cef50edb7f8e7d32c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_expanded_resources_v3/train_judges.py",
+      "bytes": 25847,
+      "sha256": "56475228e4b0df8a9062ce110b7d73ceb5eaa6ed95f9f532785e913e5b709ea4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/README.md",
+      "bytes": 5204,
+      "sha256": "3a1d415f8156273a0330d425360a50e2eabee5388ca7131f6a35497c28879aba",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/__init__.py",
+      "bytes": 76,
+      "sha256": "be63b62e8ecb99145066868d10673873ebfd48b3f22a8c277bfdf0826eb30890",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/authority.py",
+      "bytes": 13929,
+      "sha256": "ff6565746ff2e823cb18d31e90124447de4ef982073680d595214e1f5d9119af",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/check_interfaces.py",
+      "bytes": 7601,
+      "sha256": "21e0a54ef97ec0f8b90ce020e5c42bb28438ba965d687750e9a77f76575a49ac",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/historical_comparison.py",
+      "bytes": 11329,
+      "sha256": "2406d865f60693072938efb4ed4a97e5270ce5a27ebed8955b219f8f7e7d59c7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/run_pipeline.py",
+      "bytes": 31323,
+      "sha256": "cf32d8575b384190170cb06a619c146990a95046f96cfa425bab212e34b875d0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/run_pipeline_sequence.py",
+      "bytes": 6359,
+      "sha256": "ae629d5ecaeeef0fd5857600d96c48f2436488aaa08208ab75b3103b837885ee",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_postexploratory/test_once.py",
+      "bytes": 7771,
+      "sha256": "79139fcee982b382093ed7294e6c0bcf5f1a5d8ce22e5dca2310dde9b6012103",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_regularized/__init__.py",
+      "bytes": 84,
+      "sha256": "77425b79ac64b985839ed11901cba641280efbb12c8d24e2d8dd2b5a14736b22",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_regularized/freeze_decision.py",
+      "bytes": 3650,
+      "sha256": "5a9b323ba87c6b2f8dbd11f3777a460f10569b44dd8fe2f31a8ea84a56d7d1a5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_regularized/policy.py",
+      "bytes": 2808,
+      "sha256": "0bf875c1ff4ec76491a31fee4628e44a4383fc57c5bd8dc729dea45f97b0bc1a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_regularized/race_and_calibrate.py",
+      "bytes": 34154,
+      "sha256": "ead803c5569aa5dfef27d3ce42a8d88b6cdc629bfd7d7704e198a1389a11cf15",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_regularized/report_outcome.py",
+      "bytes": 6839,
+      "sha256": "49444e8d12877817735f847fb20cda7aacebaf99e4d1baa248bb5a53889f834e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_regularized/run_sequence.py",
+      "bytes": 4283,
+      "sha256": "08bb0d06e65681875ee674dfc87aa9f5240744094d10862ad272db4852339d3b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_regularized/train_judges.py",
+      "bytes": 29813,
+      "sha256": "48ad81eef307e705ba96c016c27b00dc566f8e93c53d2690c29bee67c3d4c56a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_runtime/__init__.py",
+      "bytes": 75,
+      "sha256": "1c68dfee1831b0113a00ccaf69ff283ccbedcf68860b74a29fa9ea54cad9ec5e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_runtime/race_and_calibrate.py",
+      "bytes": 33984,
+      "sha256": "b872249e625eb4f74a0f35f2184af4f62271873288ab93177d8c8d677dee5cf1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_runtime/report_outcome.py",
+      "bytes": 7774,
+      "sha256": "42d2d8c198f827d1ff2b9d5ec40abb5c2ef46b078dc18a7863bd659b8551e99b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_runtime/run_sequence.py",
+      "bytes": 5576,
+      "sha256": "8a4fff6c0554d04a2e30b27224ab63cc3bb11fe4bd03be5d61d05c34e016f187",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_runtime/run_training_pair.py",
+      "bytes": 11833,
+      "sha256": "8e9da6aaee80c918b95983388b41c52916e95fd36275c81a1f20638b5b5b042f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_runtime/train_judges.py",
+      "bytes": 30095,
+      "sha256": "057262704d5198e99c01133efd5c180de31424c7642d6bb983e918871d549e38",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/__init__.py",
+      "bytes": 75,
+      "sha256": "0dcee5cf68c540a6fcfed0c062c8d266dfc9655fa19b6af04bc4bfa6325900c0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/audit_ood_real_git_sources.py",
+      "bytes": 14760,
+      "sha256": "a9e0a78b0e7d6ee8731055befde5a43cff7d1cdfa46ec181d3e4b5aa671c9f18",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/audit_regenerated_ood_root.py",
+      "bytes": 9283,
+      "sha256": "faf080771c370486104ac7ce23f8fac1dd47008eac7326ead8be11ad43d8df66",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/expanded_policy.py",
+      "bytes": 37980,
+      "sha256": "25bcfa2ac505fc266fa7036726905bfaec0e5cd0d8f2aba53e0b6a031346ac09",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/export_ood_manifest_table.py",
+      "bytes": 3098,
+      "sha256": "d68aa8cc14a9b7c39c3dda8dcaa9c53313dc4127919df98ec8bda15765e3b10d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/finalize_C_review_from_actual_raw.py",
+      "bytes": 8640,
+      "sha256": "e6ebc6199d061bd5569ff801fa625945176e95b7b870ae9d94f9a7ee8744d97b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/freeze_expanded_decision.py",
+      "bytes": 8733,
+      "sha256": "aa787975abdd082c193b8bc33c6b2d6d5111e6f3bbf902f5ad8afdc70d02a388",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/joint_train_sampling.py",
+      "bytes": 19836,
+      "sha256": "456984538cf9bd44123bbb0e92d40191e7763ad24dbed29b39f4caf424fb6d33",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/prepare_expanded_runtime_data.py",
+      "bytes": 33434,
+      "sha256": "94dffb31b3e79f353f3e3ceed6cef2972905c3a0115dc0a82c29c8298b9fced2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/prepare_static_extension.py",
+      "bytes": 26115,
+      "sha256": "534b5548beec2e62df9c5520cce7eb7060128a189b9df145b4cfac239f754b9d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/regenerate_ood_manifest.py",
+      "bytes": 14780,
+      "sha256": "36a4615e98dd76d5bc6bbc5ac523f2d63a7e0d472fb66989d3ccb1393d06cc37",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/review_C_anchor_sources.py",
+      "bytes": 4675,
+      "sha256": "0e9db0d64f897afe850a141b0d810d343ee731bfa2485bf255f8120d8b9f5e42",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/runtime_coverage.py",
+      "bytes": 40131,
+      "sha256": "f6843444b86d43f6a77aa1d1ca6a7cc718b38992cda89ddc2538756e8698f0dd",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/runtime_coverage_probe.py",
+      "bytes": 4034,
+      "sha256": "a50d72c25e202381621c2ef27068318f64097922e4d0ea5384f14465f9c027f7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/runtime_coverage_pytest.py",
+      "bytes": 858,
+      "sha256": "603951ce35c8a55e7c52c85b9307728c803812f4b8d0c72d1aeeb5b9abec8cc3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/runtime_coverage_regressions.py",
+      "bytes": 8003,
+      "sha256": "491032cba9ac4c5166356af047bfeabbdf7df97d770c1aef8b67887a27b8b01c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified/static_miner_no_logs.py",
+      "bytes": 2127,
+      "sha256": "0e1ad7f98807cbddc6d753bd540d229e234174a54afbb8d0cfb7a1083d3e268f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/__init__.py",
+      "bytes": 74,
+      "sha256": "1620864ed76a72c09b0edd9849457f3e284e704043b5edd881d8603cf42820a4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/audit_runtime_results.py",
+      "bytes": 15716,
+      "sha256": "df0561ff6c2f8f4555a9436feeb7df0f3120b31f56d5f69d98aa5781f716509b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/run_authorized_formal.py",
+      "bytes": 6057,
+      "sha256": "2c8a2de8a8e4332a63ba60cda55ea34e63d86f66654a565242a758bf5047e12d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/runtime_coverage.py",
+      "bytes": 41603,
+      "sha256": "6891ad482c040f7a0ca5d7a837a8938567e698017ca841dd016f02f0abd2925c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/runtime_coverage_probe.py",
+      "bytes": 4034,
+      "sha256": "a50d72c25e202381621c2ef27068318f64097922e4d0ea5384f14465f9c027f7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/runtime_coverage_pytest.py",
+      "bytes": 858,
+      "sha256": "603951ce35c8a55e7c52c85b9307728c803812f4b8d0c72d1aeeb5b9abec8cc3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/runtime_coverage_regressions.py",
+      "bytes": 10181,
+      "sha256": "c6ab6612ecb6a43b49b9755998e2f595d76dbb4cfc92732cc4ced17047dbda8d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_verified_runtime_v2/summarize_runtime_failures.py",
+      "bytes": 6194,
+      "sha256": "472abef8b5f275438ef4daa60add4ad0345fa2f97057e41d407757186d36cee9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-10/实验报告_v3b_Qwen三臂总表.md",
+      "bytes": 10894,
+      "sha256": "683a555eb1395fb735fdf87615715556c8ede1ffa7a6953e184a570fb381f5d2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-10/实验报告_v3b_逐题逐臂.md",
+      "bytes": 73916,
+      "sha256": "3847056071900e18527a0d842a361aebd5c355f1a401315f7c85daf75660b242",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-300/实验报告_v3c_Qwen三臂总表.md",
+      "bytes": 48906,
+      "sha256": "ae7af49092b00d074cf653b455a1def8c2aa77eb097078395407d64025ef4203",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-300/实验报告_v3c_逐题逐臂.md",
+      "bytes": 7514609,
+      "sha256": "4f8c050e177afcb9281f36cc745d6378764313506f463a49536bce8c3eb27757",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-300/实验计划_v3b_Qwen三臂注释.md",
+      "bytes": 15946,
+      "sha256": "7cd14b844c3851e4c9520541f8c0fcf0b97d6ec6d5860e3f9eb719a23b3e7339",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-300/执行进度.md",
+      "bytes": 885,
+      "sha256": "425689d271505279ed2f99a58be7e8376e988749344e6cbd28d5b902979c730f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-300/结果对照表维护说明.md",
+      "bytes": 3088,
+      "sha256": "196f6d0bb94071d2bef807b569a61a61da00c511f938f2ba31be2c5d367feef8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/qwen-300/运行故障与恢复审计.md",
+      "bytes": 1354,
+      "sha256": "a5f9f3ba7ed427e5501eca21340acf8a7047a156d610fc6c3301e812cb01ffaa",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/sample-glm-10/实验报告_v3_节点注释三臂.md",
+      "bytes": 5343,
+      "sha256": "7e0fb9b631d591c27f5923e5c92dcd91111eb4be270bed598d0f0c97690233e1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/sample-glm-10/实验报告_v3_详细逐题逐臂.md",
+      "bytes": 23659,
+      "sha256": "0e44a14d924159bab9d79e6fac8a1455eebefdc1e038283dcb98388930954a54",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/A-B_CPU报告协调器_v3完成与历史故障.md",
+      "bytes": 2511,
+      "sha256": "527ac44ec9ff68da35f5b48ec5015725178b9026a6f33aa2301a4a321250b566",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/A-B完成后CPU报告协调器_说明.md",
+      "bytes": 3291,
+      "sha256": "d31e9532962533c06691ad0af144bea404aa49e787ef6b4f44b2fac6a84e39a8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/B-C扩后验证对照_工具与执行条件.md",
+      "bytes": 3280,
+      "sha256": "01fe27ffbc8fda6b8b2d9f19aa000a18e2e62807f8f08342a3b92e64db27c072",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/B运行覆盖过滤_30条逐条审阅与签注.md",
+      "bytes": 20024,
+      "sha256": "c68c8236d93268c6d989ddd80b3043fca7d5d010a8feebd927117f6c99ccb5a8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/B运行覆盖过滤_数据准备说明.md",
+      "bytes": 2169,
+      "sha256": "62bbb560b07ced67bedf87db80dd23e9b5cf76e7f81d5be67685f728301a2a81",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/B运行覆盖过滤_数据构建接口与守卫.md",
+      "bytes": 5649,
+      "sha256": "fc773682f429eaef247424b0eda83c50fafa433af59bc0f0a0edfd14824ece8e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/C融合扩挖_30条逐条审阅与签注.md",
+      "bytes": 41377,
+      "sha256": "ebbb5da1a7c245a608c1d633e85a8ae3e1a731bddd6edc43b3c5683c056b8c1e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/C融合扩挖_数据与质量门.md",
+      "bytes": 15454,
+      "sha256": "1157b00aa5670c867697e430adf829818fb6a13bf3bd6760721f1e448b868d30",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/E类漏过滤案例_v1-v2_专项归档.md",
+      "bytes": 25672,
+      "sha256": "6f1865dedafe4b3a26959b8030572f2d61a9eeca9c14a46ced2f45263dd7e238",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/Verified231权威清单重生成_用户裁定与执行.md",
+      "bytes": 7457,
+      "sha256": "bb0894e4ca179e8ac006b8cf4c355f9198c45fb254fb5514a8b2381d1e3a771d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/Verified与B融合_C数据准备接口.md",
+      "bytes": 12471,
+      "sha256": "dedba5d3d3f3053ac0edc4c17e19582c10e0f0fa37ab908599e747c31b4b197c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/Verified官方快照_v2与静态挖矿入口.md",
+      "bytes": 9028,
+      "sha256": "6f6d3d6a4bfd019c3b3578a8085fc2f702a4c95ca1128455e993d1c91591e3b5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/Verified官方输入与历史231池_补充预检.md",
+      "bytes": 3351,
+      "sha256": "1ea629f3b67161b4f404a55b19d7aadff18ab7c66ab752b302c38c10d803ec79",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/Verified扩挖与B融合_预检与依赖.md",
+      "bytes": 7851,
+      "sha256": "b7af8095e2761214157d23246729aab27f70a368b900e75e7c42dcd163ba775f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/Verified权威OOD重生成与扩挖准备_v3.md",
+      "bytes": 4182,
+      "sha256": "2ad70f31c6739a45e01fd5956c54af317d69b661896f3c793395f5f164fb094d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/Verified运行时覆盖_金丝雀与执行边界.md",
+      "bytes": 9378,
+      "sha256": "e4d770991b4c12b702b7abb687810b8b6dd70460e29e8ef5741a003627e85475",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/历史Qwen逐对判决复用_准备与库存.md",
+      "bytes": 5665,
+      "sha256": "c0d9e49f625fe8a55c5779c0a35247aeac7bad756148f17a720afedcdd90f2b4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_A-B_噪声披露与覆盖过滤对照.md",
+      "bytes": 2005,
+      "sha256": "8bc7d05d1bc9d3cf04e92b13d33638ea428687661c26b704c45839461ee884f7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_A线_rank8_dropout01正则处方.md",
+      "bytes": 5893,
+      "sha256": "88df35057cd2ec9c9bc833f17094b2afa4f65bef34c64b601bd680fc8d9b6524",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_A线_v3噪声披露exploratory.md",
+      "bytes": 6015,
+      "sha256": "2a078dd01057400cbc438cad705f74aa41e5de36f3168fa868588e5c08752c3b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_B线_runtime覆盖exploratory.md",
+      "bytes": 7295,
+      "sha256": "99a8028ec5f9264ae8b686c2f1e85aa5493df90e55a09fbcc097fe9152c233d9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_C线_Verified融合扩挖exploratory_共享GPUv3.md",
+      "bytes": 3899,
+      "sha256": "03abe0f58db462cab8ef0270654af35eacb28c995e2eefbe91abfc88583c040c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_C融合扩挖_总览.md",
+      "bytes": 6599,
+      "sha256": "9e751886ae7619c982394e5addcc15c1711d0dc564296304550ceff281690d32",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_D2历史止损_总览.md",
+      "bytes": 11512,
+      "sha256": "15cb9a35ca181cb0aa51867553b263ae38e67ffe427d0a5b0fa86e972ddab3b6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_总览.md",
+      "bytes": 31722,
+      "sha256": "66fb95b2ed6dccc61b44f2e05786c55f15ad784a991f49ec83231009c3a4bb88",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_逐题数据审计.csv",
+      "bytes": 161829,
+      "sha256": "782825eb1c21753f8ebc652f5aba6b429347d712a6ca3810ef85e89922863061",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_逐题数据审计.md",
+      "bytes": 38658,
+      "sha256": "d2267c2fa481dcd96b225fe86051d32a3e7d8097b96e6d6e993ef0a57e0f9293",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/执行进度.md",
+      "bytes": 19333,
+      "sha256": "e0832a19580ffb1308781813d0ac426218379a1efd84da913a54e33e82ddbb5d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/数据统计与质量门.md",
+      "bytes": 4561,
+      "sha256": "bb182ead6cca451d1e361581e2677a4559b1e27cfc56d1165ee99f4252a4d2b0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/数据重构_v2与质量门.md",
+      "bytes": 1626,
+      "sha256": "9adfe5d2f95d9fbb1848b10c76f85500dd21c3bb50dac7fddc09cd17cb9334c2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/数据重构_v3与质量门.md",
+      "bytes": 4663,
+      "sha256": "86c9a7adb5a47f9dcaa42a04e3b4f2883034269c6bf44fa94c34697e8b6063db",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/方案偏差与执行决定.md",
+      "bytes": 14862,
+      "sha256": "1dcbe6a4ca725df270be91a9870e3ef1e1391f171ba1da1ef4827cb38b07afd8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/运行时覆盖_B线.md",
+      "bytes": 28426,
+      "sha256": "e4aa4500205e2b475ae23fd32becb522e2c2058f7a072c58e1722635bead7ed0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/运行时覆盖_B线_完整金标补充审计.md",
+      "bytes": 2673,
+      "sha256": "920b99552e706da51c2b3a390e909f4bbe5dace4c2e45625eb5b34e1cfac2461",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/figures/AB_matched_validation_learning_curves.png",
+      "bytes": 190245,
+      "sha256": "b23f6c5a0220c989dbf2a613e70f21ba7df46624ee2cb95676f034b65e0bf534",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/figures/AB_matched_validation_learning_curves.svg",
+      "bytes": 101395,
+      "sha256": "c0b7a4b0675a7b819a795b49149e0466a48e2b25eee642d5dc576d73939b2c8a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/figures/A_validation_learning_curves.png",
+      "bytes": 117215,
+      "sha256": "0b2a14e3b1cc7b5259a808fc51592306e81932ae923d80116b2ac0c0a8f93679",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v5-pruner/figures/A_validation_learning_curves.svg",
+      "bytes": 74010,
+      "sha256": "03fef7b74f821ecb0203f1a4559aa8dbc4fdf9b661b29bc5423c0075eb5ed8e3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/FLEvalNew.py",
+      "bytes": 7018,
+      "sha256": "9b742c1ef60412f5835e76aa5b6cad3dbe067b632bee45850036af001eb35562",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/evalVenn.py",
+      "bytes": 5345,
+      "sha256": "728bc42c725cc5a8bc73bdf54d45387c7284d11d818db8214b291fd54311487a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/locAgentEval.py",
+      "bytes": 6799,
+      "sha256": "244ec16373109e5c7702178a1dce624ab58c43c4d994e12504c0efe161a44477",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/orcaEval.py",
+      "bytes": 8904,
+      "sha256": "5a1e3b1f6af582bc2fbd91bf38662605dcd710fa7787b16131350b5d020d8a7c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/patchEval.ipynb",
+      "bytes": 10636,
+      "sha256": "f2b7e839bcc9f0c5df67851fb5774190e53abc6437902c58138fcb3f8f0f7192",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/patchEval.py",
+      "bytes": 5059,
+      "sha256": "2735ece18beceabfe4e99b7269ec1935ef2018c6f02bee60d1ce1b5b1bcc6091",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/transformLocAgent.py",
+      "bytes": 1489,
+      "sha256": "5608a37f21458f29bdf7d2192952823b2e60f72b7b60dc792c85c5b6efeb778f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/evaluation/transformOrcaLoca.py",
+      "bytes": 2145,
+      "sha256": "481ada0016b24194588354fd73ab9c2652474dae0edefc6967ee18acdaaf9a7a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/get_repo_structure/get_patch_info.py",
+      "bytes": 2516,
+      "sha256": "a9d57e74ff2f63b1d62ccd62f03d440c4642bec3498e9d71157b3faefc1b79bf",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/get_repo_structure/get_repo_structure.py",
+      "bytes": 9779,
+      "sha256": "48dbabe5009edf16cca50acd8c79c54b6bf09b8ef7f2e6f89eb300cfdabf3bb4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/README.md",
+      "bytes": 2246,
+      "sha256": "6bdb87bda291d0ff6b2808bc2c07253ccfe8f83ce051050661b2dcd88b6c6148",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/ablation.sh",
+      "bytes": 4043,
+      "sha256": "890c236f2f9ca7c7a153811bf69536c0051a064cd1d8784196040ee582525956",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/get_lite_structure.py",
+      "bytes": 1124,
+      "sha256": "5d161c0fba7f107ffb5f74af57cc2b9e3705294d954791ec2f5d2e2596ca2082",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/get_verified_structure.py",
+      "bytes": 2225,
+      "sha256": "11a3a38a2ae5c2941e7b34394fdc4f84649eecab97ddec468b6613fb98484f5b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/patch_gen.sh",
+      "bytes": 7527,
+      "sha256": "b7f052e8aa6a0d83a02204866da1d106a03a65663d34ddab6dcb8d345cc4ab2e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/requirments.txt",
+      "bytes": 82,
+      "sha256": "3c1d5d46298cdbdf04b9171769bd0396bb937014a087a7abcb7929dd69241032",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/run_lite.sh",
+      "bytes": 992,
+      "sha256": "de4bd7a6c835ad10b9fd7cbd77c6c1add51c8fec0e39bd2140aa04afc9d34515",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/run_verified.sh",
+      "bytes": 1122,
+      "sha256": "31e76bb8ece05eb20086e7afde1c8d4dea9184ad1b3455e55e707f839b9e7b15",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/sample.sh",
+      "bytes": 1134,
+      "sha256": "ae69e4bbc249d5b5f83936c9c6058e85a5ff22d68c4307da2ea3ad377072b2d1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/sample_dataset.py",
+      "bytes": 462,
+      "sha256": "9a767642cb7d883dfa077930a8b0becae31644fe37a260f4df775427a8e1249f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/部署结果_Qwen.md",
+      "bytes": 5569,
+      "sha256": "ab0d3d92c9791689337e121c504cfa623467966f68e38cb3cc4e8bed0482cf28",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/CoSIL_core.py",
+      "bytes": 40358,
+      "sha256": "32587351760c891071455b434c6072aadcaecc3fa16da7ff518b816e088ad623",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/CoSIL_localize_file.py",
+      "bytes": 8880,
+      "sha256": "dd2464e08e13c516a350156151d048b0673b568f80e2343ed83e5de9f904a683",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/CoSIL_localize_func.py",
+      "bytes": 6429,
+      "sha256": "36cd7215095c88a7e1c63839cd0d5fb2882e999177b48cd3f635065dbaa6ab12",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/CoSIL_localize_line.py",
+      "bytes": 6477,
+      "sha256": "8e34a08d70e3883d3ce37494598110f2f0a94a6850e156fc7bc923ff8476be6d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/FL_prompt.py",
+      "bytes": 25972,
+      "sha256": "6dc3f3ebedf4d1ef48ab20165ca73ee9d2cef2514d8d24229e2e0c19133bde41",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/FL_tools.py",
+      "bytes": 8462,
+      "sha256": "696ad0ae672d873ae4698364b2d8c0755b7d4e7aef1cbf83afa112e048e138d6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/ablation_func.py",
+      "bytes": 6413,
+      "sha256": "b7c22a8afd156e1339140b3483165d54755c5bb260ea72546782ff55bb669730",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/ablation_module_call_graph.py",
+      "bytes": 8897,
+      "sha256": "b5fe8b181be7cc75b639d5251d945d02dedbbc5f74bed74c6909c43aaa276f06",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/fl/ablation_reflection.py",
+      "bytes": 8902,
+      "sha256": "8024cf647c01c38a128abcddfafc28c039444c9964252ef86aeb91436aa4785e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/api_requests.py",
+      "bytes": 7761,
+      "sha256": "823e850d02db7b5b8f2458283304fecf190ea45bf2f4fac5941317f3a5dab8e1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/compress_file.py",
+      "bytes": 5864,
+      "sha256": "7f4c52df8cc6fc42654da16ebee97d8c3776e5ef4f1f0a78a7e47b3af33da696",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/model.py",
+      "bytes": 8153,
+      "sha256": "e8fcb2798469a01b54aff901e2be64a6c5a84f9e9db654eef36a129442fd44cb",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/parse_global_var.py",
+      "bytes": 2493,
+      "sha256": "019c168505ff47d54f395d46b287f57048f521d603dde2a8beb69c1895abe115",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/postprocess_data.py",
+      "bytes": 35653,
+      "sha256": "b9e4fd04ced1809740fb219cd79fb75ae12d6def3aeaaec384623dcc4143e126",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/preprocess_data.py",
+      "bytes": 32777,
+      "sha256": "77a7013b6dd4e90185b8b497951e847071ca2b30076b9a57569e8a6a173700f6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/CoSIL/util/utils.py",
+      "bytes": 3435,
+      "sha256": "b911f4fb0d51f5ba4e9b27f10e8c0761895db02fd829b27013ed74be9fe64567",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/fl/FL.py",
+      "bytes": 26566,
+      "sha256": "f590e1c0f862917c7acb587d87a9d2ba9a1fb2dc9d6b4f3bdac33cf350d2b41b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/fl/Index.py",
+      "bytes": 11073,
+      "sha256": "b73702452d376bf34e9a1769ac91afaec099dcbf1b3f50df427d7a704528958d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/fl/combine.py",
+      "bytes": 2484,
+      "sha256": "9b149c10b66acd7540670f66a6ecb3cef1b0a5f1cd1783b943196e22403d2120",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/fl/localize.py",
+      "bytes": 23407,
+      "sha256": "ca032ae483083e484f35d0b934991d310758fcbf59d8538093755d13ac30ba98",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/fl/retrieve.py",
+      "bytes": 5569,
+      "sha256": "ead277e2718742581e443fbf36028ab349af927bb988740fc24baa9b3c932098",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/repair/repair.py",
+      "bytes": 28817,
+      "sha256": "674b7bc5b96da505f2f95d269d1c43706484276eb85dc61049cded1cf1b894ac",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/repair/rerank.py",
+      "bytes": 13571,
+      "sha256": "777e36543873960a7013f5f969d06fc125a2c221ede24835c809f9180244c3d9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/test/generate_reproduction_tests.py",
+      "bytes": 17104,
+      "sha256": "5ad389114967432d0b6c4baf533733b0e3b928e2bc2fe97d96b82ad926bd5c9d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/test/run_regression_tests.py",
+      "bytes": 8250,
+      "sha256": "5460d0e4245946e9665c5cc4c00a277cb7c2eddcdbf53984b606f08e2c3208b4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/test/run_reproduction_tests.py",
+      "bytes": 6230,
+      "sha256": "703f48f97dacbb3fbf49cb4fabfb8bb4726a6d75a200438b2cb9ef67e04310ca",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/test/run_tests.py",
+      "bytes": 21081,
+      "sha256": "540494ff524e480d0d7ccc5bad68ef633f31c6f1d97cf5c40cadecf7b6d53d78",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/test/select_regression_tests.py",
+      "bytes": 6739,
+      "sha256": "97a6ce367e5e683b93e525ef63819bb89b0473a1cbb5b45a07402927413a25bc",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/api_requests.py",
+      "bytes": 7490,
+      "sha256": "a2883dfec4d5228d1ef7722d6049006be5c37f562cf80a4fa3fe56b1652988f7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/compress_file.py",
+      "bytes": 5864,
+      "sha256": "7f4c52df8cc6fc42654da16ebee97d8c3776e5ef4f1f0a78a7e47b3af33da696",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/index_skeleton.py",
+      "bytes": 1803,
+      "sha256": "f49c36860f56278b0e2c238c92be4e938ec55c47f55f0b4b90629fd2a2a4994c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/model.py",
+      "bytes": 17943,
+      "sha256": "eaa3b35250da8f470f05278f3ff1314bf86fe84fefd3e831d709160a0ade35ae",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/parse_global_var.py",
+      "bytes": 2493,
+      "sha256": "019c168505ff47d54f395d46b287f57048f521d603dde2a8beb69c1895abe115",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/postprocess_data.py",
+      "bytes": 34120,
+      "sha256": "9ddd0f53dbdf696d4d4726d0f05f92073db7795cb62b441dbeb5f66146d05462",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/preprocess_data.py",
+      "bytes": 32781,
+      "sha256": "e05e56c655c375d9b86af012a04e4ad4c1dfcdfaa9159595beb20896f4a3e52e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/agentless/util/utils.py",
+      "bytes": 2470,
+      "sha256": "de3313b609ff87dfdaf02c8a9d1cf99f32a83f7e80c818b37e96128556d88e77",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/docs/qwen-300/实验报告_新版Qwen300_总表.md",
+      "bytes": 27931,
+      "sha256": "3f97ba748194bd12266beecd1f9045a320c60a775a9726a5e2fcc10cf3235dce",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/docs/qwen-300/实验报告_新版Qwen300_逐题逐臂.md",
+      "bytes": 6288723,
+      "sha256": "aa715b08b41f662e480924a8cc8063198bc565339a690f20aa0e34d25c4e3d4b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/docs/qwen-300/执行进度.md",
+      "bytes": 540,
+      "sha256": "15e7b2144b926ef375792a5811dd8cb3a4bb3de0e20555fdc65448df915b75af",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/FLEvalNew.py",
+      "bytes": 7040,
+      "sha256": "0ccaf4d7dce98406a3fe885fbfa558e8daa44494931751198cbc812dda81c1f0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/evalVenn.py",
+      "bytes": 5369,
+      "sha256": "51a4da80ce4cee3cd8b09fd390d56d9560c51fbb893bc560b32f597477a2be4a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/locAgentEval.py",
+      "bytes": 6801,
+      "sha256": "2b892205e0a2efbe807f26112b38394a8cfeabf94c025bb87877ce3b7b9a1cf9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/orcaEval.py",
+      "bytes": 8904,
+      "sha256": "5a1e3b1f6af582bc2fbd91bf38662605dcd710fa7787b16131350b5d020d8a7c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/patchEval.ipynb",
+      "bytes": 10636,
+      "sha256": "f2b7e839bcc9f0c5df67851fb5774190e53abc6437902c58138fcb3f8f0f7192",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/patchEval.py",
+      "bytes": 5063,
+      "sha256": "0a8e3cb95226d12cd6c63601a04e76471fb69f47fcf2b3ce013809323d691364",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/transformLocAgent.py",
+      "bytes": 1489,
+      "sha256": "5608a37f21458f29bdf7d2192952823b2e60f72b7b60dc792c85c5b6efeb778f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/evaluation/transformOrcaLoca.py",
+      "bytes": 2145,
+      "sha256": "481ada0016b24194588354fd73ab9c2652474dae0edefc6967ee18acdaaf9a7a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/get_repo_structure/get_patch_info.py",
+      "bytes": 2516,
+      "sha256": "a9d57e74ff2f63b1d62ccd62f03d440c4642bec3498e9d71157b3faefc1b79bf",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/get_repo_structure/get_repo_structure.py",
+      "bytes": 9799,
+      "sha256": "7ffc99c28203e7b8caef3302d75f6c15f433f52570e6b00c2fe3900b10d84b1f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/scripts/analyze_full_audit.py",
+      "bytes": 23527,
+      "sha256": "1cf9bc431a6dfed0902a8bfa51d1566f507eb2f493a942c17523b6845a9f5b4d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/scripts/analyze_full_audit_v2.py",
+      "bytes": 23539,
+      "sha256": "b27c5c4978c5ef37a4e0d6aa159b8982b6e4bddca2ac1074ed5a19da3cc21177",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/scripts/qwen_env.sh",
+      "bytes": 701,
+      "sha256": "673027e732c4c13e6243e3fb1c17db13f811fd9c23ff56513fd958659a5bd28d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/scripts/run_full_audit.py",
+      "bytes": 16953,
+      "sha256": "96d6ec037c02a29f95e2394a458a0ac2797b5d591080fe9364bf3c578ff4a687",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/scripts/run_parallel_audit.py",
+      "bytes": 6538,
+      "sha256": "2b599db110be08aea33f87ce03fb915d6dcefa29f9d5ccda4c3bc55afcc51b57",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL_new/scripts/run_qwen.sh",
+      "bytes": 1369,
+      "sha256": "4cb2671cf05cfb815b30ae95f186e61a05d3bcb3dc3a9e9bc72a9aa8fc646678",
+      "mode": "100755"
+    },
+    {
+      "path": "CoSIL_new/scripts/start_qwen_native_tools.sh",
+      "bytes": 738,
+      "sha256": "dd2505835eb918aa202530ae9d6fdec31e98224ef857f47ff7bb23457cda74de",
+      "mode": "100755"
+    },
+    {
+      "path": "CoSIL_new/scripts/start_qwen_replica.sh",
+      "bytes": 780,
+      "sha256": "3cee1b9aec5ebdb7b849220b6553f20d6632d15ff03afcb2017e1fa9beb2fa2c",
+      "mode": "100755"
+    },
+    {
+      "path": "CoSIL_new/scripts/validate_file_inputs.py",
+      "bytes": 798,
+      "sha256": "38ec24b03364dbe75de755bca8859426246b80fb75cfe25398eb208e31a66a92",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/README.md",
+      "bytes": 2405,
+      "sha256": "5c33cb7a57f6f8b17db6cdbda8493a8f8d46444c4bde82a74e9730f91bbacb1e",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/causal_agent.py",
+      "bytes": 8734,
+      "sha256": "40b57d637774054681278605277f78e2cf6ec9157a72f85ad88605de5a6604de",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/eval_metric.py",
+      "bytes": 5672,
+      "sha256": "eff2824147edf96b539b21ae36317212710e5d07d08e5272342242735a08479c",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/graphlocator.py",
+      "bytes": 4611,
+      "sha256": "4273f64632cb9ea4b5b28b47ecfda6e2dbe22542f875a56c8da089cb173f7b76",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/requirements.txt",
+      "bytes": 1801,
+      "sha256": "962baafc42ea21798ca65405961bed455e1de1891028f838d79b595e1cf2b961",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/search_agent.py",
+      "bytes": 6293,
+      "sha256": "c01c49233c5c9b91a55a29625799b5abd493c6b8803ca95f098aeb29a5fef949",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_exp/__init__.py",
+      "bytes": 77,
+      "sha256": "bef856afb236787111890aa38b087543b5bd2b1ad3770738a9ed122cca4c14c8",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_exp/reports.py",
+      "bytes": 14171,
+      "sha256": "9461a5449711475979d8ca11e4711c8bb4ca790ad12d2aa46a1afc444b1ea2f4",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_exp/runner.py",
+      "bytes": 17752,
+      "sha256": "d415b5731136c41b57bf77dd772d753cfe2be8f33657c1a955d6f4d8142082c7",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_exp/test_transport.py",
+      "bytes": 3261,
+      "sha256": "c972f67e2181dc69d97c1301957e45a9e3da8efba2638f68e13c3760ac841701",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_exp/transport.py",
+      "bytes": 11177,
+      "sha256": "d5140f209d1b4a647378e2145f397396d216655792843c5f72f3b209464b08a5",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_nonthinking/__init__.py",
+      "bytes": 77,
+      "sha256": "bef856afb236787111890aa38b087543b5bd2b1ad3770738a9ed122cca4c14c8",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_nonthinking/legacy_parser_audit.py",
+      "bytes": 2877,
+      "sha256": "7148131622081346baa215b8395127e7b3dd2163b20bfe48d43533e36c6b43dc",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_nonthinking/reports.py",
+      "bytes": 31626,
+      "sha256": "3688d527df131a82571f0bb218d14f28aad8a88f976ea90af9cf47da3237a294",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_nonthinking/resume.py",
+      "bytes": 8578,
+      "sha256": "4892114c65743c6c5d00d0302f8ed67b4439967f27e15d7585fed10df00ccd71",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_nonthinking/runner.py",
+      "bytes": 18068,
+      "sha256": "4e093d6f476ff7ca873ab2cde0263eb4aa2b9333d2924b563af250113e271627",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_nonthinking/test_transport.py",
+      "bytes": 6518,
+      "sha256": "ffeba1ef97fd891a19b56637d42c6d76c64d79f663696765ebb0ee47a73584e4",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deepseek_nonthinking/transport.py",
+      "bytes": 13061,
+      "sha256": "c07903bd3a8065c17894e5cb7e1269e581b787a3e0a305c777175da947df439a",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/check_pool_equivalence.py",
+      "bytes": 1915,
+      "sha256": "383a37d093c9116598ad95a0f2a5f280c65d94af7e85bc6f11b27383d4a56202",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/enrich_reports.py",
+      "bytes": 9907,
+      "sha256": "05dbf65ada8268eabf3b9b8f056cea75d30e96929a8f27cc90ded53b07e0b158",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/causal_agent.py",
+      "bytes": 8460,
+      "sha256": "1968424f7b0b751444f8125fb0097b5b169594ca679881b48b3ad35e5156788f",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/eval_metric.py",
+      "bytes": 5661,
+      "sha256": "9a72d6c2517ec0d65b7a83731e1a95708dac586ce9ce711a7e8b527f43a5165d",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/graphlocator.py",
+      "bytes": 4615,
+      "sha256": "6177b82e3b89515ab934f529ea7af6827634af5b9c436f1f7f35a5101a82f2dd",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/search_agent.py",
+      "bytes": 5515,
+      "sha256": "4b30ee79f378982470890ee59d62fc029ee4b05fcc70fa40d48c6163cad89f83",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/llms/__init__.py",
+      "bytes": 2197,
+      "sha256": "5cad0471a480cabf2085119cca402ba56853b030f3ebf687ea804f7a1fd21dc2",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/utils/action_parser.py",
+      "bytes": 5784,
+      "sha256": "662540a0def246256b6b98e830c1cd594a150eab482d8237149f4c3fe74b77f0",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/utils/convert_results.py",
+      "bytes": 3319,
+      "sha256": "0ef679817278969bef1a595f070b587c2deaef01a46cd80825ba988ed8225952",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/utils/execute_search.py",
+      "bytes": 5976,
+      "sha256": "f3f1616f74066785377f4196008dfdb275b4a1478e314243b14c1d241ebaf74c",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/deployment/upstream_snapshot/utils/string_processing.py",
+      "bytes": 5427,
+      "sha256": "f39998a6eb9222294916ae5df59ef46ceb7e5ef59245c2ef7af892f521bc8115",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/GraphLocator_Graph-Guided_Causal_Reasoning_for_Issue_Localization_FSE2026_2512.22469.pdf",
+      "bytes": 1375465,
+      "sha256": "9ca67b754054a33aa2325d0d14626cce7bc73296a25d63d28e50c4095ffcd627",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_金丝雀总览.md",
+      "bytes": 8116,
+      "sha256": "95509bbb7c478e0af4ac8053a43a70e5faa36f816de2b1f2c5805d7268661bab",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_金丝雀逐题分析.md",
+      "bytes": 13157,
+      "sha256": "1f1aeabe86cd0c47f206b63e4a57a07eeb58ab73fa6c508310bc579621262c71",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_非思考_总览.md",
+      "bytes": 18555,
+      "sha256": "ba16f8b499185de74ef4a3d703f19cee3731252ea20775257f5980ff0e909b39",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_非思考_逐题分析.md",
+      "bytes": 1326474,
+      "sha256": "a0e34cb4721714f23ad12ccb04c6e8f49f01d7ea90d0c020e78a3f829361ac5e",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_非思考_金丝雀总览.md",
+      "bytes": 12121,
+      "sha256": "94cb38c2d567770fe5d816f89a382178a95caee9bca3e5a5fa6ca019f0bdd027",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_非思考_金丝雀逐题分析.md",
+      "bytes": 28463,
+      "sha256": "4240ffe7e887a49517c3eef90af71e0f1afadf97814057c07e100dc78e8da14d",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_非思考_阶段总览.md",
+      "bytes": 14145,
+      "sha256": "2602edb49b9c9273046a6e4397a717faede9b7e9c7087e678e0b3db43b236f78",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/实验报告_GraphLocator_DeepSeek300_非思考_阶段逐题分析.md",
+      "bytes": 688253,
+      "sha256": "9afa780aa4fac30a6806bd4121d7faaeae01d594e1fc75380189295cd1e7a581",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/执行进度.md",
+      "bytes": 1331,
+      "sha256": "71b30820f182342566903d6ce48c794e1c6a6482e41204ea595d1ef9c413e05d",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/执行进度_非思考.md",
+      "bytes": 1588,
+      "sha256": "08026f421039a2ddfefa5bd7e22adb5a1f3dd03765703f39a83dc5021e2984c6",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/deepseek-300/部署与实验计划.md",
+      "bytes": 9088,
+      "sha256": "8c9d3c16952396130433c7fc53cac830ce7f7148a3617f6f9554fb85af0c8f62",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/GraphLocator_Graph-Guided_Causal_Reasoning_for_Issue_Localization_FSE2026_2512.22469.pdf",
+      "bytes": 1375465,
+      "sha256": "9ca67b754054a33aa2325d0d14626cce7bc73296a25d63d28e50c4095ffcd627",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/GraphLocator_Qwen模型适配_问题与改善计划.md",
+      "bytes": 18990,
+      "sha256": "403abe34cda56f227d6a4a5996bbaac9eee1ed219624f00c931245e0896c8b6a",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/实验报告_GraphLocator_Qwen300_总览.md",
+      "bytes": 13247,
+      "sha256": "a48ef2145fbd0234696cf9cc2435b10be83968ff86257d6c996d3b74dedb8161",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/实验报告_GraphLocator_Qwen300_逐题分析.md",
+      "bytes": 2251588,
+      "sha256": "f13abc305edee9b40bc4dc2c206c8361c29d18dde800db6c126b1c9603acd085",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/实验报告_GraphLocator_Qwen适配v2_总览.md",
+      "bytes": 12971,
+      "sha256": "77475aed647f9b1198426fd4bee182329ac7a6d05ff7a9a4e5d83b70f1013802",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/实验报告_GraphLocator_Qwen适配v2_逐题分析.md",
+      "bytes": 796153,
+      "sha256": "da8693fc42782557806eeec0282ba01f33c7897d43e50222b7083cc42a11c776",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/开发集对照与冻结审查_适配v2.md",
+      "bytes": 3882,
+      "sha256": "023c1d65d88928573a00a41eeaf3f52ba9dbd7835ff6b6ad6f4bb5a20b16fa97",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/执行进度.md",
+      "bytes": 164,
+      "sha256": "1278da4dc017ddf0f06bcd7a81fa67972705f01511f7fad2ec0e975a24633b72",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/执行进度_适配v2.md",
+      "bytes": 882,
+      "sha256": "392b89317bbfc124f5966e59280c32baafc590af2a3774d64693e7747941f8c2",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/部署与修复记录_适配v2.md",
+      "bytes": 8573,
+      "sha256": "eeb1dad46c311785d1bbd53e9677ae1f125cedb970fc6a410132b5dc411d4824",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/docs/qwen-300/部署与复现记录.md",
+      "bytes": 11460,
+      "sha256": "5f89f16cb4637c016717e4bb80e596e1cf2ade922b40d883b52c9db8e1aae560",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/llms/__init__.py",
+      "bytes": 6797,
+      "sha256": "da8c371c6437f9639278d657b3a4e41dfce05cef9c57fa51c42636e2fd467033",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/prompts/causal_agent_prompt.py",
+      "bytes": 2730,
+      "sha256": "c5c886ac0824f58d23e9ec9b855566104925727873d8f2a63eaa1acb1869fc4a",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/prompts/search_agent_prompt.py",
+      "bytes": 8240,
+      "sha256": "283649d70d3f44f848845def45e9671b3dc62c43c79452b8fafc72c4d126528d",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/__init__.py",
+      "bytes": 84,
+      "sha256": "1824a3590cc1dfa45b1d46309b0abb7274f54c8cc9d31e5dbcaa4a8238b909e9",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/causal.py",
+      "bytes": 13898,
+      "sha256": "1ee8b5feed330c7ca68b3c154079f176d7375e2608f406b7ec86ffa359383f7e",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/common.py",
+      "bytes": 5986,
+      "sha256": "ce6130dea553a2781fcfb6ff04bdb7a1bb8a5ac5a2f68b1718b0a3529cdccd6e",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/development_review.py",
+      "bytes": 4872,
+      "sha256": "9ed8fbd2f5b1ab9cfbdd1b28bdff7f6230175ecb25c89405f9ea5abe46c4c41a",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/diagnostics.py",
+      "bytes": 7651,
+      "sha256": "c704441e69e9885cdb94d9312b9c58c1db8f9804dc8e54c8a0e40258be9bdd7c",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/evaluate.py",
+      "bytes": 14207,
+      "sha256": "97c374d547dfcd241361df88cae63df727b4da35fd89959401f17e754771f9da",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/full_selected.py",
+      "bytes": 4616,
+      "sha256": "1d3433c2a98c34dbdaed4173554c5c9d2b518532d6de5b691d4ac58c4e70b029",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/reports.py",
+      "bytes": 25181,
+      "sha256": "0f745df66202f16e4558190dbfb9526e2b370340c2f3bfcc31055fdd50c8f92c",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/runner.py",
+      "bytes": 14458,
+      "sha256": "302e226a612a881859d38f4cad5cf4b509f6651b26e33efc6bb01c0a7a800ac9",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/search.py",
+      "bytes": 17242,
+      "sha256": "c02d0366e8e4fc842829ceb422ad724a6e0c8d0da128f520c7f8b764e80415e2",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/test_regressions.py",
+      "bytes": 5992,
+      "sha256": "117987d6ae29c6d4dd1d7be3effaaf3757aaa630d3d74c0478594657e01c2acd",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/test_scoring.py",
+      "bytes": 2072,
+      "sha256": "79e2dc536e9a1afaea34c25c690dd2b713a2740330ebaa5826a2163b17523f01",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/test_source_audit.py",
+      "bytes": 2666,
+      "sha256": "4cbc6700855819935c1258cba3e134e5ac44a949d52e6333e16e9e12e84ad7f6",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/qwen_adapt/transport.py",
+      "bytes": 5008,
+      "sha256": "e1363396a5fe0f7364cabbc6df635c57518a13fd9e85c88c676f9f755825a2e5",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/scripts/analyze_experiment.py",
+      "bytes": 30751,
+      "sha256": "9f3cb0253e8409f8c9f29ae12fc723f2bbdacfef03ae51351e0fb7faa25da61b",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/scripts/complete_experiment.sh",
+      "bytes": 1985,
+      "sha256": "176a55bc20d1f0b0fd7bcae906479b991595df2fb662eb62b0913ae30af0a44e",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/scripts/qwen_env.sh",
+      "bytes": 588,
+      "sha256": "2d4c9523df46a1361505f0bb123ac4c3896cfae2ef5dd5d1777b51e6796a321a",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/scripts/run_experiment.py",
+      "bytes": 14897,
+      "sha256": "db6dbf2e3d0f5f7608c7b16e0cf72725e274fedf7ddc37026fd5e8b7837afc45",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/scripts/serve_qwen.sh",
+      "bytes": 880,
+      "sha256": "f39fd94e48575683e2d4573a2a26c2b809ea7c20e4ee2a2a890809183337454c",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/scripts/serve_qwen_adapt_v2.sh",
+      "bytes": 904,
+      "sha256": "d37189fd820a5d582f24d29a6cc0ada58e57b3d43321e16ded65da2383ed74a4",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/__init__.py",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/action.py",
+      "bytes": 1033,
+      "sha256": "f0fe6f08ee01505fcf8693e358309e2d37317d92732ef4349f2e833d9cb1afd0",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/action_parser.py",
+      "bytes": 1776,
+      "sha256": "30d93d8a260c4feb015da2557ab45061dc456c91fed7b8de04e5bb281a44f3fd",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/constants.py",
+      "bytes": 106,
+      "sha256": "9b84b4e5ba06c438215e8f121f8da1d3c4cb3218b44b71d2f29b4cbfc98f8b77",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/construct_graph.py",
+      "bytes": 3693,
+      "sha256": "9efa71b47de29b938ef8508bfaaebb0f4df64103463bda8de00fec62fff91d44",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/convert_results.py",
+      "bytes": 2629,
+      "sha256": "c702d5ada4fb06cbd9cac263f0d07876bbc151ca9389e595ca535fda559745da",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/execute_search.py",
+      "bytes": 7130,
+      "sha256": "37287b8b884d8e9244121393e3ab8dc73cb4e0d88258a7dacce57d323096ddb5",
+      "mode": "100644"
+    },
+    {
+      "path": "GraphLocator/utils/string_processing.py",
+      "bytes": 5475,
+      "sha256": "d267c07b8058806764f3901c80dfb2cff5dc8e51ab975972c7ab4234ad537c01",
+      "mode": "100644"
+    },
+    {
+      "path": "跨实验对照表/跨实验逐题Top5命中表.csv",
+      "bytes": 12282,
+      "sha256": "7c4faee952fd8788198e704fa13290e576bfb1f70d64177065fea5c62d06c09e",
+      "mode": "100644"
+    },
+    {
+      "path": "跨实验对照表/跨实验逐题定位对照表.csv",
+      "bytes": 461587,
+      "sha256": "18fe653b8abff735516079701b0cfb5ed7ae99420f70373c6b8aedf08a6fae8a",
+      "mode": "100644"
+    },
+    {
+      "path": "跨实验对照表/跨实验逐题定位对照表.md",
+      "bytes": 482798,
+      "sha256": "8508a9256d320369bd7b4e222a03a6161fe2e175e94baf1d921e9c688583249d",
+      "mode": "100644"
+    },
+    {
+      "path": "跨实验对照表/跨实验逐题定位对照表.xlsx",
+      "bytes": 130443,
+      "sha256": "a80c368c7ec517758fc2150b0594cb3a79bb86ef6c0f395ff342b2ad99a717ab",
+      "mode": "100644"
+    }
+  ]
+}
