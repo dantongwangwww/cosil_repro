@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-17T21:08:47.061510+08:00",
+  "generated_at": "2026-10-17T21:18:36.403573+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 526,
+  "source_file_count": 532,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -362,6 +362,24 @@
       "path": "CoSIL/code_proposal_pilots/__init__.py",
       "bytes": 83,
       "sha256": "070df4ac63fb16392e82936467f4e9d1e8f8ef79c58ee0f4fe6ee154478c1c1c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/anchor_eval.py",
+      "bytes": 6390,
+      "sha256": "9932b30109f4fde9249f0a0dfdb86cb8fc05aae88fc02d1d9df1c7b1853f3a70",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/anchor_infer.py",
+      "bytes": 6885,
+      "sha256": "38fbc3545be460ef67c8dcab93cd9f111ce162addea6dde59d8a20df12409dba",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/anchor_prepare.py",
+      "bytes": 2407,
+      "sha256": "a1dfc9485787f700a8e278d77e4e7aa9742616a84ee9ddfd58f2be88d024881c",
       "mode": "100644"
     },
     {
@@ -1710,8 +1728,14 @@
     },
     {
       "path": "CoSIL/docs/proposal-pilots/代码改动与复现说明_2026-10-17.md",
-      "bytes": 3768,
-      "sha256": "c8ffad731c74dc83e480749e77cfaddec6a3da64d6a5ccdb61823ad160a6698e",
+      "bytes": 4445,
+      "sha256": "e832a37c362329066c15624dfdb06205cfcfa14cb9eb97afbe8f4d6621cd5bf9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/开题预研三小实验_总览.md",
+      "bytes": 1436,
+      "sha256": "c718697b73a7ebc148c44675fba71ca2090b6fd16b07222c7f064ce63205ec6e",
       "mode": "100644"
     },
     {
@@ -1724,6 +1748,18 @@
       "path": "CoSIL/docs/proposal-pilots/执行协议与预研一提示词_2026-10-17.md",
       "bytes": 6138,
       "sha256": "7bf967321a95febbbb16abcd53f598c49a8fe43fe00a1bd2a5b9955e96d738da",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/文件排序擂台_v2_预注册协议.md",
+      "bytes": 5765,
+      "sha256": "9017f8ff75bd32bb58d3b7dd18a0ee3523b84f24d0859faa9c959e4b6054c45a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/预研一_Qwen零样本三分类.md",
+      "bytes": 2126,
+      "sha256": "f48c96501d2e69039ccdf792099e16e46113a547a5a66155c348d968a4e9da30",
       "mode": "100644"
     },
     {
