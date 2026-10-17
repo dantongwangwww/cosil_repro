@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-17T21:28:20.907581+08:00",
+  "generated_at": "2026-10-17T21:51:12.430816+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 540,
+  "source_file_count": 543,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -1793,9 +1793,27 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/docs/proposal-pilots/文件排序擂台_v2_一页对比报告.md",
+      "bytes": 3740,
+      "sha256": "a8a6851940224d4eb584646e9e6c38d8b6ffbefd6305d42d7e35e1aeb7d78ed0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/文件排序擂台_v2_产物字段说明.md",
+      "bytes": 2785,
+      "sha256": "4cc428d3fe30df990c0a6ae7cbc497f8de51af747754c29ea98521866b20fd82",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/proposal-pilots/文件排序擂台_v2_代码改动与执行进度.md",
-      "bytes": 2485,
-      "sha256": "2db012815ded98038f45dcb081532cf4156719a94081956b3b4a093b783132c3",
+      "bytes": 3453,
+      "sha256": "851a6be2415aae78edea5e657b170009d799393377111d9bab57bee15a9f9ba2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/文件排序擂台_v2_核验与结果判读.md",
+      "bytes": 4030,
+      "sha256": "8e3be3e78493645fe213b69d455664583ee9e03d9f6881b430fed3bc98904333",
       "mode": "100644"
     },
     {
