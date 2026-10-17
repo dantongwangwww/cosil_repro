@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-17T09:56:02.310275+08:00",
+  "generated_at": "2026-10-17T10:04:26.213169+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 489,
+  "source_file_count": 503,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -30,8 +30,8 @@
   "files": [
     {
       "path": "CoSIL/AGENTS.md",
-      "bytes": 779,
-      "sha256": "e6757be50d9e8b698180ed70c2ca08b66042d300ee448f3c8f17cdf95ffc82ec",
+      "bytes": 1184,
+      "sha256": "0ce932f307296926141eec1cd8c5623bbbb9a93564370f2b8b03f411e98afd06",
       "mode": "100644"
     },
     {
@@ -1559,6 +1559,54 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/code_v6_round2/__init__.py",
+      "bytes": 83,
+      "sha256": "f806ed935ff6c1801f10359d5a574a642d636c48cb5e1f4ef01a91bdd7f46fe7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_round2/checks.py",
+      "bytes": 3075,
+      "sha256": "2b3e705ba1dc25fb133c3b2700ee76e661b7f31092fd4218b5ec8f3121e40f69",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_round2/common.py",
+      "bytes": 1524,
+      "sha256": "640887f871bf1d940c5aa4712f4bbbc99196ea0724e14317693a5104ef5563fa",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_round2/diagnostics.py",
+      "bytes": 2482,
+      "sha256": "28f8dbb08cc00a9325f92fd19a9d68b26ea9f09f754f12eda391cbbf2d72fc6a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_round2/prepare.py",
+      "bytes": 8331,
+      "sha256": "b2ff2f18afef1c876384a9d5e4fc21a067c15af1e2dec40407e024202448e176",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_round2/report.py",
+      "bytes": 11674,
+      "sha256": "2ffde1f731e9fbede0f82eb843760c7b1a3261773b8d7c21293e26bc665c7a14",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_round2/run.py",
+      "bytes": 9352,
+      "sha256": "3a89d8b88ab64b532f4adf482dd6d49d221fa0f000aa1c90212a6abd3fbada1d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_round2/train.py",
+      "bytes": 19492,
+      "sha256": "852a3a5fec10b4ce58b8ea665447f1114e79262059f8261a71a7b921f930f06a",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/qwen-10/实验报告_v3b_Qwen三臂总表.md",
       "bytes": 10894,
       "sha256": "683a555eb1395fb735fdf87615715556c8ede1ffa7a6953e184a570fb381f5d2",
@@ -1859,6 +1907,12 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/docs/v6-pruner/代码改动说明_T3第二轮_2026-10-17.md",
+      "bytes": 3632,
+      "sha256": "eca933c6396fa072af6e31b0ce997336321d864d3a581361313449c3f99530c4",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/v6-pruner/实验报告_v6_T0_截断分诊与Qwen实测锚.md",
       "bytes": 14149,
       "sha256": "ef3faf77fab50fd8fcdc9f4168a44102449ef379f0e41710b1e675b6547a3eb5",
@@ -1913,6 +1967,24 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_1比1权重对照.md",
+      "bytes": 5053,
+      "sha256": "3fac4818d0440ca7746f4510e80cec88896b7bae26da1e1fd5bf8d436f719f1d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_逐函数验证对照.csv",
+      "bytes": 64018,
+      "sha256": "a2b562c0e36b5029131d3ac705e8a98278ae2a67a7a9c7ec341f92e858170351",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_逐题验证分析.md",
+      "bytes": 2816,
+      "sha256": "87bac42ff4b45b7f0943f13e00d2a8ec1865b0998b6cc1600ae2bf6c03285326",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/v6-pruner/实验报告_v6_总览.md",
       "bytes": 1931,
       "sha256": "133f762bb055363d3f812da9a643938021bdace9e2c6d99601382748cea96213",
@@ -1922,6 +1994,18 @@
       "path": "CoSIL/docs/v6-pruner/执行进度.md",
       "bytes": 2316,
       "sha256": "901b87de9706ad7dc23f4f3a0766854469103e0e2f48832c974ea7e9a2405138",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/执行进度_T3第二轮.md",
+      "bytes": 522,
+      "sha256": "18190a93f84b21e20d21abd1535891667d619f7fc36ee68f46331473b4d1e243",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/指令_v6_T3首轮判读与第二轮_2026-10-17_原始快照.md",
+      "bytes": 3925,
+      "sha256": "67361f06e8e8332d3a60f2026549922f7edabaac53b7b042d7cfe46d1547d21a",
       "mode": "100644"
     },
     {
