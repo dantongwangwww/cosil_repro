@@ -1,0 +1,70 @@
+"""Describe only materialized, hash-frozen T2 data and pre-training gate protocol."""
+from collections import Counter
+from code_v6.common import OUT,DOCS,read,rows,now,sha,verify_files,test_stats,write
+
+def build_report():
+    target=OUT/'T2_dataset_v6';freeze=read(target/'freeze_manifest.json');verify_files(freeze['artifacts_sha256'])
+    stats=read(target/'statistics.json');a=read(target/'eligibility_audit.json');prov=read(target/'provenance.json')
+    assert test_stats()==prov['test_stat_only'];verify_files(prov['historical_sha256'])
+    protocol=read(target/'qualification_protocol.json');recipe=stats['input_recipe']
+    rr={s:rows(target/f'pruner_{s}.jsonl') for s in ['train','val']}
+    lines=['# 实验报告 v6 T2：数据重建与资格门冻结','',
+        f'生成：{now()}。状态：**数据及资格协议已冻结，等待用户确认；T3 未启动**。', '',
+        '本轮执行已获批准的T0处方：issue上限8000字符、函数8192字符，加入从base commit直接调用图提取的通用邻居摘要，每个方向最多16个邻居。机械标签保持；从现有已审阅C合并池派生，复用B和Verified覆盖产物，没有新挖题、重跑测试或生成标签。', '',
+        'C池已包含B；随后C审阅排除的6条旧B错误不能以“B保留”为由补回。v6保留两轮已签审阅的16个排除对；完整保留其审阅来源。这里的“合格”指可追溯的静态与运行时资格，不能据此声称语义无噪声。', '',
+        '| 数据 | 原C训练 | v6训练 | 原C验证 | v6验证 |', '|---|---:|---:|---:|---:|',
+        f'| 总对数 | {a["input_counts"]["train"]} | {stats["pairs"]["train"]} | {a["input_counts"]["val"]} | {stats["pairs"]["val"]} |']
+    for g,label in [('gold_AB','gold A/B正例'),('C_positive','C代理正例'),('E_negative','E负例'),('D_only_negative','D-only负例')]:
+        old_train={'gold_AB':574,'C_positive':3899,'E_negative':4378,'D_only_negative':4560}[g]
+        old_val={'gold_AB':76,'C_positive':162,'E_negative':352,'D_only_negative':124}[g]
+        lines.append(f'| {label} | {old_train} | {sum(r["distribution_group"]==g for r in rr["train"])} | {old_val} | {sum(r["distribution_group"]==g for r in rr["val"])} |')
+    lines += ['',f'原C train/val纯静态回退负例分别归档{a["static_fallback_archived"]["train"]}/{a["static_fallback_archived"]["val"]}对，不进入v6训练或验证。实际覆盖{stats["issues"]["train"]}/{stats["issues"]["val"]}个issue，既有instance_id切分保持、没有迁移题目。TEST717未复制到新数据目录；只保留外部封存文件stat引用。', '',
+        f'逐条重放原Lite与Verified对应的严格核验器，复核{a["runtime_result_count"]}份被样本引用的运行时结果及trace SHA：测试选择精确、FAIL_TO_PASS在call阶段失败、来源导入与base一致、完整gold覆盖、无截断/映射错误，以及候选不在覆盖集且不在不可映射文件中。Verified复用既有186题/88题合格覆盖成果；{a["runtime_result_count"]}是本次train/val样本实际引用的Lite＋Verified结果数，不是新增覆盖题数。', '',
+        '双证据仍是排除代理：动态派发、未跟踪进程、未复现路径、缺陷修复与因果相关性定义之间的差异都可能留下标签噪声。此次没有重新做30条语义审阅，也没有将其记为审阅通过；继承既有签注与错样排除。目标是输入可见性与分布修复，不能称作新“干净金标”。', '',
+        '## 输入与实际可见性', '',
+        f'固定邻居摘要总上限{recipe["neighbor_chars"]}字符。按caller/callee函数ID、文件、调用行和列稳定排序，每个邻居保留第一个具体调用点及其物理源码行（最多160字符）；不以gold、标签、补丁或issue相关性选择。摘要只是静态上下文，不是因果标签。', '',
+        f'公共正文预算{recipe["body_token_budget"]} token，原生包装总上限{recipe["token_cutoff"]}，至少预留64 token答案。使用本地0.6B reranker与Qwen2.5-Coder-7B的真实tokenizer计数；超预算先删末尾邻居整行，再缩函数扩展段、issue扩展段，始终保留旧2000/1500前缀。实际token预算进一步裁剪{stats["token_budget_trimmed_pairs"]}对。', '',
+        '| 已实测tokenizer | 最大原生prompt token |', '|---|---:|']
+    for name,n in stats['actual_max_prompt_tokens'].items():lines.append(f'| {name} | {n} |')
+    lines += ['', '未来T3各底座必须对冻结正文重做tokenizer适配验证，禁止静默二次截断；旧JudgeCodec内置2000/1500裁剪，不能直接用它训练v6。本轮新增独立input_format模块与input_version检查。推理仅传model_input正文，不传label、source、gold、anchor或审阅信息。', '',
+        '| C代理正例 | 总数 | 原1500前缀可见 | v6最终文本可见 | 可见率前→后 |', '|---|---:|---:|---:|---:|']
+    old_visibility=read(OUT/'T0_visibility/audit.json')['summary']
+    for split,x in stats['C_visibility'].items():
+        old=old_visibility['C:'+split]['causes']['visible']
+        lines.append(f'| {split} | {x["rows"]} | {old} | {x["visible"]} | {old/x["rows"]:.2%} → {x["visible"]/x["rows"]:.2%} |')
+    lines += ['', '可见性按最终保留的自身完整物理调用行、或包含对应调用点的邻居摘要行检查；摘要中的源码摘录仍截为160字符，不能据此保证完整多行表达式/动态语义。T0的16邻居覆盖是未经过总预算的模拟，上表以最终实际文本为准。尚未可见的正例仍按原标签保留并单独登记，不利用标签挑邻居。**这是输入证据可见率，不是分类accuracy或定位命中率；尚不能据此判断模型成绩提升。**', '',
+        '## 分布对齐', '',
+        '采用加权，保留所有合格样本；验证集不加权。训练平均sample_weight=1，加权正负总质量维持1:2，在各标签内部匹配合格val的gold/C与E/D比例。验证集经双证据筛选后，D-only占比本身发生变化，不能继续拿原C的26.05%作为新目标。', '',
+        '| 条件占比 | 训练原始 | 训练加权 | 合格val | 加权差pp |', '|---|---:|---:|---:|---:|']
+    for key,label in [('D_only_within_negative','负例中D-only'),('C_within_positive','正例中C代理'),('gold_AB_within_positive','正例中gold A/B')]:
+        lines.append(f'| {label} | {stats["raw_distribution"][key]:.2%} | {stats["weighted_training_distribution"][key]:.2%} | {stats["validation_distribution"][key]:.2%} | {stats["alignment_absolute_gaps"][key]*100:.6f} |')
+    lines += ['', '| 训练组 | 每例权重 |', '|---|---:|']
+    for g,w in stats['training_weights'].items():lines.append(f'| {g} | {w:.8f} |')
+    ess=sum(r['sample_weight'] for r in rr['train'])**2/sum(r['sample_weight']**2 for r in rr['train'])
+    lines += ['', '≤10pp对齐门按加权样本质量通过，原始行数比例仍不对齐，两者均披露。E权重变化是整体分布校正的一部分；本轮同时改变输入与样本资格，不能当作E权重单因素实验或把效果单独归因于E噪声。权重定义为逐例loss归一加权；生成底座先对每例答案token平均，再按样本权重聚合，不能误按token长短重配数据。', '',
+        f'额外限制：这里只对齐指令指定的三个标签内条件占比，并非证明与线上部署总体同分布。为沿用原训练正负1:2，总加权正例占比为33.33%，与合格val的{stats["validation_distribution"]["positive_fraction"]:.2%}仍不同；后续校准与风险门必须在不加权val上如实检验。Kish权重有效样本量为{ess:.1f}（仅权重集中度指标，不等于独立issue数），实际独立划分单位仍是issue。', '',
+        'C类仍是基于直接静态调用的代理正例，而非人工确认的因果正例；增加可见调用上下文只能修复输入缺证据，不能自动消除C正例或E负例的语义标签噪声。', '',
+        '## 训练前冻结的新资格门', '',
+        '| 项目 | 冻结判据 |', '|---|---|',
+        '| Qwen锚 | 历史部分实测26/37=70.27%，+2pp为72.27%；因覆盖<50%、自适应选择偏差及新val口径变化，仅报告，不设硬门 |',
+        '| gold直剪风险 | 校准后p≤0.6的gold A/B数÷全部gold A/B；按issue聚类bootstrap 95% CI上界≤15% |',
+        '| 混合集剔除precision | 校准后p≤0.6直剪集合内TN/(TN+FN)；同法95% CI下界≥0.85 |',
+        '| AUC/accuracy/E剔除率 | 连续p_yes AUROC、p≥0.5二分类accuracy、E正确直剪率分别报告；不设硬门 |', '',
+        '将precision主口径冻结为真实hybrid直剪边界p≤0.6，因为这是部署实际承担的风险；旧二分类p<0.5的剔除precision另列，禁止拿它替代部署precision。gold直留p≥0.9、直剪p≤0.6、灰区0.6<p<0.9分别报告；灰区属于升级Qwen，不能算直接保留，也不能算直接误剪。', '',
+        '温度仅在完整、不加权val上最小化二元NLL；阈值0.6/0.9固定。bootstrap seed20261016、4000次，以issue有放回抽样，保留同题全部行，报告双侧percentile95%区间。温度在重采样中固定；因此区间以已拟合T为条件，不能涵盖同val校准、选模与多轮调参的不确定性。遇到无分母重采样不能静默丢弃；经验CI零宽时披露退化并不自动认证通过，需要追加证据裁定，不能用全零误剪推断零风险。', '',
+        '选模gold保护优先：先最低gold直剪CI上界，再最高混合剔除precision CI下界，最后accuracy；两个风险门都需通过。离线门仅初筛，**最终裁判权在金丝雀端到端非劣效**。未训练、未产生v6预测，因此此处是判据冻结，不是成绩或通过结论。', '',
+        '## 质量、冻结与执行问题', '',
+        '切分按issue保持，train/val正文hash重新去重及冲突检查。test只沿用既有切分、旧前缀保护与上游去重证据，没有重新扫描test、没有声称完成新的全test近重复审计。源图hash、Git blob/AST、模型可见文本、runtime结果与trace、tokenizer文件、代码和协议均绑定SHA。', '',
+        '部署预检保留两次失败现场：①旧定位JSONL缺test_patch/FAIL_TO_PASS，切换本地官方Lite元数据；②Verified的collector采用完整existing gold，必须重放其对应核验器，不能套Lite旧before-only收据。均在输出训练数据前失败，未改原收集器或降低资格规则，最终统一通过各自原严格核验。', '',
+        f'冻结目录：`{target}`。冻结清单SHA：`{sha(target/"freeze_manifest.json")}`。数据/协议产物逐项SHA在freeze_manifest.json。', '',
+        '- [冻结清单](../../results/v6_pruner/20261016/T2_dataset_v6/freeze_manifest.json)',
+        '- [资格协议](../../results/v6_pruner/20261016/T2_dataset_v6/qualification_protocol.json)',
+        '- [统计与权重](../../results/v6_pruner/20261016/T2_dataset_v6/statistics.json)',
+        '- [运行时资格复核](../../results/v6_pruner/20261016/T2_dataset_v6/eligibility_audit.json)',
+        '- [逐对最终可见性](../../results/v6_pruner/20261016/T2_dataset_v6/C_rendered_visibility.jsonl)',
+        '- [数据来源与hash](../../results/v6_pruner/20261016/T2_dataset_v6/provenance.json)', '',
+        'TEST717继续封存，历史B/C/C-E报告与跨实验定位矩阵、旧checkpoint均未修改。T1另有独立管线报告；T2冻结不代表T1非劣效获证。按执行序列，下一步需用户确认本轮数据和新资格门后，才进入T3。']
+    (DOCS/'实验报告_v6_T2_数据重建与资格门冻结.md').write_text('\n'.join(lines)+'\n')
+    return stats
+
+if __name__=='__main__':build_report()

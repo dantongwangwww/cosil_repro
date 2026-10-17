@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-15T15:53:29.602890+08:00",
+  "generated_at": "2026-10-17T09:56:02.310275+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 438,
+  "source_file_count": 489,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -28,12 +28,6 @@
     }
   ],
   "files": [
-    {
-      "path": "交接文档_v5_给Codex.md",
-      "bytes": 10519,
-      "sha256": "7f38f0799953e31eef9c3c49c18d35b362e79576fe7929193ca0adc05c62b731",
-      "mode": "100644"
-    },
     {
       "path": "CoSIL/AGENTS.md",
       "bytes": 779,
@@ -971,6 +965,54 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/code_v5_e_weight_ablation/__init__.py",
+      "bytes": 76,
+      "sha256": "e5f2a4b593d7dcf897bfb1e322b5737d8a351055ea071f8d5bf83ededd899ac6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_e_weight_ablation/checks.py",
+      "bytes": 7577,
+      "sha256": "5cbb9fa805408ed4fe6dda0a678ad973487553f807fdc2d433055be336278095",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_e_weight_ablation/freeze.py",
+      "bytes": 5870,
+      "sha256": "d2a084545a67e73ddb128a938d8ba81bedea9d27878cf2ea0d6f5ab6ebf7ea07",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_e_weight_ablation/losses.py",
+      "bytes": 2564,
+      "sha256": "ff3f426b097047d2d84af9ad0901dcece42c2d6641723eaa5878612fa3b246ca",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_e_weight_ablation/policy.py",
+      "bytes": 7224,
+      "sha256": "2bd8f1abd653535f3b4101688cb90b135f1feaf3614d019059adbe891e7e8308",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_e_weight_ablation/report.py",
+      "bytes": 15419,
+      "sha256": "f6a83c0ef81939f65950f7de353e0a3ec9498f4c6988ef1ae5e466c8e557662b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_e_weight_ablation/run_experiment.py",
+      "bytes": 6791,
+      "sha256": "2216e54e9b584b6dac727ceb7539b648f8c7e8315515d479d564569bfad698ef",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v5_e_weight_ablation/train_judges.py",
+      "bytes": 26717,
+      "sha256": "0a21b6993dbd4b8c41a877224c1715e856656276b44998c59fc8ca2cda398b26",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/code_v5_expanded/__init__.py",
       "bytes": 88,
       "sha256": "d952b9261315fbce5dc02a3b489105c649a8e624b19727f613ccbf8d3ee16caf",
@@ -1355,6 +1397,168 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/code_v6/__init__.py",
+      "bytes": 80,
+      "sha256": "93f128d04823a036320ff8a647630dd359ece19dbc4d9b79e0b99dc70fa1f714",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/assess_T3.py",
+      "bytes": 2438,
+      "sha256": "406b7f3cf794869bafe789210bc7fa0313893dba5b73db57af38bec098b8ede4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/audit_visibility.py",
+      "bytes": 16456,
+      "sha256": "4b6dc09311319b8675c691aa8d4bcd53d5edf8cbd5278d264c2670d8ed359938",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/build_T2.py",
+      "bytes": 18222,
+      "sha256": "c5a4425cbc21d012b03077dde118f7040cba568ca710efed02f18391a94c622b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/common.py",
+      "bytes": 2891,
+      "sha256": "784e1e9a803b2d551af66bc76c876252ac46ffbdabb78ef7b53aa951e4f6734c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/fetch_T3_models.py",
+      "bytes": 2529,
+      "sha256": "2401085fe9b30750bd322dab3b9edf9a68020d90ee01c84e81280d918fcfd44f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/fetch_T3_urllib.py",
+      "bytes": 4772,
+      "sha256": "33cddb69c30fd3863232b8fd74c5d60a95989bdea113e9e7ba48ba00747c0536",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/finalize_T3.py",
+      "bytes": 5713,
+      "sha256": "0369a5d62ca0aca8707c062f0896b4b140f18d2d87879fc7f06af0ccccb3c2c5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/historical_anchor.py",
+      "bytes": 7956,
+      "sha256": "023b8b2277435a4ffc59d4a60d353ab9d08fbc8bc58e14986aeafba1b0a72fff",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/input_format.py",
+      "bytes": 2659,
+      "sha256": "f92a7fd44727a5f770f9216a5bc9d2b438f6ae31c30c16f82379a198db8e8ec8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/monitor_T3_recovery.py",
+      "bytes": 3031,
+      "sha256": "457412a3a930f3c15dd9dbffa8e6ab728077213bfc0b5e0c9bb7fbb3b76b786a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/prepare_T3.py",
+      "bytes": 3904,
+      "sha256": "f63955aaa57f37ee4432a9140732d32d8e33a612ec8f25cfc7d134f20905edf9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/prepare_canary.py",
+      "bytes": 7653,
+      "sha256": "b450ace8565f20fb4b918c6e6a37b10ded9c6abfbc3d2a79a889c25b94627f6e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/qualification.py",
+      "bytes": 4989,
+      "sha256": "72e72d9fbb5de880f415177ffa555a2b0176ceb7c40defd920b6c60afe689019",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/recover_T3_swerank.py",
+      "bytes": 1247,
+      "sha256": "e20ee1d890671514a01e1707d750ddaa5d4ffeb96725bc96bb2711e309d2012c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/report_T0.py",
+      "bytes": 18225,
+      "sha256": "08691ad7f820aa930cd35d5d633e70ccf8a740054f5e65ebdc0f6ae9276f422f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/report_T1.py",
+      "bytes": 4873,
+      "sha256": "fae59b1dbffbbfa522f10096efa23369acc5a2543e349268f392d6f6b3ae64f5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/report_T1_audit.py",
+      "bytes": 9774,
+      "sha256": "43ddbaea82e147a9c455d5e214c408e0acd34a947b883a768fb171324e233992",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/report_T2.py",
+      "bytes": 11791,
+      "sha256": "6e5a0c53cfd7314f470a46108b8e0a3b6d30da5376efddb2529c93310c4f73fa",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/report_T3.py",
+      "bytes": 13984,
+      "sha256": "d3efa9545edf761bfe432f4ac0a48ee8bfb9efe170d0a0abfa33f4c870e5cc53",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/report_progress.py",
+      "bytes": 6479,
+      "sha256": "135a57740e7a1bc9e688d85d3e7c4e2bb8f5844b1d3b5a91d265926113079a27",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/run_T1.py",
+      "bytes": 14227,
+      "sha256": "6390f85028bbb33752878329ab901e29ae94c72f60c4a7c02890e23504e8031c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/run_T3_sequence.py",
+      "bytes": 2592,
+      "sha256": "c22702df120f25002566f7c47029ef2a39dcc9e421ec876aba71ef01001220c4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/supervise_T3_download.py",
+      "bytes": 2280,
+      "sha256": "50fe96a63045c301910fcaebeb07e2eedb398c1fdd36a0309a023da18b314210",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/train_T3.py",
+      "bytes": 19155,
+      "sha256": "d7d96641d5e9dff28664b41ab4b6211bd4e768cfcae8ca1f09c30979b53b1b63",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/training_codec.py",
+      "bytes": 3210,
+      "sha256": "6b2e47215bcc609fc4be083c69547a0875038da98107979b73792fa02e236d7d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6/watch_T3_progress.py",
+      "bytes": 445,
+      "sha256": "44fede757dbd4f73e52aec88be4ceac096db48ee05df3d5e189b129505cf930e",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/qwen-10/实验报告_v3b_Qwen三臂总表.md",
       "bytes": 10894,
       "sha256": "683a555eb1395fb735fdf87615715556c8ede1ffa7a6953e184a570fb381f5d2",
@@ -1469,6 +1673,12 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/docs/v5-pruner/E训练权重单因素对照_方案与冻结口径.md",
+      "bytes": 4176,
+      "sha256": "b851cc3deaa6fd99400b70734f8c201af40944a6549d3578ae6f783871faf47d",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/v5-pruner/Verified231权威清单重生成_用户裁定与执行.md",
       "bytes": 7457,
       "sha256": "bb0894e4ca179e8ac006b8cf4c355f9198c45fb254fb5514a8b2381d1e3a771d",
@@ -1559,9 +1769,15 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/docs/v5-pruner/实验报告_v5_E权重单因素对照.md",
+      "bytes": 9330,
+      "sha256": "dd2f9549eed3dcb6ce5e8d834fa89aec54d1352bb7fe529543382df23ab22a20",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/v5-pruner/实验报告_v5_总览.md",
-      "bytes": 31722,
-      "sha256": "66fb95b2ed6dccc61b44f2e05786c55f15ad784a991f49ec83231009c3a4bb88",
+      "bytes": 37619,
+      "sha256": "03114ac05d0bdabc9210f189ef6793786768785de5df3d04e05719511671dc1c",
       "mode": "100644"
     },
     {
@@ -1578,8 +1794,8 @@
     },
     {
       "path": "CoSIL/docs/v5-pruner/执行进度.md",
-      "bytes": 19333,
-      "sha256": "e0832a19580ffb1308781813d0ac426218379a1efd84da913a54e33e82ddbb5d",
+      "bytes": 20549,
+      "sha256": "16fa872738333233669fba2ca45fe6bc34f73c545ee43b3e140a41d75a2ff523",
       "mode": "100644"
     },
     {
@@ -1640,6 +1856,78 @@
       "path": "CoSIL/docs/v5-pruner/figures/A_validation_learning_curves.svg",
       "bytes": 74010,
       "sha256": "03fef7b74f821ecb0203f1a4559aa8dbc4fdf9b661b29bc5423c0075eb5ed8e3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T0_截断分诊与Qwen实测锚.md",
+      "bytes": 14149,
+      "sha256": "ef3faf77fab50fd8fcdc9f4168a44102449ef379f0e41710b1e675b6547a3eb5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T1_B版管线金丝雀.md",
+      "bytes": 4016,
+      "sha256": "d69240b7dff6bbf094442d14ec5ed491b5b4c94825709ed0f24bb8103ac929cb",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T1_结果与行为审计.md",
+      "bytes": 7844,
+      "sha256": "941b5130bb119b6787fe6807a41447bb3091c45e70334d52d6869246056cf507",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T1_运行故障与重试.md",
+      "bytes": 2104,
+      "sha256": "c1ac516048272c68d7f220dda02dcb5cc0b6b4232f8101f42d344658db8af537",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T1_首次尝试_显存不足.md",
+      "bytes": 3979,
+      "sha256": "b4f8f452cf037a035d939ca109c2b427486d372fd0f1c2d2011d14d131f7223c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T2_数据重建与资格门冻结.md",
+      "bytes": 9173,
+      "sha256": "3c5bc1cc34fb684fd8ecf7a8c784549fe0816faa9538bed8b04cb6370b93ee84",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3_逐函数验证对照.csv",
+      "bytes": 137820,
+      "sha256": "6a7fe4407c45caafdc18ed87959746bf5fc7e56ecc2dc9b3149969ef9e300c81",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3_逐题验证分析.md",
+      "bytes": 11489,
+      "sha256": "c5c03ede081244c43ab6d58a12cbccb6a71968ac4cf42c5231a44e1d38a80a8f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3_首轮底座赛马.md",
+      "bytes": 8995,
+      "sha256": "4d85176740f293f345cfafb0422e7a1b7739c54a0a5079cb2f9ce8ea509df5c2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_总览.md",
+      "bytes": 1931,
+      "sha256": "133f762bb055363d3f812da9a643938021bdace9e2c6d99601382748cea96213",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/执行进度.md",
+      "bytes": 2316,
+      "sha256": "901b87de9706ad7dc23f4f3a0766854469103e0e2f48832c974ea7e9a2405138",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/指令_v6执行序列_2026-10-16_原始快照.md",
+      "bytes": 8362,
+      "sha256": "eb28e44296ff7d994794b2bbbd9c3f1d1906a2eac45f5792a49782d6dad36726",
       "mode": "100644"
     },
     {
@@ -2630,6 +2918,24 @@
       "path": "GraphLocator/utils/string_processing.py",
       "bytes": 5475,
       "sha256": "d267c07b8058806764f3901c80dfb2cff5dc8e51ab975972c7ab4234ad537c01",
+      "mode": "100644"
+    },
+    {
+      "path": "交接指令/交接文档_v5_给Codex.md",
+      "bytes": 10519,
+      "sha256": "7f38f0799953e31eef9c3c49c18d35b362e79576fe7929193ca0adc05c62b731",
+      "mode": "100644"
+    },
+    {
+      "path": "交接指令/指令_v6_T3首轮判读与第二轮_2026-10-17.md",
+      "bytes": 3925,
+      "sha256": "67361f06e8e8332d3a60f2026549922f7edabaac53b7b042d7cfe46d1547d21a",
+      "mode": "100644"
+    },
+    {
+      "path": "交接指令/指令_v6执行序列_2026-10-16.md",
+      "bytes": 8362,
+      "sha256": "eb28e44296ff7d994794b2bbbd9c3f1d1906a2eac45f5792a49782d6dad36726",
       "mode": "100644"
     },
     {
