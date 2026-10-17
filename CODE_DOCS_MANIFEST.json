@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-17T20:39:09.901975+08:00",
+  "generated_at": "2026-10-17T21:08:47.061510+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 514,
+  "source_file_count": 526,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -356,6 +356,42 @@
       "path": "CoSIL/code_dataset_audits/hifl_verify.py",
       "bytes": 9534,
       "sha256": "a3e6e9a8ca28287da9b9d52eec7195cff6906e060d3029b613a06b00e6992919",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/__init__.py",
+      "bytes": 83,
+      "sha256": "070df4ac63fb16392e82936467f4e9d1e8f8ef79c58ee0f4fe6ee154478c1c1c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/audit.py",
+      "bytes": 10751,
+      "sha256": "0100e57195dccf6d92998496550ec26868986d6e2ecd11e7be47717c9185506c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/common.py",
+      "bytes": 5229,
+      "sha256": "feb2e0d8889639bae74509f4f36b9d2e4518c1857b74411d070ac684a0c94b58",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/coverage.py",
+      "bytes": 10874,
+      "sha256": "e5785c29377ff479c55c92ffb57ef1e9372a14f0c49b02d921aec2d1f9cac4c4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/ppr.py",
+      "bytes": 14644,
+      "sha256": "6aae8ae28989b3f7b536f7d8d3d5e7b46b1b9bb4a0e2889b5ea9a3a725945ef6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_proposal_pilots/report.py",
+      "bytes": 6172,
+      "sha256": "b7b340728c4b7f764c05d479ed5cbf6f3c912e41b1af6dc1c7b4dff126b77fdb",
       "mode": "100644"
     },
     {
@@ -1670,6 +1706,42 @@
       "path": "CoSIL/docs/dataset-audits/HiFL-44k_数据集总览.md",
       "bytes": 13784,
       "sha256": "5c8d8de0daaf825ad5b100105cc91a8469dd22b8f95adc3f6e4becc99f97a291",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/代码改动与复现说明_2026-10-17.md",
+      "bytes": 3768,
+      "sha256": "c8ffad731c74dc83e480749e77cfaddec6a3da64d6a5ccdb61823ad160a6698e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/开题预研三小实验_阶段总览.md",
+      "bytes": 3742,
+      "sha256": "fbb6393d133300513b198f9566fd86731a61242cb1eedf0db2b3215ac0241469",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/执行协议与预研一提示词_2026-10-17.md",
+      "bytes": 6138,
+      "sha256": "7bf967321a95febbbb16abcd53f598c49a8fe43fe00a1bd2a5b9955e96d738da",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/预研三_失败路径覆盖与Top5定位验证.md",
+      "bytes": 2375,
+      "sha256": "4c7474d438c7806768a71b28d349cfb9996a516952e25f2fc8b1d38bbfbf99b9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/预研三_逐题统计与核验补充.md",
+      "bytes": 1070,
+      "sha256": "5ddb5cec9ef32fb8f07678edd1ac32890788bc2df654a2860977236e15ae0e5b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/proposal-pilots/预研二_PPR全300题与MMR文件召回.md",
+      "bytes": 2660,
+      "sha256": "ef3472c5f1530a4cefea5761ec81ad72b89a2ae180189dfd8e8add0a3bb3eda6",
       "mode": "100644"
     },
     {
