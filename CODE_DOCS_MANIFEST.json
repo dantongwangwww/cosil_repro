@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-17T16:05:06.340998+08:00",
+  "generated_at": "2026-10-17T20:39:09.901975+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
   "source_file_count": 514,
   "secret_scan": "passed",
@@ -2034,20 +2034,20 @@
     },
     {
       "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_1比1权重对照.md",
-      "bytes": 6324,
-      "sha256": "0cd07c0e37882fce18b5140eed2c4c2e0d8564760963c4a64465d5a34a6eb36d",
+      "bytes": 7335,
+      "sha256": "7707b431dde3d04ca129b2623146ca8dbd468f3e8958166562d65351dcbccbad",
       "mode": "100644"
     },
     {
       "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_逐函数验证对照.csv",
-      "bytes": 74594,
-      "sha256": "e1a8066a82e11eb8684fe648d126be61841bd00a38fd39573f582a76ab8a2f2e",
+      "bytes": 96180,
+      "sha256": "99202caa7dd80c11efea4be9364f9c166ef79576e59e6999ebf35998de1833a0",
       "mode": "100644"
     },
     {
       "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_逐题验证分析.md",
-      "bytes": 2861,
-      "sha256": "690e402af82dd1571ceb7201e083daae7d9b7219561b0e0e9dde43da8d52c180",
+      "bytes": 2951,
+      "sha256": "32789c00afd8e21a37edbac24d72117368f356157017cdb3acf1797a3286965f",
       "mode": "100644"
     },
     {
@@ -2064,8 +2064,8 @@
     },
     {
       "path": "CoSIL/docs/v6-pruner/执行进度_T3第二轮.md",
-      "bytes": 968,
-      "sha256": "25de20ac3d6993dd7d78720365328a6888067cc1380ddf6552c923e5fab1116f",
+      "bytes": 859,
+      "sha256": "61f192f27767a1a5c4de31f09439ed778c46b7e177c029b73ac137b6ddec6802",
       "mode": "100644"
     },
     {
