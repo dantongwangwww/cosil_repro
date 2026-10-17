@@ -15,10 +15,11 @@ def extract(problem):
     marker=re.search(r'(?im)^\s*###\s*GitHub Problem Description\s*###\s*\n',problem)
     if not marker:return 'unknown','',problem[:3000]
     tail=problem[marker.end():]
-    stop=re.search(r'(?im)^\s*###\s*(?:Repository|Relevant|File|Code|Suspected|Context|###)',tail)
+    stop=re.search(r'(?im)^\s*###\s*(?:Repository|Skeleton|Relevant|File|Code|Suspected|Context|###)',tail)
     if stop:issue=tail[:stop.start()].strip()
     else:
         end=tail.find('\n###\n');issue=tail[:end].strip() if end>=0 else tail.split('---\n\nCANDIDATE ANSWERS:')[0].strip()
+    issue=re.sub(r'\n\s*###\s*$','',issue).strip()
     prefix=problem[:marker.start()];task=prefix.split('TASK DEFINITION & CONTEXT:')[-1].strip()
     low=task.lower()
     if 'list of files' in low:kind='file_relevant'

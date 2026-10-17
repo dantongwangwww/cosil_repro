@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-17T15:36:34.689089+08:00",
+  "generated_at": "2026-10-17T16:05:06.340998+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 503,
+  "source_file_count": 514,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -326,6 +326,36 @@
       "path": "CoSIL/agentless/util/utils.py",
       "bytes": 2470,
       "sha256": "de3313b609ff87dfdaf02c8a9d1cf99f32a83f7e80c818b37e96128556d88e77",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_dataset_audits/__init__.py",
+      "bytes": 79,
+      "sha256": "e8e5edac39101b5553f51c69d71bc7656a32e6ecfb66c5a731b18e10c78c2dba",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_dataset_audits/hifl_analyze.py",
+      "bytes": 7517,
+      "sha256": "50acdf0b9f1dcec906f85d6910c4b7bb93b1e566d5cde7cfd297d66c0399aae3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_dataset_audits/hifl_download.py",
+      "bytes": 6063,
+      "sha256": "adb03a971594cc3b2ce196afccdcb2d493dad801d034a6d5594daa447da8ad23",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_dataset_audits/hifl_report.py",
+      "bytes": 20199,
+      "sha256": "678e9a91ab11874a2109dc2ff3d579728296cf019f3619af0ac2785a85cb53ef",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_dataset_audits/hifl_verify.py",
+      "bytes": 9534,
+      "sha256": "a3e6e9a8ca28287da9b9d52eec7195cff6906e060d3029b613a06b00e6992919",
       "mode": "100644"
     },
     {
@@ -1607,6 +1637,42 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/docs/dataset-audits/HiFL-44k_30行逐条核验.md",
+      "bytes": 41667,
+      "sha256": "403eaa3fc1f1a0b29b45b00e6c0b109bc62f7f9c19adfdb5d0c783a55976cc68",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/dataset-audits/HiFL-44k_SWE-bench仓库名单.csv",
+      "bytes": 3322,
+      "sha256": "d14f7573601d1ef9d8a68cb0cfe33c8cb9d47016a9030d3ae0285c2c9dd7d7fe",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/dataset-audits/HiFL-44k_下载文件清单.csv",
+      "bytes": 592,
+      "sha256": "8dab796e681947dc6fe4ab5ccbef96c5a29cdd72b147a94fafacff60fa068fee",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/dataset-audits/HiFL-44k_全量URL提及清单.csv",
+      "bytes": 23518,
+      "sha256": "adaac799f2c7cbb6a82b0c7a485f866d7aa63563c840f22d0359764628709e29",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/dataset-audits/HiFL-44k_抽样源仓分布.csv",
+      "bytes": 1523,
+      "sha256": "690299c802af80dc2d8fb90a2ffb0f077d6318e68cfbc5c811220d7dae6cb5b5",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/dataset-audits/HiFL-44k_数据集总览.md",
+      "bytes": 13784,
+      "sha256": "5c8d8de0daaf825ad5b100105cc91a8469dd22b8f95adc3f6e4becc99f97a291",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/qwen-10/实验报告_v3b_Qwen三臂总表.md",
       "bytes": 10894,
       "sha256": "683a555eb1395fb735fdf87615715556c8ede1ffa7a6953e184a570fb381f5d2",
@@ -1969,7 +2035,7 @@
     {
       "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_1比1权重对照.md",
       "bytes": 6324,
-      "sha256": "10465dcfeb6fce55c0d5baff777fbec70a51a8cedb2b53df12386d5e42b9f4e2",
+      "sha256": "0cd07c0e37882fce18b5140eed2c4c2e0d8564760963c4a64465d5a34a6eb36d",
       "mode": "100644"
     },
     {
@@ -1981,7 +2047,7 @@
     {
       "path": "CoSIL/docs/v6-pruner/实验报告_v6_T3第二轮_逐题验证分析.md",
       "bytes": 2861,
-      "sha256": "572abc267092d2d79de0414f68215cec0b54eb967d4a80d493619fdc4b5c3ed0",
+      "sha256": "690e402af82dd1571ceb7201e083daae7d9b7219561b0e0e9dde43da8d52c180",
       "mode": "100644"
     },
     {
@@ -1999,7 +2065,7 @@
     {
       "path": "CoSIL/docs/v6-pruner/执行进度_T3第二轮.md",
       "bytes": 968,
-      "sha256": "c063a050ac380d730365f2c53c4c05e80286f69a6b4740416818aa167d607420",
+      "sha256": "25de20ac3d6993dd7d78720365328a6888067cc1380ddf6552c923e5fab1116f",
       "mode": "100644"
     },
     {
