@@ -22,8 +22,8 @@ def event_stats(events):
         'neighbor_calls':sum(e['neighbor_edges_selected']>0 for e in local)}
 
 
-def run():
-    f=verify();s=read(OUT/'status.json');results=read(OUT/'paired_results.json')
+def run(verification=None):
+    f=(verification or verify)();s=read(OUT/'status.json');results=read(OUT/'paired_results.json')
     d=read(OUT/'val_route_diagnostic.json');config=read(OUT/'deployment_parameters.json')
     sample=read(OUT/'sample_and_off_reuse.json');ids=sample['selected_issue_ids']
     all_events={};audit=[];events_gold=[];compare={}
@@ -62,12 +62,18 @@ def run():
         totals=Counter();off_totals=Counter();newusage=Counter();offusage=Counter()
         for iid in rec:
             totals.update(rec[iid]['total_usage']);off_totals.update(matched[iid]['total_usage'])
-            newusage.update(rec[iid]['usage']);offusage.update(matched[iid]['usage'])
+            newusage.update(rec[iid]['usage'])
+            # Legacy HTTP attempt counts are unknown (None), and the explanatory
+            # note is text. Aggregate only measured numeric usage, preserving
+            # missing historical attempts as unknown in a separate field.
+            offusage.update({k:v for k,v in matched[iid]['usage'].items() if isinstance(v,(int,float)) and not isinstance(v,bool)})
         lat=[x for r in rec.values() for x in r['local_latency_seconds']]
         flat=[x for rr in ev.values() for x in rr if x['event']=='small_judge']
         routes=Counter(x['route'] for x in flat)
         compare[arm]={'completed':len(rec),'paired':results['paired'][arm],
-            'off_pruner_usage':dict(offusage),'v2_pruner_usage':dict(newusage),'T1_B_hybrid_pruner_usage':dict(t1),
+            'off_pruner_usage':dict(offusage),'off_HTTP_attempts':None,
+            'off_HTTP_attempts_note':'Historical v3c did not record actual HTTP attempts; unknown, not zero',
+            'v2_pruner_usage':dict(newusage),'T1_B_hybrid_pruner_usage':dict(t1),
             'off_all_Qwen_usage':dict(off_totals),'v2_all_Qwen_usage':dict(totals),
             'routes':dict(routes),'gray_fraction':routes['qwen']/len(flat) if flat else None,
             'local_judge_median_seconds':statistics.median(lat) if lat else None,

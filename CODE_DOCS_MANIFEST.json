@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-19T17:11:30.155472+08:00",
+  "generated_at": "2026-10-19T17:27:18.274005+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 552,
+  "source_file_count": 557,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -1691,9 +1691,21 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/code_v6_canary_v2/audit.py",
+      "bytes": 10745,
+      "sha256": "0c777f53aa0cd36ab3794a143fe9085aa264d8a48dd49326317af93ae7042888",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/code_v6_canary_v2/common.py",
       "bytes": 1644,
       "sha256": "d5966c6f4b2b040c54f5500ddda72fb441c34b5e44067e76436277915cee2d98",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_v6_canary_v2/finalize_reporting.py",
+      "bytes": 2238,
+      "sha256": "215669a95070746c420ffaf610522bd0c652551935d78da75b1a8bd2a2282f8d",
       "mode": "100644"
     },
     {
@@ -1722,8 +1734,8 @@
     },
     {
       "path": "CoSIL/code_v6_canary_v2/report.py",
-      "bytes": 14420,
-      "sha256": "667570643b490271e29b5125188399c73af85dacb8e08c80b565dbb4da8ca8e9",
+      "bytes": 14929,
+      "sha256": "43cd1d7b4f04c8bd328878627cb8c1fd5d33ce12c3c1bc9f834ccd4d70cebeec",
       "mode": "100644"
     },
     {
@@ -2279,6 +2291,24 @@
       "mode": "100644"
     },
     {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_金丝雀v2_SweRank晋级.md",
+      "bytes": 15749,
+      "sha256": "eff9465f94e854f2f6e5ff55e0c2871eef52afba4c64d2fca97d235600720de9",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_金丝雀v2_逐题对照.csv",
+      "bytes": 2323,
+      "sha256": "b62d21df43dc6469116c81ea17a0c8827bb62e329696e50bcc3a67df11f6c591",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/v6-pruner/实验报告_v6_金丝雀v2_逐题行为分析.md",
+      "bytes": 23225,
+      "sha256": "1ca0d140e508555f509459ce8df5f97bae3804b0d7e6c6360a2081a190656a48",
+      "mode": "100644"
+    },
+    {
       "path": "CoSIL/docs/v6-pruner/执行进度.md",
       "bytes": 2316,
       "sha256": "901b87de9706ad7dc23f4f3a0766854469103e0e2f48832c974ea7e9a2405138",
@@ -2304,8 +2334,8 @@
     },
     {
       "path": "CoSIL/docs/v6-pruner/金丝雀v2_执行协议与代码改动_2026-10-19.md",
-      "bytes": 5338,
-      "sha256": "4a1546b7ba5987cc9725b71ad9e940a6c1f0a54f9467095fb2516239d4908480",
+      "bytes": 7113,
+      "sha256": "034e9b963f1bf68753d9743e5fe2baf0674435182d43c21ee536119e74e206a4",
       "mode": "100644"
     },
     {
