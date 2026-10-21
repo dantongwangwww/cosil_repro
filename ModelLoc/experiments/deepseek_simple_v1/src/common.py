@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 ROOT=Path(__file__).resolve().parents[1]
 COSIL=Path('/mnt/skygruop0/home/wdt/cosil_repro/CoSIL')
-RUN_ID='20261021_nonthinking_v1'
+RUN_ID='20261021_nonthinking_v2'
 RUN=ROOT/'runs'/RUN_ID
 
 def digest(data):

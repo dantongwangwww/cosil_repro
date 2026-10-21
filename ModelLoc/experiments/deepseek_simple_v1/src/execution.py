@@ -74,11 +74,11 @@ def sandbox_batch(batch_file,name):
     # Hide the entire experiment-parent tree, then re-expose only source code,
     # base snapshots, clean jobs, model files, and this run's writable receipts.
     argv=['bwrap','--die-with-parent','--new-session','--unshare-pid','--ro-bind','/','/',
-          '--proc','/proc','--dev-bind','/dev','/dev','--tmpfs',str(COSIL.parent),
+          '--proc','/proc','--dev-bind','/dev','/dev','--tmpfs','/tmp','--tmpfs',str(COSIL.parent),
           '--ro-bind',str(ROOT),str(ROOT),'--bind',str(RUN),str(RUN),
           '--tmpfs',str(ROOT/'evaluator_private'),'--tmpfs',str(ROOT/'manifests'),
           '--tmpfs',str(ROOT/'reports')]
-    for name_ in ['afl','code_v3b','code_v5','code_v6','code_v6_canary_v2','code_v6_round2',
+    for name_ in ['afl','get_repo_structure','code_v3b','code_v5','code_v6','code_v6_canary_v2','code_v6_round2',
                   '.venv-v5','models_v5/Qwen3-Reranker-0.6B','models_v6/SweRankLLM-Small']:
         p=COSIL/name_;argv+=['--ro-bind',str(p),str(p)]
     config=read(ROOT/'configs/resolved_config.json')
@@ -86,7 +86,7 @@ def sandbox_batch(batch_file,name):
     if (RUN/'test_chain').exists():argv+=['--tmpfs',str(RUN/'test_chain')]
     env=dict(os.environ,PYTHONPATH=str(ROOT)+':'+str(COSIL),PYTHONDONTWRITEBYTECODE='1',
              HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',OMP_NUM_THREADS='2',
-             OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1',TOKENIZERS_PARALLELISM='false')
+             OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1',TOKENIZERS_PARALLELISM='false',TIKTOKEN_CACHE_DIR=str(RUN/'shared_cache/tiktoken'))
     argv+=['--chdir',str(ROOT),'--',str(COSIL/'.venv-v5/bin/python'),'-m','src.worker_batch',str(batch_file)]
     log=(RUN/'batches'/(name+'.log')).open('a')
     return subprocess.Popen(argv,env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)

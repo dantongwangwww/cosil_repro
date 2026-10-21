@@ -7,6 +7,8 @@ import httpx
 from openai import OpenAI
 from .common import RUN,write,read,digest,utc
 
+_CLIENTS={}
+
 class BudgetExceeded(RuntimeError):pass
 class UnexpectedThinking(RuntimeError):pass
 class ModelMismatch(RuntimeError):pass
@@ -93,7 +95,7 @@ def usage_cost(usage,tier):
 class Provider:
     def __init__(self,method,iid,out):
         self.method,self.iid,self.out=method,iid,Path(out);self.seq=0
-        self.deepseek=method.startswith('D-');self.client=None
+        self.deepseek=method.startswith('D-');self.client=_CLIENTS.get(self.deepseek)
 
     def ask(self,messages,stage,*,max_tokens=2048,json_mode=False,temperature=0.):
         if (RUN/'emergency_stop.json').exists():raise UnexpectedThinking('Global API safety stop is active')
@@ -113,6 +115,7 @@ class Provider:
             self.client=OpenAI(base_url='https://api.deepseek.com' if self.deepseek else 'http://127.0.0.1:7333/v1',
                 api_key=credential() if self.deepseek else 'token-abc123',max_retries=0,timeout=240,
                 http_client=httpx.Client(trust_env=False,timeout=240))
+            _CLIENTS[self.deepseek]=self.client
         # UTF8 byte upper bound covers all visible tokens plus role wrappers.
         upper=len(json.dumps(messages,ensure_ascii=False).encode())+128*len(messages)+1024
         key=self.method+'|'+self.iid
