@@ -17,11 +17,21 @@ python -m src.cli prepare
 python -m src.cli preflight
 python -m unittest discover -s tests -v
 python -m src.cli run-localization --cohort smoke
-python -m src.cli report --cohort smoke
+CUDA_VISIBLE_DEVICES="" python analysis/complete_reports.py --cohort smoke
 python -m src.cli run-localization --cohort lite_pilot
-python -m src.cli report --cohort lite_pilot
+CUDA_VISIBLE_DEVICES="" python analysis/complete_reports.py --cohort lite_pilot
 ```
 
 推理进程只接收 jobs 中 issue、base源代码与结构；evaluator_private 保存补丁/测试/金标，不属于模型输入。调用保存在 runs 的每题每臂 calls。密钥从既有受权限保护文件或环境读取，日志不写密钥。跨进程预算锁在调用前保留最坏费用，未知计费的失败请求不释放保留额度。USD真实价和统一峰时未缓存价并列。固定7 CNY/USD只供预算估算。
 
 参考：[论文](https://arxiv.org/html/2610.21073)、[DeepSeek官方版本和价格](https://api-docs.deepseek.com/quick_start/pricing/)、[非思考接口](https://api-docs.deepseek.com/guides/thinking_mode/)。本地论文及执行方案已随改动前备份提交 `dc92d99c6301db4ae67c9f4901021ce319c66f7f`，562文件远端blob核验通过。
+
+## 单题性能与工具审计（2026-10-21补充）
+
+`analysis/performance_and_tools.py`只读回执、事件和base源码，分别统计提议/解析/实际执行/参数有效/返回源码/裁判收到/搜索agent收到。搜索agent收到必须同时有context_accept及后续成功请求中的完整源码；API原生tool_calls与CoSIL文本DSL分列。DSML仅在离线做结构诊断，不调用工具、不修改轨迹、不事后救回失败题。
+
+`analysis/complete_reports.py`生成含表A–H、逐题分析、时长/token均值/中位数/IQR/P95、原口径辅助评分和工具审计的最终报告。`--wait`仅等待已经授权的控制器退出，随后汇总，不启动推理或后续阶段。当前有独立tmux报告会话，五十题全部落盘、服务关闭后自动运行。
+
+报告层按协议的path::qualified_name身份处理同名property getter/setter，并拒绝测试/文档路径；保留原排名槽位。既有推理源码、模型、提示词和阈值保持冻结。关于初版评分唯一span过严、DSML格式、费用重放去重及未知时延NA的更正见reports/工具与性能审计_实现说明.md。
+
+修改前已发布GitHub备份2797347855f58a7739e98a6f9aee8fee9e44b6d5。代码/文档发布不含模型、分词器资源、原始日志、数据、结果CSV或封存test。

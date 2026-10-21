@@ -1,110 +1,143 @@
 # 强模型简单流程与复杂定位对照实验报告
 
-本报告阶段：smoke；run_id：20261021_nonthinking_v3。实际状态截至 2026-10-21T08:50:26.392782+00:00。
+更新：2026-10-21T09:27:20.599781+00:00。本报告集合：**smoke**；总授权P0五题＋P1五十题；run：`20261021_nonthinking_v3`。当前集合状态：四组均已执行完成。
 
-## 1. 一页结论
+本轮新增用户要求已落实：每题/每阶段耗时与输入输出token；模型提出的工具调用、真实执行、参数/返回核验，以及源码是否送进裁判和搜索agent。详见[完整工具与时延审计](smoke_单题时长_token与工具使用审计.md)。
 
-当前只执行 P0/P1。外部100题、修复30题和可选High诊断均为 **NOT_RUN，待独立阶段放行**。函数定位结果不能证明修复能力。
+一页结论
 
-D-SIMPLE 为 CQ2-inspired simple baseline；整文件流程取自论文算法1和附录B，增加函数级排序。模型、题集、提示词与上下文细节不同，不复刻论文修复率。
+- **D-SIMPLE**：函数Hit@5 100.00%，Macro-Recall@5 100.00%；严格可映射N=2；状态{'complete': 5}。
+- **D-COSIL**：函数Hit@5 100.00%，Macro-Recall@5 100.00%；严格可映射N=2；状态{'complete': 5}。
+- **Q-COSIL**：函数Hit@5 0.00%，Macro-Recall@5 0.00%；严格可映射N=2；状态{'complete': 4, 'failed': 1}。
+- **Q-PRUNER**：函数Hit@5 0.00%，Macro-Recall@5 0.00%；严格可映射N=2；状态{'complete': 4, 'failed': 1}。
 
-## 2. 环境、数据和复现信息
+D-SIMPLE是**CQ2-inspired simple baseline**：保留论文的五次文件选择、哈希分组、交集回退与整文件输入，增加一次函数级排序。当前是定位开发对照，不能据此声称复刻论文修复率，或用未运行的修复成绩支持替代结论。
 
-冻结题集 5 题、12 个仓库。按仓分层、SHA256确定性抽样；5题冒烟与50题开发集不重叠，排除所有已发现封存test manifest中的issue。test未读取或哈希。
+表A：数据与执行完整性
 
-数据版本：`local-sha256:ff0e6c3b63c8c2237f3d3d29e7d11904a9cd075df7e9348b6001c207c88eabed`；当前上游revision仅记录来源，不冒称与带harness附加列的本地Arrow逐字相同。
+| 集合 | 预选题数 | 实际仓库数 | 文件gold有效 | 函数完全映射 | 部分映射 | 不可映射 | 修复验证 |
+|---|---:|---:|---:|---:|---:|---:|---|
+| smoke | 5 | 4 | 5 | 2 | 2 | 1 | 仅1题空/gold补丁执行链通过 |
+| lite_pilot | 50 | 12 | 50 | 41 | 7 | 2 | NOT_RUN |
 
-正式文件gold限已有非测试Python源文件。函数gold按改动行和base/fixed AST映射，新增函数、模块级改动单列；主表仅完全可映射题，部分映射另报。所有方法同一gold和分母。无效预测、重复预测保留原排名槽位，Precision@k分母固定k。
+P0/P1互不重叠；先排除30个既有封存holdout issue ID，再按仓分层确定性抽样，不按预测好坏选题。公开Lite数据的test split为本轮基准，不等于被封存的pruner test。后者不读取、不哈希。
 
-## 3. 方法与实际参数
+数据本地精确版本：`local-sha256:ff0e6c3b63c8c2237f3d3d29e7d11904a9cd075df7e9348b6001c207c88eabed`。上游revision只记录来源，不冒称与本地harness附加列逐字相同。逐题base commit、金标映射证据和失败记录已落盘。
 
-DeepSeek官方别名deepseek-flash，文档对应DeepSeek-V4.1-Flash-1017；/models返回较宽泛的DeepSeek-V4.1-Flash，分别留档。每次请求显式thinking=disabled且不传reasoning_effort；若返回思考内容则停。
+表B：文件级结果（全体预选题，失败保留分母）
 
-D-SIMPLE：5独立同提示请求、哈希L0/L1/L2、交集空则L0；最多5整文件、80K o200k参考token，跳过超长整文件；一轮至多4固定字符串查询，每条至多2新文件、证据总12K。源码正文不插行号，外部标题记录路径、行范围和SHA。
-
-D/Q-COSIL：保留文件反思、节点目录、至多10轮工具/剪枝、最终Top5；D侧全角色换同一个DeepSeek，Q侧7333原配置Qwen。语义格式重采样按本方案禁用，失败计入，未修补答案。上下文能力差异属于实际系统比较，不能解读为等上下文因果实验。
-
-Q-PRUNER：沿用最新已冻结SweRank epoch1，温度1.74059755321、0.6/0.9默认路由及v6长输入/现场邻居摘要。该检查点此前金丝雀止损，作为既有探索方案对照，不称已验证优胜者；本轮不重新选择。
-
-## 4. 文件级定位结果
-
-| 方法 | 已运行/分配 | Hit@1 | Hit@3 | Hit@5 | Recall@5 | Precision@5 | F1@5 | AllCoverage@5 | MRR@10 |
+| 方法 | N | Hit@1 | Hit@3 | Hit@5 | Macro-Recall@5 | Precision@5 | Macro-F1@5 | AllCoverage@5 | MRR@10 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| D-SIMPLE | 5/5 | 80.00% | 80.00% | 80.00% | 80.00% | 16.00% | 26.67% | 80.00% | 80.00% |
-| D-COSIL | 5/5 | 60.00% | 80.00% | 80.00% | 80.00% | 16.00% | 26.67% | 80.00% | 70.00% |
-| Q-COSIL | 5/5 | 40.00% | 40.00% | 40.00% | 40.00% | 8.00% | 13.33% | 40.00% | 40.00% |
-| Q-PRUNER | 5/5 | 40.00% | 40.00% | 40.00% | 40.00% | 8.00% | 13.33% | 40.00% | 40.00% |
+| D-SIMPLE | 5 | 80.00% | 80.00% | 80.00% | 80.00% | 16.00% | 26.67% | 80.00% | 80.00% |
+| D-COSIL | 5 | 60.00% | 80.00% | 80.00% | 80.00% | 16.00% | 26.67% | 80.00% | 70.00% |
+| Q-COSIL | 5 | 40.00% | 40.00% | 40.00% | 40.00% | 8.00% | 13.33% | 40.00% | 40.00% |
+| Q-PRUNER | 5 | 40.00% | 40.00% | 40.00% | 40.00% | 8.00% | 13.33% | 40.00% | 40.00% |
 
-## 5. 函数级定位结果
+表C：函数级严格主表
 
-| 方法 | 严格N/部分N | Hit@1 | Hit@3 | Hit@5 [95%CI] | Recall@5 | Precision@5 | F1@5 | AllCoverage@5 | MRR@10 |
+| 方法 | 严格N | Hit@1 | Hit@3 | Hit@5 [95%CI] | Macro-Recall@5 | Precision@5 | Macro-F1@5 | AllCoverage@5 | MRR@10 |
 |---|---:|---:|---:|---|---:|---:|---:|---:|---:|
-| D-SIMPLE | 2/2 | 50.00% | 100.00% | 100.00% [100.00%, 100.00%] | 100.00% | 20.00% | 33.33% | 100.00% | 75.00% |
-| D-COSIL | 2/2 | 50.00% | 100.00% | 100.00% [100.00%, 100.00%] | 100.00% | 20.00% | 33.33% | 100.00% | 75.00% |
-| Q-COSIL | 2/2 | 0.00% | 0.00% | 0.00% [0.00%, 0.00%] | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
-| Q-PRUNER | 2/2 | 0.00% | 0.00% | 0.00% [0.00%, 0.00%] | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| D-SIMPLE | 2 | 50.00% | 100.00% | 100.00% [100.00%, 100.00%] | 100.00% | 20.00% | 33.33% | 100.00% | 75.00% |
+| D-COSIL | 2 | 50.00% | 100.00% | 100.00% [100.00%, 100.00%] | 100.00% | 20.00% | 33.33% | 100.00% | 75.00% |
+| Q-COSIL | 2 | 0.00% | 0.00% | 0.00% [0.00%, 0.00%] | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
+| Q-PRUNER | 2 | 0.00% | 0.00% | 0.00% [0.00%, 0.00%] | 0.00% | 0.00% | 0.00% | 0.00% | 0.00% |
 
-部分可映射题只在辅助表计其可映射目标；不与完全可映射主分母混合。更多k=1/3/5/10指标见method_summary.csv。
+函数主分母仅完全可映射题。部分可映射的可映射目标辅助Hit@5分别为：D-SIMPLE 100.00% (N=2)；D-COSIL 100.00% (N=2)；Q-COSIL 50.00% (N=2)；Q-PRUNER 50.00% (N=2)。全部k=1/3/5/10指标保存在method_summary.csv。
 
-## 6. 单次补丁生成与测试结果
+统一身份为精确`path::qualified_name`；重复或无效预测占原槽位，Precision@k固定除以k。同限定名的property getter/setter共享这一身份，不要求只有一个源码span；叶名歧义仍无效。报告层补正初版“必须唯一span”的过严判定，并按方案拒绝测试/文档Python路径；保留原始预测，所有方法同一规则。
 
-| 上游方案 | 统一修复器 | 预选N | Resolved@1 | 状态 |
-|---|---|---:|---|---|
-| D-SIMPLE / D-COSIL / Q-PRUNER | DeepSeek非思考（计划） | NOT_RUN | NOT_RUN | P3未授权启动；Docker socket无权限 |
+既有口径兼容辅助表（原gold、叶名＋分组/去重；不混入严格主表）
 
-P0单题执行链只核验原生兼容环境可否运行FAIL_TO_PASS（空补丁失败、gold补丁通过），不计为模型修复成果，不替代后续官方容器判定。
+| 方法 | 同一预选题中原gold有效N | 原口径函数Top5 |
+|---|---:|---:|
+| D-SIMPLE | 5 | 80.00% |
+| D-COSIL | 5 | 80.00% |
+| Q-COSIL | 5 | 20.00% |
+| Q-PRUNER | 5 | 20.00% |
 
-## 7. Token、费用、计算量和时延
+原111/293只作300题历史背景；这里重新评分同一50题的本轮预测，不将两个不同题集的百分比直接相减。
 
-| 方法 | 输入/输出token | API实际USD | 统一峰时未缓存USD | 中位/P95秒 | 状态分布 |
-|---|---:|---:|---:|---:|---|
-| D-SIMPLE | 547124/2168 | 0.087718656 | 0.1667388 | 138.6175075666979/139.8120852738619 | {'complete': 5} |
-| D-COSIL | 449768/7379 | 0.047522544 | 0.1437852 | 183.22171282488853/326.2616240205243 | {'complete': 5} |
-| Q-COSIL | 372437/4328 | None | None | 96.47818732168525/118.10174059979617 | {'complete': 4, 'failed': 1} |
-| Q-PRUNER | 368139/4262 | None | None | 116.57742404099554/171.64651973228902 | {'complete': 4, 'failed': 1} |
+表D：上下文与错误分解
 
-API美元按[官方价格](https://api-docs.deepseek.com/quick_start/pricing/)：缓存/未缓存/输出分别按峰闲时计费。跨价时边界或缺缓存字段的费用单列保守上界，不伪称精确账单。7 CNY/USD只作预算换算。未知计费失败请求保留最坏预算；全阶段$10、每题每API臂¥0.5软/¥1.5硬限，累计400Ktoken；输入按UTF8字节保守预约，可能早于真实token上限触发。
+| 方法 | Edit-set Recall | Context-file Recall | 完整gold函数可见率 | 无效输出题率 | agent无源码仍定位题率 | gold直剪实际事件 | 参考代码token均值 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| D-SIMPLE | 80.00% | 80.00% | 100.00% | 0.00% | 0.00% | 0 | 38025 |
+| D-COSIL | 80.00% | 60.00% | 75.00% | 20.00% | 20.00% | 0 | NA |
+| Q-COSIL | 40.00% | 20.00% | 25.00% | 80.00% | 20.00% | 0 | NA |
+| Q-PRUNER | 40.00% | 20.00% | 25.00% | 60.00% | 40.00% | 0 | NA |
 
-GPU0用于7333主Qwen，GPU2用于冻结裁判；不使用GPU1、不动他人进程。墙钟时延含队列、CPU构图与首次模型加载，不能当GPU计算秒；未取得直接GPU计算时长则标NA，本地算力不冒称免费。
+已取回后误剪必须由gold目标与对应拒绝事件逐条对齐；单凭最终没命中无法归因误剪。上表gold直剪专指小裁判reject；完整事件见gold_direct_rejection_events.csv。源码返回、裁判看过、进入搜索请求三种事件在工具审计分列。
 
-## 7.1 可选10题High思考诊断
+工具实际使用（全部动作与真实执行，exit单列；不是API原生tool_calls）
 
-NOT_RUN：未获额外授权，不自动启动。
+| 方法 | 动作响应 | 解析通过 | 真实执行 | 执行成功 | 返回源码 | 裁判收到 | agent收到 | 解析失败 | 工具错误 | DSML离线完整/全部 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| D-COSIL | 42 | 32 | 29 | 29 | 29 | 29 | 16 | 10 | 0 | 7/10 |
+| Q-COSIL | 40 | 40 | 40 | 19 | 19 | 19 | 12 | 0 | 21 | 0/0 |
+| Q-PRUNER | 40 | 40 | 40 | 16 | 16 | 16 | 9 | 0 | 24 | 0/0 |
 
-## 8. 同题配对比较与不确定性
+DeepSeek确有成功源码工具调用，也有DSML文本漏出；请求的CoSIL接口要求Python式文本，原解析器不支持DSML。其中结构完整、重复竖线偏离、缺标签、无效目标分别归档；离线辨识不追认成真实执行。Qwen也会调用，但可能给错文件、混用独立函数/类方法工具、重复同一错误参数。格式合格不保证目标存在，调用成功不保证定位正确。
 
-| 对比 | 指标 | 严格配对N | 均值差 | issue bootstrap95% | 按仓cluster95% | A胜/B胜 |
-|---|---|---:|---:|---|---|---:|
-| D-SIMPLE vs D-COSIL | function_hit_5 | 2 | 0.00% | [0.0, 0.0] | [0.0, 0.0] | 0/0 |
-| D-SIMPLE vs D-COSIL | function_recall_5 | 2 | 0.00% | [0.0, 0.0] | [0.0, 0.0] | 0/0 |
-| D-SIMPLE vs Q-PRUNER | function_hit_5 | 2 | 100.00% | [1.0, 1.0] | [1.0, 1.0] | 2/0 |
-| D-SIMPLE vs Q-PRUNER | function_recall_5 | 2 | 100.00% | [1.0, 1.0] | [1.0, 1.0] | 2/0 |
-| Q-PRUNER vs Q-COSIL | function_hit_5 | 2 | 0.00% | [0.0, 0.0] | [0.0, 0.0] | 0/0 |
-| Q-PRUNER vs Q-COSIL | function_recall_5 | 2 | 0.00% | [0.0, 0.0] | [0.0, 0.0] | 0/0 |
+表E：统一修复器与正式测试
 
-每项10,000次同题重采样，固定seed20261021。三项预设Hit@5对比的精确双侧McNemar作Holm修正，见CSV。没有预设非劣界；区间跨0或p>0.05不能证明等效。Lite开发题与既有训练/反复分析同源，只支持可行性结论。
+| 上游 | 统一修复器 | N | 补丁解析 | 应用率 | Resolved@1 | 环境失败 | 单题总费 |
+|---|---|---|---|---|---|---|---|
+| D-SIMPLE / D-COSIL / Q-PRUNER | DeepSeek非思考（计划） | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN |
 
-## 9. 失败分解和代表案例
+P0执行链为一题空补丁失败、gold补丁通过，只证明原生兼容测试可运行。Docker socket无权限，不冒充官方隔离harness的Resolved。P2外部100题/P3修复30题均不自动启动。
 
-| 方法 | Edit-set Recall | Context-file Recall | 完整gold函数可见率 | 无效输出率 | 未给agent源码仍定位 | gold直接剪掉事件 |
-|---|---:|---:|---:|---:|---:|---:|
-| D-SIMPLE | 80.00% | 80.00% | 100.00% | 0.00% | 0.00% | 0 |
-| D-COSIL | 80.00% | 60.00% | 75.00% | 20.00% | 20.00% | 0 |
-| Q-COSIL | 40.00% | 20.00% | 25.00% | 80.00% | 20.00% | 0 |
-| Q-PRUNER | 40.00% | 20.00% | 25.00% | 60.00% | 40.00% | 0 |
-- `Q-COSIL/matplotlib__matplotlib-24149`：ValueError，CoSIL semantic format retry disabled by protocol；证据 `/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/deepseek_simple_v1/runs/20261021_nonthinking_v3/smoke/Q-COSIL/matplotlib__matplotlib-24149`。
-- `Q-PRUNER/matplotlib__matplotlib-24149`：ValueError，CoSIL semantic format retry disabled by protocol；证据 `/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/deepseek_simple_v1/runs/20261021_nonthinking_v3/smoke/Q-PRUNER/matplotlib__matplotlib-24149`。
+表F：定位成本与典型时延（修复未运行）
 
-工具读到、裁判收到、搜索agent最终看到源码分开记录。没有逐事件证据时不将漏召回写成误剪因果。模型能根据函数名给出定位，因此源码未读而输出不代表实际检索成功。
+| 方法 | API USD/题（实际） | USD/题（峰时无缓存） | 平均输入/输出token | 平均请求数 | 平均秒 | 中位秒 [P25–P75] | P95秒 | GPU秒/题 |
+|---|---:|---:|---:|---:|---:|---|---:|---|
+| D-SIMPLE | 0.01754 | 0.03335 | 109425/434 | 7.00 | 84.43 | 138.62 [2.59–139.58] | 139.81 | NA |
+| D-COSIL | 0.00950 | 0.02876 | 89954/1476 | 18.20 | 171.93 | 183.22 [20.34–305.55] | 326.26 | NA |
+| Q-COSIL | NA | NA | 74487/866 | 15.20 | 84.24 | 96.48 [91.73–105.01] | 118.10 | NA |
+| Q-PRUNER | NA | NA | 76703/852 | 12.60 | 108.47 | 116.58 [92.02–139.22] | 171.65 | NA |
 
-## 10. 对后续研究的建议与结论边界
+Qwen本地GPU成本不视为0美元，只是本轮未折算；Q-PRUNER输入token包含专职裁判。成功完成子组、总token通常区间、各阶段请求时延、排队、首次加载、构图和传输重试见审计报告。客户端墙钟不能拆成纯GPU秒。P0有恢复重放，典型单题性能以新跑P1为准。
 
-先依据同题流程差与成本判断简单流程竞争力，再在独立外部集和统一修复器上确认。文件召回、函数选择、上下文可见和测试修复是不同终点。本轮不训练、不改既有数据/历史矩阵、不解封test、不根据分数重新筛题。
+P0＋P1及工程试跑去重已知API费用：**$1.269370**（预算换算约¥8.886）；保守已计/预约上界$1.269370 / $10。未知计费尝试0次，未释放未知余额。复制的同request_id回执只计一次。
 
-## 11. 复现命令、产物路径和未完成事项
+价格按[DeepSeek官方定价](https://api-docs.deepseek.com/quick_start/pricing/)的峰闲时、缓存命中/未命中和输出分别计算；跨时界或缓存字段不全采用上界并标注。模型actual usage为最终token账，请求前用经实际回执核验的官方V4离线分词器加包裹余量；费用预约仍用UTF8字节保守上界。
 
-代码和提示词：`/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/deepseek_simple_v1`；原始调用和逐题结果：`/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/deepseek_simple_v1/runs/20261021_nonthinking_v3/smoke`；明细/成本/配对表：`/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/deepseek_simple_v1/reports`。
+表G：可选High思考诊断
 
-复现：`python -m src.cli run-localization --cohort smoke`；报告：`python -m src.cli report --cohort smoke`。
+| 档位 | N | 函数Hit@5 | Recall@5 | 思考token | 费用 | 时延 |
+|---|---|---|---|---|---|---|
+| 本轮None | 见主表 | 见主表 | 见主表 | API缺失字段为null | 见表F | 见表F |
+| High配对10题 | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN | NOT_RUN |
 
-P2/P3/High均NOT_RUN。外部数据revision/样本manifest仅在阶段准备时冻结，不将未运行外部结果混入当前表。所有分数可追溯至逐题result、calls原始响应与evaluator_private金标证据。
+表H：同题配对差异
+
+| 对比 | 指标 | 配对N | A−B | issue bootstrap95% | 按仓cluster95% | A胜/B胜 | McNemar Holm p |
+|---|---|---:|---:|---|---|---:|---:|
+| D-SIMPLE vs D-COSIL | function_hit_5 | 2 | 0.00% | [0.00%, 0.00%] | [0.00%, 0.00%] | 0/0 | 1.0000 |
+| D-SIMPLE vs D-COSIL | function_recall_5 | 2 | 0.00% | [0.00%, 0.00%] | [0.00%, 0.00%] | 0/0 | NA |
+| D-SIMPLE vs Q-PRUNER | function_hit_5 | 2 | 100.00% | [100.00%, 100.00%] | [100.00%, 100.00%] | 2/0 | 1.0000 |
+| D-SIMPLE vs Q-PRUNER | function_recall_5 | 2 | 100.00% | [100.00%, 100.00%] | [100.00%, 100.00%] | 2/0 | NA |
+| Q-PRUNER vs Q-COSIL | function_hit_5 | 2 | 0.00% | [0.00%, 0.00%] | [0.00%, 0.00%] | 0/0 | 1.0000 |
+| Q-PRUNER vs Q-COSIL | function_recall_5 | 2 | 0.00% | [0.00%, 0.00%] | [0.00%, 0.00%] | 0/0 | NA |
+
+每项10,000次重采样，seed20261021。三项预设Hit@5精确双侧McNemar做Holm修正。未预设非劣界，p>0.05或区间跨0不证明等效；开发题量小、仓库分布偏斜，不能推广为全300题或全新任务的定论。
+
+实现、部署问题与结论边界
+
+- DeepSeek所有角色固定非思考；每请求显式thinking.disabled，无reasoning_effort，发现非空思考即停。API返回别名、/models名称与文档版本分别留档。
+- D/Q-COSIL共享原文件反思、10轮导航、源码相关性判别和最终排名；本轮统一基础AST目录以明确方法/异步函数身份，区别于旧结构脚本的ast.walk嵌套叶名行为。因此不声称本轮与旧300题逐位完全一致。
+- 旧代码存在格式纠正请求，按本方案semantic retry=0禁用；真实格式失败保留，不重跑选更好答案。DSML格式问题也保留原始结果，不事后救回提高主表。
+- Q-PRUNER加载既有冻结SweRank epoch1（1:1），温度与0.6/0.9路由不调参，v6长输入及现场邻居。此前金丝雀曾止损，本轮仅探索对照，不称已验证冠军。与主agent同宗底座、CC-BY-NC许可及开发题同源偏乐观均需披露。
+- v1冒烟修复隔离挂载/临时目录，v2修复HTTP复用，v3修复过保守的400K计量；旧run、失败和全部付费回执保留。官方分词器仅读取JSON，不执行下载代码。
+- 金标与benchmark patch仅独立CPU评估器可见；推理namespace隐藏evaluator、封存数据、历史运行、矩阵和原Git。源码工具为AST白名单分派，不执行模型任意代码。
+
+逐题与复现
+
+代码：`/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/deepseek_simple_v1`；完整调用：`/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/deepseek_simple_v1/runs/20261021_nonthinking_v3/smoke`。按instance_id拼接，同一题各臂对照，不按文件行号。
+
+- [逐题分析](smoke_逐题分析.md)
+- [工具与单题时长/token审计](smoke_单题时长_token与工具使用审计.md)
+- `smoke_per_instance.csv`、`smoke_method_summary.csv`、`smoke_paired_comparisons.csv`
+- `smoke_tool_io_per_call.csv`、`smoke_per_issue_runtime_tokens.csv`、`smoke_stage_runtime_tokens.csv`
+- 两张函数Hit/Recall与API成本图在 `figures/smoke_*_vs_api_cost.png`。
+
+CPU复现报告：`CUDA_VISIBLE_DEVICES="" python analysis/complete_reports.py --cohort smoke`。该命令不生成预测、不执行测试。P2/P3/High维持NOT_RUN。
