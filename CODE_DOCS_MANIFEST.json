@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-19T17:27:18.274005+08:00",
+  "generated_at": "2026-10-21T15:52:52.016480+08:00",
   "scope": "code and documentation only; user explicitly excluded data/artifacts",
-  "source_file_count": 557,
+  "source_file_count": 559,
   "secret_scan": "passed",
   "raw_data_included": false,
   "test_samples_included": false,
@@ -3326,6 +3326,18 @@
       "path": "GraphLocator/utils/string_processing.py",
       "bytes": 5475,
       "sha256": "d267c07b8058806764f3901c80dfb2cff5dc8e51ab975972c7ab4234ad537c01",
+      "mode": "100644"
+    },
+    {
+      "path": "ModelLoc/Skip the CompressorCoding Agents Fix More Issues When They Pick Whole Files.pdf",
+      "bytes": 615926,
+      "sha256": "5b798557d73f31cbdb40b8e6bd67bb0c9117517941fbd0dd5df7a6ac5ad5a3be",
+      "mode": "100644"
+    },
+    {
+      "path": "交接指令/DeepSeek_强模型简单流程对照实验_Codex执行方案 (1).md",
+      "bytes": 58324,
+      "sha256": "19a0b5643b1d611b73ddcc1b475e6b5a9fe0fbf550060899a3e8c3d659f9454b",
       "mode": "100644"
     },
     {
