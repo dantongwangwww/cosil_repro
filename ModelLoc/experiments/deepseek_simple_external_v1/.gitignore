@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+configs/*.json
+configs/*.yaml
+resources/
+jobs/
+snapshots/
+mirrors/
+runs/
+manifests/
+evaluator_private/
+reports/*.csv
+reports/*.json
+reports/figures/
