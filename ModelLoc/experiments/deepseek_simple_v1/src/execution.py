@@ -4,7 +4,8 @@ from pathlib import Path
 from .common import *
 
 def run_one(task):
-    job_path,method,config=task;job=read(job_path)
+    job_path,method,config,*extra=task;job=read(job_path);processing_started_utc=utc()
+    queued_at=extra[0] if extra else None
     folder=RUN/job['cohort']/method/job['instance_id'];folder.mkdir(parents=True,exist_ok=True)
     result_path=folder/'result.json'
     if result_path.exists():return {'method':method,'instance_id':job['instance_id'],'status':read(result_path)['status'],'cached':True}
@@ -35,11 +36,16 @@ def run_one(task):
     result.update(instance_id=job['instance_id'],method=method,cohort=job['cohort'],
         run_id=RUN_ID,repo=job['repo'],base_commit=job['base_commit'],
         elapsed_seconds=time.perf_counter()-began,resumed_exact_receipts=resume,raw_artifact_path=str(folder))
+    result.update(processing_started_utc=processing_started_utc,processing_ended_utc=utc(),enqueued_utc=queued_at)
+    if queued_at:
+        from datetime import datetime
+        result['worker_queue_seconds']=(datetime.fromisoformat(processing_started_utc)-datetime.fromisoformat(queued_at)).total_seconds()
     write(result_path,result)
     return {k:result[k] for k in ['instance_id','method','status']}
 
 def start_qwen():
     import httpx
+    startup_began=time.perf_counter()
     try:
         r=httpx.get('http://127.0.0.1:7333/v1/models',timeout=3,trust_env=False)
         if r.status_code==200:
@@ -57,7 +63,10 @@ def start_qwen():
         if proc.poll() is not None:raise RuntimeError('Qwen service exited; inspect service log')
         try:
             r=httpx.get('http://127.0.0.1:7333/v1/models',timeout=2,trust_env=False)
-            if r.status_code==200:return proc
+            if r.status_code==200:
+                write(service/'startup_timing.json',{'ready_at':utc(),'startup_seconds':time.perf_counter()-startup_began,
+                    'included_in_per_issue_processing_time':False,'definition':'Owned Qwen service process start through successful /models health check'},replace=True)
+                return proc
         except httpx.TransportError:pass
         time.sleep(2)
     os.killpg(proc.pid,signal.SIGTERM);raise RuntimeError('Qwen service startup timeout')
@@ -75,7 +84,7 @@ def sandbox_batch(batch_file,name):
     # base snapshots, clean jobs, model files, and this run's writable receipts.
     argv=['bwrap','--die-with-parent','--new-session','--unshare-pid','--ro-bind','/','/',
           '--proc','/proc','--dev-bind','/dev','/dev','--tmpfs','/tmp','--tmpfs',str(COSIL.parent),
-          '--ro-bind',str(ROOT),str(ROOT),'--bind',str(RUN),str(RUN),
+          '--ro-bind',str(ROOT),str(ROOT),'--tmpfs',str(ROOT/'runs'),'--bind',str(RUN),str(RUN),
           '--tmpfs',str(ROOT/'evaluator_private'),'--tmpfs',str(ROOT/'manifests'),
           '--tmpfs',str(ROOT/'reports')]
     for name_ in ['afl','get_repo_structure','code_v3b','code_v5','code_v6','code_v6_canary_v2','code_v6_round2',
@@ -101,12 +110,14 @@ def run(cohort):
     rows_=read(ROOT/'manifests'/f'{cohort}.json')['records']
     service=None
     try:
-        service=start_qwen()
+        pending_q=any(not (RUN/cohort/m/r['instance_id']/'result.json').exists()
+                      for r in rows_ for m in config['methods'] if m.startswith('Q-'))
+        service=start_qwen() if pending_q else None
         batches=[[] for _ in range(6)]
         paid=0
         for rec in rows_:
             for method in config['methods']:
-                item={'job':rec['job'],'method':method}
+                item={'job':rec['job'],'method':method,'enqueued_utc':utc()}
                 if method.startswith('D-'):batches[paid%4].append(item);paid+=1
                 elif method=='Q-COSIL':batches[4].append(item)
                 else:batches[5].append(item)
@@ -138,7 +149,13 @@ def run(cohort):
     verify()
     if cohort=='smoke':
         statuses=[read(RUN/cohort/m/r['instance_id']/'result.json') for r in rows_ for m in config['methods']]
-        passed=all(r['status']=='complete' for r in statuses)
+        def engineering_ok(r):
+            if r['status'] in ('complete','budget_exceeded','parse_error'):return True
+            return r.get('error_type')=='ValueError' and r.get('error_message') in (
+                'CoSIL semantic format retry disabled by protocol','Semantic retry disabled')
+        # A real model format/budget failure is an outcome, not an excuse to
+        # tune or repeat that answer. P0 gates engineering, never accuracy.
+        passed=all(engineering_ok(r) for r in statuses)
         chain=read(RUN/'test_chain/receipt.json') if (RUN/'test_chain/receipt.json').exists() else {}
         passed=passed and chain.get('execution_chain_passed',False)
         write(RUN/'smoke_gate.json',{'passed':passed,'completed_at':utc(),'statuses':[

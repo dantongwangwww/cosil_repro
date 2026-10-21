@@ -71,30 +71,58 @@ def run(job,provider,out,pruner_config):
             self.purpose=purpose
             return super()._query(model,messages,purpose)
         def _execute(self,call):
-            text=super()._execute(call)
+            tool_began=time.perf_counter()
+            try:text=super()._execute(call)
+            except Exception as error:
+                self._record_event('tool_io_audit',tool=call.name,original_tool=call.original_name,
+                    arguments=list(call.arguments),executed=True,success=False,
+                    error_type=type(error).__name__,returned_error_text=str(error),
+                    wall_seconds=time.perf_counter()-tool_began)
+                raise
+            source_match=None;source_pointer=None
             if call.name!='get_functions_of_class':
                 path=call.arguments[0];qn='.'.join(call.arguments[1:]);kind='class' if call.name=='get_code_of_class' else 'function'
                 defs=[d for d in index.get(path,{}).get('definitions',[]) if d['qualified_name']==qn and d['kind']==kind]
                 if len(defs)==1:
-                    d=defs[0];raw=decode((root/path).read_bytes());text=''.join(raw.splitlines(keepends=True)[d['start_line']-1:d['end_line']])
+                    d=defs[0];raw=decode((root/path).read_bytes());span=''.join(raw.splitlines(keepends=True)[d['start_line']-1:d['end_line']])
+                    source_match=text.splitlines()==span.splitlines();text=span
+                    source_pointer=len(self.sources)
                     self.sources[len(self.sources)]={'path':path,'start_line':d['start_line'],'end_line':d['end_line'],
                         'text':text,'complete_file':d['start_line']==1 and d['end_line']==len(raw.splitlines()),
                         'sha256':digest(text),'tool':call.name,'arguments':list(call.arguments)}
+            if call.name=='get_functions_of_class':
+                try:metadata_schema_ok=isinstance(json.loads(text),list)
+                except (ValueError,TypeError):metadata_schema_ok=False
+            else:metadata_schema_ok=None
+            self._record_event('tool_io_audit',tool=call.name,original_tool=call.original_name,
+                arguments=list(call.arguments),executed=True,success=True,
+                output_kind='node_catalog' if call.name=='get_functions_of_class' else 'source',
+                returned_chars=len(text),returned_sha256=digest(text),returned_head=text[:300],
+                output_matches_base_source_splitlines=source_match,metadata_json_schema_valid=metadata_schema_ok,
+                full_output_artifact='context.json::retrieved_blocks['+str(source_pointer)+']' if source_pointer is not None else None,
+                wall_seconds=time.perf_counter()-tool_began)
             return text
     logger=logging.getLogger('modelloc-'+job['instance_id']);logger.handlers=[];logger.addHandler(logging.NullHandler())
     try:
         kwargs={'context_limit':1048576 if provider.deepseek else 65536}
+        judge_setup=None
         if provider.method=='Q-PRUNER':
+            cached_judge=_JUDGE is not None;load_began=time.perf_counter()
             if _JUDGE is None:
                 from .judge import Judge
                 _JUDGE=Judge(pruner_config)
+            load_seconds=0. if cached_judge else time.perf_counter()-load_began
+            graph_began=time.perf_counter()
             _JUDGE.renderer.load(job)
+            judge_setup={'cached_judge':cached_judge,'judge_load_seconds':load_seconds,
+                'base_graph_and_render_setup_seconds':time.perf_counter()-graph_began}
             kwargs.update(judge=_JUDGE,low=pruner_config['low'],high=pruner_config['high'])
         st=read(job['structure'])['structure']
         from afl.util.preprocess_data import filter_none_python,filter_out_test_files
         filter_none_python(st)
         if not job['instance_id'].startswith('pytest'):filter_out_test_files(st)
         agent=Agent(job['instance_id'],st,redact(job['problem_statement'],job),'llama3','openai',logger,**kwargs)
+        if judge_setup:agent._record_event('local_judge_setup',**judge_setup)
         factory=lambda *a,**k:Proxy(provider,agent,**k)
         qwen_model.make_model=factory;old_model.make_model=factory
         agent.purpose='file_stage'
