@@ -1,0 +1,11 @@
+.env*
+.private/
+__pycache__/
+*.pyc
+runs/
+snapshots/
+jobs/
+evaluator_private/
+manifests/
+*.log
+*.pid
