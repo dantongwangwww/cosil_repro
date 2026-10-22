@@ -227,5 +227,41 @@ class CollectTests(unittest.TestCase):
                 self.assertTrue((base/'reports/filtered265'/name).is_file())
 
 
+class EvidenceBoundaryTests(unittest.TestCase):
+    def test_same_leaf_mismatch_records_original_rank_without_repair(self):
+        raw = [{'path':'a.py','qualified_name':'Wrong.f'}, {'path':'b.py','qualified_name':'Right.f'},
+               {'path':'a.py','qualified_name':'Right.g'}]
+        slots = [None, 'b.py::Right.f', 'a.py::Right.g']; original = copy.deepcopy(slots)
+        targets = [{'gold_identity':'a.py::Right.f'}]
+        out = R.enrich_target_evidence(targets, {}, {'blocks':[]}, {'blocks':[]},
+                                       {'final_http_context_delivered':False}, raw, slots)
+        self.assertEqual([e['rank'] for e in out[0]['same_leaf_different_identity_top10']], [1,2])
+        self.assertEqual(slots, original)
+        self.assertIsNone(out[0]['same_leaf_different_identity_top10'][0]['normalized_slot'])
+
+    def test_shared_qn_other_span_is_not_modified_body_delivery(self):
+        target = {'gold_identity':'a.py::C.x', 'final_delivered_any_definition_full':True}
+        changed = {'base_function_id':'a.py::C.x','matched_base_span':{'qualified_name':'C.x','start_line':10,'end_line':12}}
+        ctx = {'blocks':[{'path':'a.py','start_line':1,'end_line':3}]}; integrity = {'blocks':[{'source_valid':True}]}
+        out = R.enrich_target_evidence([target], {'changed_line_evidence':[changed]}, ctx, integrity,
+                                       {'final_http_context_delivered':True}, [], [])
+        self.assertTrue(out[0]['modified_base_span_evidence_complete'])
+        self.assertFalse(out[0]['actual_modified_implementation_verified'])
+        ctx['blocks'][0].update(start_line=1,end_line=12)
+        out = R.enrich_target_evidence([target], {'changed_line_evidence':[changed]}, ctx, integrity,
+                                       {'final_http_context_delivered':True}, [], [])
+        self.assertTrue(out[0]['actual_modified_implementation_verified'])
+        out = R.enrich_target_evidence([target], {'changed_line_evidence':[changed]}, ctx, integrity,
+                                       {'final_http_context_delivered':False}, [], [])
+        self.assertFalse(out[0]['actual_modified_implementation_verified'])
+
+    def test_strict_miss_recall_gap_and_engineering_populations_separate(self):
+        self.assertEqual(R.diagnostic_population(aggregate_row('miss',hit=0)), 'completed_strict_hit5_miss')
+        gap=aggregate_row('gap');gap['function_recall_5']=.5
+        self.assertEqual(R.diagnostic_population(gap), 'hit5_with_recall_gap')
+        self.assertEqual(R.diagnostic_population(aggregate_row('budget',status='budget_exceeded',hit=0)), 'engineering_budget_or_output_failure')
+        self.assertEqual(R.diagnostic_population(aggregate_row('notrun',status='NOT_RUN',executed=False,http=False)), 'not_run')
+
+
 if __name__ == '__main__':
     unittest.main()

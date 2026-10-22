@@ -2,6 +2,8 @@
 
 用户于 2026-10-22 确认：四项筛选条件不放宽，只运行全部合格 265 题，允许同一仓库出现多题。不补充 35 题，不变更冻结数据版本，不因函数可映射性或预测结果重新选题。本集合来自 173 个仓库，与原外部 100 题及 SWE-bench Lite 续评分别报告；不能称为 CQ2-CARE 原论文 300 题，也不能据筛选条件宣称与 Lite 难度相同。
 
+本轮已按预算纪律停止：44题复用，156道新题完整完成，4道新题预算中止，61道新题未运行。共200道完整结果，不能称为265题全量完成。实际执行204题的文件Hit@5为184/204，函数Hit@5为156/183；新题分别为146/160和125/147，预算中止保留在可评分分母中。见[阶段结果摘要](reports/本轮结果摘要.md)。
+
 本批新增代码前恢复点：[bb0fd82](https://github.com/dantongwangwww/cosil_repro/commit/bb0fd82bf8374a62f8ec550c611941e76cdcbf52)。现有 40 份代码、文档远端 Git blob 已逐个核验。保留 CoSIL 原上游 Git，不改历史预测、既有报告、跨实验矩阵或封存 test。
 
 ## 名单和方法
@@ -39,6 +41,7 @@ export PYTHONDONTWRITEBYTECODE=1
 export CUDA_VISIBLE_DEVICES=''
 "$DSIMPLE_PY" -m unittest discover -s tests
 "$DSIMPLE_PY" -m filtered265.prepare --workers 4
+"$DSIMPLE_PY" -m filtered265.runtime --phase tests
 "$DSIMPLE_PY" -m filtered265.runtime --phase freeze
 "$DSIMPLE_PY" -m filtered265.runtime --phase probe
 "$DSIMPLE_PY" -m filtered265.evaluate --execute-frozen --workers 4
@@ -52,3 +55,26 @@ export CUDA_VISIBLE_DEVICES=''
 主要交付包括：正式 manifest、复用与新增明细、逐题结果 CSV、文件和函数 Hit@1/3/5、Macro-Recall@5、全部既有目标覆盖率@5、95% 置信区间、重复仓库聚类区间、token／费用／时延统计、逐题未命中证据及中文总览。具体输出和报告复现见 `README_报告复现.md`。
 
 工作缓存位于 `/tmp/dsimple_rebench_lite_filtered265_v1_20261022/project`，逻辑项目目录为其 symlink；最终永久归档及 SHA 回执将在交付时注明。密钥仅从原受限环境文件读取，不复制到工程或 GitHub。GitHub 只发布代码、Markdown 和许可证。
+
+## 永久交付与离线恢复
+
+永久交付目录为相邻的 `dsimple_rebench_lite_filtered265_v1_delivery`，保留代码、报告、CSV、配置、manifest和私有压缩档。完整文件清单、最终发布提交和两个压缩档SHA以该目录的 `delivery_receipt.json` 为准。输入档 `dsimple_filtered265_inputs_20261022.tar.zst` 为312,886,171字节，SHA256为 `bb5f5b002e18c01e40eb2d3b1024c4b776da55fb3e0823a6b5fc00b94cd01514`；其中86,526文件逐项SHA、覆盖和安全路径均核验通过。
+
+若临时目录因重启丢失，先核验交付回执，再将两个档恢复到同一实际工作目录，保留原逻辑symlink：
+
+```bash
+DSIMPLE_DELIVERY=/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/dsimple_rebench_lite_filtered265_v1_delivery
+mkdir -p /tmp/dsimple_rebench_lite_filtered265_v1_20261022/project
+tar -I /home/wdt/miniconda3/bin/zstd -xf "$DSIMPLE_DELIVERY/archives/dsimple_filtered265_inputs_20261022.tar.zst" -C /tmp/dsimple_rebench_lite_filtered265_v1_20261022/project
+tar -I /home/wdt/miniconda3/bin/zstd -xf "$DSIMPLE_DELIVERY/archives/dsimple_filtered265_evidence_20261022.tar.zst" -C /tmp/dsimple_rebench_lite_filtered265_v1_20261022/project
+```
+
+44个旧预测及原方法源码仍引用原永久 `deepseek_simple_external_v1` 和 `deepseek_simple_v1`，不重复复制其历史数据。旧追加200工程的离线helper代码若丢失，可从此前 `dsimple_evaluation_v2_delivery/archives/dsimple_old200_state_20261022.tar.zst` 恢复；原v2筛选程序及输入由同一此前交付目录恢复。旧追加200归档里的账本是本轮前状态，不能用其覆盖新账本。
+
+最终共享账本逐字节快照位于 `reports/finance_final_snapshot.json`，SHA256为 `a39db00fc6bdfc7a3dcc31ff473b92a69ce9a7c9ca7b94e8698f138d410db5a1`，并附stop/pause合同快照。重启后只做离线重评时，可明确读取这个只读快照：
+
+```bash
+"$DSIMPLE_PY" -c "from filtered265 import common as c; c.SHARED_BUDGET=c.ROOT/'reports/finance_final_snapshot.json'; from filtered265.report import run_report; run_report(allow_incomplete=True)"
+```
+
+这不产生模型调用，也不创建额度。原付费入口保留停止标记与金融目录inode约束；跨重启可能主动拒绝付费，不能清空账本或停止标记来绕过。若需继续尚未完整完成的65题，必须先获得新的预算授权，并保留本轮所有部分结果和调用。

@@ -96,6 +96,65 @@ def fix_valid_empty_causes(targets, slots, info):
     return targets
 
 
+
+def enrich_target_evidence(targets, gold, context, integrity, proof, raw_predictions, slots):
+    """Add observable identity/span evidence without changing scores or H causes."""
+    valid = [block for block, audit in zip(context.get('blocks', []), integrity.get('blocks', []))
+             if audit.get('source_valid')]
+    delivered = bool(proof['final_http_context_delivered'])
+    changes = gold.get('changed_line_evidence', [])
+    for target in targets:
+        identity = target['gold_identity']; path, qn = identity.split('::', 1)
+        mismatches = []
+        for rank, item in enumerate(raw_predictions[:10], 1):
+            if not isinstance(item, dict) or not isinstance(item.get('qualified_name'), str):
+                continue
+            proposed_path = str(item.get('path', '')).replace('\\', '/')
+            while proposed_path.startswith('./'):
+                proposed_path = proposed_path[2:]
+            proposed_qn = item['qualified_name']
+            if proposed_qn.split('.')[-1] != qn.split('.')[-1] or (proposed_path == path and proposed_qn == qn):
+                continue
+            mismatches.append({'rank': rank, 'raw_path': item.get('path'), 'raw_qualified_name': proposed_qn,
+                               'same_path': proposed_path == path, 'same_qualified_name': proposed_qn == qn,
+                               'normalized_slot': slots[rank - 1] if rank <= len(slots) else None})
+        relevant = [e for e in changes if e.get('base_function_id', e.get('function_id')) == identity]
+        spans = {}
+        unknown = any(not e.get('matched_base_span') for e in relevant)
+        for change in relevant:
+            definition = change.get('matched_base_span')
+            if definition:
+                spans[(definition['start_line'], definition['end_line'], definition['qualified_name'])] = definition
+        evidence = []
+        for (start, end, name), definition in sorted(spans.items()):
+            blocks = [b for b in valid if b.get('path') == path]
+            full = delivered and H.intervals_cover(blocks, start, end)
+            partial = delivered and any(b['start_line'] <= end and b['end_line'] >= start for b in blocks)
+            evidence.append({'qualified_name': name, 'start_line': start, 'end_line': end,
+                             'entire_modified_base_span_delivered': bool(full),
+                             'partial_modified_base_span_delivered': bool(partial)})
+        complete = bool(relevant) and bool(evidence) and not unknown
+        target.update(same_leaf_different_identity_top10=mismatches,
+                      modified_base_span_evidence_complete=complete,
+                      modified_base_span_delivery_evidence=evidence,
+                      actual_modified_implementation_verified=complete and all(e['entire_modified_base_span_delivered'] for e in evidence))
+    return targets
+
+
+def diagnostic_population(row):
+    if row['status_family'] == 'NOT_RUN':
+        return 'not_run'
+    if row['status_family'] != 'complete':
+        return 'engineering_budget_or_output_failure'
+    if not row['function_scorable']:
+        return 'empty_incomplete_or_unavailable_truth'
+    if row['function_hit_5'] == 0:
+        return 'completed_strict_hit5_miss'
+    if row['function_recall_5'] < 1:
+        return 'hit5_with_recall_gap'
+    return 'hit_all_existing_targets'
+
+
 def resource_totals(attempts):
     unknown_usage = sum(bool(a['billing_unknown']) for a in attempts)
     unknown_cost = sum(a['api_cost_usd_usage_estimate'] is None for a in attempts)
@@ -231,6 +290,7 @@ def collect(manifest, cohort=COHORT, *, budget=None):
         info = H.raw_output_audit(raw, slots)
         targets = H.target_diagnostics(iid, legacy, index, context, inventory, selection, proof, integrity, slots, info) if not unavailable else []
         targets = fix_valid_empty_causes(targets, slots, info)
+        targets = enrich_target_evidence(targets, gold or {}, context, integrity, proof, qraw, slots)
         alltargets.extend(targets)
         row = {'cohort': cohort, 'instance_id': iid, 'repo': rec.get('repo', (job or {}).get('repo')),
                'base_commit': rec.get('base_commit', (job or {}).get('base_commit')), 'origin': rec['origin'],
@@ -256,6 +316,8 @@ def collect(manifest, cohort=COHORT, *, budget=None):
                'final_http_context_delivered': proof['final_http_context_delivered'], 'source_delivery_proof': proof,
                'source_integrity_errors': integrity['context_integrity_errors'], 'model_error_type': raw.get('error_type'),
                'evaluator_errors': (gold or {}).get('errors', []),
+               'same_leaf_mismatch_target_count': sum(bool(t['same_leaf_different_identity_top10']) for t in targets),
+               'actual_modified_base_source_verified_target_count': sum(t['actual_modified_implementation_verified'] for t in targets),
                'scope_exempt_change_count': len((gold or {}).get('scope_exempt_changes', [])),
                'scope_exempt_reason_counts': dict(collections.Counter(e.get('reason', 'unspecified') for e in (gold or {}).get('scope_exempt_changes', []))),
                'gold_v2_path': str(goldpath), 'result_path': str(folder / 'result.json'), 'context_path': str(folder / 'context.json'),
@@ -325,6 +387,7 @@ def summarize(rows, name, *, population='allocation', ci_repeats=10000):
     for field in ('input_tokens', 'output_tokens', 'usage_cost_usd', 'peak_no_cache_cost_usd', 'elapsed_seconds', 'process_cpu_seconds'):
         s[field] = describe([r[field] for r in resources])
     s['resource_population_n'] = len(resources)
+    s['diagnostic_population_counts'] = dict(collections.Counter(diagnostic_population(r) for r in included))
     s['new_api_usage_cost_usd'] = total_known_or_none([r for r in included if r['is_new_inference']], 'usage_cost_usd')
     s['historical_reuse_usage_cost_usd'] = total_known_or_none([r for r in included if not r['is_new_inference']], 'usage_cost_usd')
     s['usage_unknown_attempts'] = sum(r['billing_unknown_attempts'] for r in included)
@@ -409,8 +472,12 @@ def markdown_summary(summaries, rows, finance):
                     + f" | {s['file_denominator']}/{s['function_denominator']} | "
                     + '/'.join(pct(s['function_hit_' + str(k)]) for k in (1, 3, 5)) + ' | '
                     + pct(s['function_recall_5']) + '/' + pct(s['function_all_coverage_5']) + ' |')
+    text += ['', '| 固定分配组 | 仓库数 | 曾在旧100出现的仓库数 |', '|---|---:|---:|']
+    for group in summaries:
+        if group['population'] == 'allocation':
+            text.append(f"| {group['scope']} | {group['repository_n']} | {group['previously_observed_repository_n']} |")
     text += ['', 'allocation行把已冻结且已知可评的未运行题记为“尚无完成信用”，只给完成信用下界，不能称作这些题的真实模型成绩；逐题NOT_RUN指标仍为NA。executed行仅包括真实启动/HTTP/执行终态的题，已执行失败及预算中止仍留在该行分母。新组另列http_attempted子组。缺gold/index/job记evaluation_unavailable，不记COMPLETE_EMPTY，不从未知函数资格推测分母。', '',
-             '| 范围/人口 | 函数Hit5计数/分母 | 95% issue / repo-cluster CI | 未运行所致Hit5上下界 | Precision@5/F1@5/MRR10 | 完整/空/不完整/不可用 |',
+             '| 范围/人口 | 函数Hit5计数/分母 | 95% issue / repo-cluster CI | 未运行所致Hit5上下界 | Precision@5/F1@5/MRR10 | 所属固定分配组金标：完整/空/不完整/不可用 |',
              '|---|---|---|---|---|---|']
     for s in summaries:
         interval = s['function_hit_5_ci95']; bounds = s['function_hit_5_allocation_uncertainty_bounds']
@@ -434,31 +501,61 @@ def markdown_summary(summaries, rows, finance):
              '已观察44题与新221题不能混称265题全新外部验证；重复仓库中的已观察repo数由旧100元数据与固定名单单列，见CSV。模型结果与旧gold/报告不改，模型输入没有离线v2金标；推理仍用原非思考D-SIMPLE和原在线3.11工具，Python3.12只在离线评价。gold_patch_pass与empty_patch_fail均NOT_CHECKED，不冒充官方harness或完全CQ2资格。原未筛选追加200仍保持暂停。',
              '逐题未命中和召回缺口依实际最终HTTP请求中的源码块、base SHA和定义区间诊断；有效输入hash本身不能证明目标源码已送达。源码可见也不推断模型注意或心理原因，人工语义复核另行标注。见[未命中分析.md](未命中分析.md)、gold_source_evidence.csv和逐请求cost_ledger.csv。',
              '工作目录实际位于/tmp；最终永久副本及GitHub代码文档以主线程delivery receipt为准，不依赖临时盘重启后存续。']
+    pricing = C.ROOT / 'configs/pricing_reverification.json'
+    if pricing.is_file():
+        text += ['', '价格主源复核见[pricing_reverification.json](../../configs/pricing_reverification.json)；本报告费用依原冻结价表与逐请求峰闲时/缓存usage估算。']
     return '\n'.join(text) + '\n'
 
 
 def failure_md(rows, targets):
     text = ['# filtered265逐题结果与未命中证据', '',
-            '已执行失败、预算停止、未运行、空函数目标和评价不可用分别列示。原因仅解释实际输入/输出与源码获取证据，不推断心理，也不反馈重跑。', '']
-    for row in rows:
-        if row['function_scorable'] and row['status_family'] != 'NOT_RUN' and row['function_hit_5'] == 1 and row['function_recall_5'] == 1:
-            continue
-        text += ['## ' + row['instance_id'], '',
-                 f"来源={row['origin']}；状态={row['status']}；评价={row['function_evaluation_status']}；分类={row['failure_category']}。",
-                 '目标=' + json.dumps(row['gold_functions'], ensure_ascii=False),
-                 '原始函数Top10=' + json.dumps(row['raw_predicted_functions'][:10], ensure_ascii=False),
-                 '固定槽Top10=' + json.dumps(row['normalized_function_slots'], ensure_ascii=False),
-                 f"最终HTTP上下文送达={row['final_http_context_delivered']}；base源码核验={row['base_context_verified']}。",
-                 '评价未解决证据=' + json.dumps(row['evaluator_errors'] + row['evaluation_unavailable_reasons'], ensure_ascii=False),
-                 '范围外改动=' + json.dumps(row['scope_exempt_reason_counts'], ensure_ascii=False), '',
-                 '| 既有函数目标 | 原rank≤10 | 完整/部分定义实际送达 | 证据支持的原因 |', '|---|---:|---|---|']
-        for target in targets:
-            if target['instance_id'] == row['instance_id']:
-                text.append(f"| {target['gold_identity']} | {target['gold_rank_top10']} | {target['final_delivered_any_definition_full']}/{target['final_delivered_any_definition_partial']} | {target['target_primary_cause_zh']} |")
-        proof = row['source_delivery_proof']
-        text += ['', '证据：' + '；'.join(f'[{label}]({row[key]})' for label, key in (
-            ('原结果', 'result_path'), ('保存上下文', 'context_path'), ('独立评价', 'gold_v2_path'))),
-                 '最终HTTP证据=' + json.dumps(proof, ensure_ascii=False), '']
+            '自动分类是可观测的获取/排名/身份/工程环节，不能仅凭输出猜测内部思维。严格未命中与已命中但召回不全分节；工程和预算失败继续留在对应指标分母，但不伪装成完成输出后的排序失误。', '',
+            '原因字段保留冻结诊断口径：inventory/文件未检索且grep未补回；选中排位超出五整文件或整文件token上限；实际HTTP未送达；同名定义可见但Top10未列；原排名6–10截断。same-leaf不同path/QN另列可重叠身份附证，不改名追分。', '',
+            '同QN多个定义共享评分身份；任一同名span完整可见不等于实际修改体已送达。后一列另用R2 matched_base_span、base内容和匹配成功HTTP证明，证据不足保持False，不借有效输入hash推断。', '']
+    groups = [('完成输出但函数Top5严格未命中', 'completed_strict_hit5_miss'),
+              ('Top5已命中但未覆盖全部既有目标', 'hit5_with_recall_gap'),
+              ('工程、预算或输出失败', 'engineering_budget_or_output_failure'),
+              ('未运行', 'not_run'), ('函数目标空、不完整或评价不可用', 'empty_incomplete_or_unavailable_truth')]
+    grouped = {key: [r for r in rows if diagnostic_population(r) == key] for _, key in groups}
+    text += ['| 互斥诊断人口 | 题数 |', '|---|---:|']
+    for title, key in groups:
+        text.append('| ' + title + ' | ' + str(len(grouped[key])) + ' |')
+    text += ['', '完整命中全部既有目标的题不在下列缺口清单。所有题仍保留per_issue.csv。', '']
+    for title, key in groups:
+        text += ['## ' + title, '']
+        for row in grouped[key]:
+            text += ['### ' + row['instance_id'], '',
+                     f"来源={row['origin']}；状态={row['status']}；评价={row['function_evaluation_status']}；分类={row['failure_category']}。",
+                     '目标=' + json.dumps(row['gold_functions'], ensure_ascii=False),
+                     '原始函数Top10=' + json.dumps(row['raw_predicted_functions'][:10], ensure_ascii=False),
+                     '固定槽Top10=' + json.dumps(row['normalized_function_slots'], ensure_ascii=False),
+                     f"最终HTTP上下文送达={row['final_http_context_delivered']}；base源码核验={row['base_context_verified']}。",
+                     '评价未解决证据=' + json.dumps(row['evaluator_errors'] + row['evaluation_unavailable_reasons'], ensure_ascii=False),
+                     '范围外改动=' + json.dumps(row['scope_exempt_reason_counts'], ensure_ascii=False), '',
+                     '| 既有函数目标 | 原rank≤10 | 同QN任一span完整/部分送达 | 实际修改base体完整送达已核 | 证据支持的原因 |', '|---|---:|---|---|---|']
+            for target in targets:
+                if target['instance_id'] != row['instance_id']:
+                    continue
+                text.append(f"| {target['gold_identity']} | {target['gold_rank_top10']} | {target['final_delivered_any_definition_full']}/{target['final_delivered_any_definition_partial']} | {target['actual_modified_implementation_verified']} | {target['target_primary_cause_zh']} |")
+                if target['same_leaf_different_identity_top10']:
+                    text += ['', '同leaf身份附证=' + json.dumps(target['same_leaf_different_identity_top10'], ensure_ascii=False), '']
+                text += ['', '实际修改base span附证=' + json.dumps(target['modified_base_span_delivery_evidence'], ensure_ascii=False), '']
+            proof = row['source_delivery_proof']
+            text += ['', '证据：' + '；'.join(f'[{label}]({row[field]})' for label, field in (
+                ('原结果', 'result_path'), ('保存上下文', 'context_path'), ('独立评价', 'gold_v2_path'))),
+                     '最终HTTP证据=' + json.dumps(proof, ensure_ascii=False), '']
+    text += ['## 空目标与未解决评价的范围统计', '',
+             'COMPLETE_EMPTY是真实范围外修改；INCOMPLETE解析、补丁位置、来源完整性或函数对应错误单列；evaluation_unavailable表示缺job/gold/index。不能把它们统一说成题目不适合或AST错误。', '',
+             '| 评价状态 | 题数 | scope_exempt原因按题重叠计数 | 未解决错误按题重叠计数 |', '|---|---:|---|---|']
+    for state in ('COMPLETE_EMPTY', 'INCOMPLETE', 'evaluation_unavailable'):
+        part = [r for r in rows if r['function_evaluation_status'] == state]
+        reasons = collections.Counter(reason for r in part for reason in r['scope_exempt_reason_counts'])
+        errors = collections.Counter(reason for r in part for reason in set(
+            [e.get('type', 'unknown') for e in r['evaluator_errors']] + r['evaluation_unavailable_reasons']))
+        text.append('| ' + state + ' | ' + str(len(part)) + ' | ' + json.dumps(reasons, ensure_ascii=False) + ' | ' + json.dumps(errors, ensure_ascii=False) + ' |')
+    over = [r for r in rows if r['function_scorable'] and r['gold_function_count'] > 5]
+    text += ['', '既有目标数>5的题：' + json.dumps([r['instance_id'] for r in over], ensure_ascii=False)
+             + '。这些题AllCoverage@5无法为1但继续留分母；各人口理论上限在method_summary.csv。']
     return '\n'.join(text) + '\n'
 
 
