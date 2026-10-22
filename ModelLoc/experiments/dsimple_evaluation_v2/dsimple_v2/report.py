@@ -126,6 +126,7 @@ def collect(manifest,cohort):
        'final_http_context_delivered':proof['final_http_context_delivered'],'source_delivery_proof':proof,
        'source_integrity_errors':integrity['context_integrity_errors'],'model_error_type':raw.get('error_type'),
        'evaluator_errors':gold.get('errors',[]),'scope_exempt_change_count':len(gold.get('scope_exempt_changes',[])),
+       'scope_exempt_reason_counts':dict(collections.Counter(e.get('reason','unspecified') for e in gold.get('scope_exempt_changes',[]))),
        'gold_v2_path':str(goldpath),'result_path':str(folder/'result.json'),'context_path':str(folder/'context.json')}
   for prefix,preds,g in [('file',fslots,gold['gold_files']),('function',slots,gold['existing_function_targets'])]:
    for k in KS:
@@ -147,7 +148,9 @@ def summarize(rows,name):
     'file_denominator':len(fs),'function_denominator':len(qs),'function_evaluation_status_counts':dict(collections.Counter(r['function_evaluation_status'] for r in rows)),
     'origins':dict(collections.Counter(r['origin'] for r in rows)),'statuses':dict(collections.Counter(r['status'] for r in rows)),
     'failure_categories':dict(collections.Counter(r['failure_category'] for r in observed)),
-    'incomplete_allocation':len(observed)!=len(rows)}
+    'incomplete_allocation':len(observed)!=len(rows),
+    'function_more_than5_targets_n':sum(r['gold_function_count']>5 for r in qs),
+    'function_allcoverage5_maximum':mean([int(r['gold_function_count']<=5) for r in qs])}
  for prefix,subset in [('file',fs),('function',qs)]:
   for name2 in [f'{prefix}_{m}_{k}' for k in KS for m in ('hit','precision','recall','f1','all_coverage')]+[prefix+'_mrr_10']:
    vals=[r[name2] for r in subset];s[name2]=mean(vals);s[name2+'_ci95']=ci(vals,[r['repo'] for r in subset])
@@ -167,7 +170,7 @@ def num(v):return 'NA' if v is None else f'{v:.5g}'
 
 def markdown_summary(scope,summaries,rows):
  text=[f'# {scope}：D-SIMPLE函数评价v2','',f'生成时间：{C.utc()}；解析与评分独立离线，模型预测保持原样。',
-       '', '| 范围 | 分配/已运行/失败 | 文件分母 | 函数分母 | 文件Hit1/3/5 | 函数Hit1/3/5 | 既有函数Recall@5 | 全部既有目标覆盖@5 |',
+       '', '| 范围 | 分配/已运行/失败 | 文件分母 | 函数分母 | 文件Hit1/3/5 | 函数Hit1/3/5 | Macro-Recall@5 | 全部既有目标覆盖@5 |',
        '|---|---:|---:|---:|---|---|---:|---:|']
  for s in summaries:
   text.append('| '+s['scope']+f" | {s['allocated_n']}/{s['observed_n']}/{s['model_failure_n']} | {s['file_denominator']} | {s['function_denominator']} | "+'/'.join(pct(s['file_hit_'+str(k)]) for k in (1,3,5))+' | '+'/'.join(pct(s['function_hit_'+str(k)]) for k in (1,3,5))+f" | {pct(s['function_recall_5'])} | {pct(s['function_all_coverage_5'])} |")
@@ -177,24 +180,36 @@ def markdown_summary(scope,summaries,rows):
    part=[r for r in rows if r['v1_mapping_status']==state];sc=[r for r in part if r['function_scorable']]
    text.append(f"| {state} | {len(part)} | {len(sc)} | {sum(r['function_hit_5'] or 0 for r in sc)}/{len(sc)} |")
   text+=['','85题主分母由原完全46题、原部分38题和Python3.12修复的HomeAssistant一题组成。38题的既有函数目标原本已经能提取，只因补丁还改了函数外或新增函数被旧全改动覆盖门排除。新增可评价不等于模型能力提升；既有函数身份仅新增HomeAssistant一项。其原预测仍未命中，未因评价器修复改写。15题没有既有函数目标，不能把它们记成函数定位失败。文件分母99而不是100：Cookieplone模板题无所声明范围内的既有非测试Python目标文件。']
- text+=['','主表纳入既有函数目标集合完整且非空的题；模块/类/新增函数共存不再排除。只衡量既有函数目标，不声称覆盖补丁所有修改或修复成功。实际失败仍在相应分母，未运行单列，以上若存在NOT_RUN属于阶段已运行成绩，不能冒充全体完成。文件gold延续既有非测试Python文件范围。',
+ text+=['','主表纳入既有函数目标集合完整且非空的题；模块/类/新增函数共存不再排除。只衡量既有函数目标，不声称覆盖补丁所有修改或修复成功。实际失败仍在相应分母，未运行单列，以上若存在NOT_RUN属于阶段已运行成绩，不能冒充全体完成。文件gold延续既有非测试Python文件范围；文件排名沿用原文件选择输出，不从最终函数反推，grep可能恢复未入该文件列表的函数，因此两级Hit不保证逐题包含关系。',
         '', '| 范围 | 函数Hit@5计数与95%CI | 函数Precision@5/F1@5/MRR@10 | 提取状态 |', '|---|---|---|---|']
  for s in summaries:
   b=s['function_hit_5_ci95']['issue_bootstrap95'];n=s['function_denominator'];hit=sum(r['function_hit_5'] or 0 for r in rows if r['function_scorable'] and r['status']!='NOT_RUN' and (s['scope'].endswith('/all') or (s['scope'].endswith('/reused') and not r['is_new_inference']) or (s['scope'].endswith('/new') and r['is_new_inference'])))
   text.append(f"| {s['scope']} | {hit}/{n}，[{pct(b[0])}, {pct(b[1])}] | "+'/'.join(pct(s['function_'+m]) for m in ('precision_5','f1_5','mrr_10'))+' | '+json.dumps(s['function_evaluation_status_counts'],ensure_ascii=False)+' |')
+ text+=['','各范围gold函数超过5个的可评价题数：'+json.dumps({s['scope']:s['function_more_than5_targets_n'] for s in summaries},ensure_ascii=False)+'；这些题的AllCoverage@5理论上无法为1，但仍保留分母。各范围该指标的理论上限见CSV的function_allcoverage5_maximum。']
  text+=['','所有k=1/3/5/10指标与10,000次issue及仓库cluster bootstrap95%CI见method_summary.csv（seed20261022）。重复/无效函数保留原排名槽，Precision@k固定除k，同QN多定义共享path::qualified_name身份；不做叶名或父子函数宽松追分。',
         '', '## 资源与复用', '', '| 范围 | 历史复用费用USD | 新增费用USD | 输入/输出token | 单题墙钟mean/median/P90秒 |','|---|---:|---:|---:|---|']
  for s in summaries:text.append(f"| {s['scope']} | {num(s['historical_reuse_usage_cost_usd'])} | {num(s['new_api_usage_cost_usd'])} | {num(s['input_tokens']['sum'])}/{num(s['output_tokens']['sum'])} | "+'/'.join(num(s['elapsed_seconds'][k]) for k in ('mean','median','p90'))+' |')
+ text+=['','| 范围 | 单题输入token mean/median/P90 | 单题输出token mean/median/P90 | 单题API费USD mean/median |','|---|---|---|---|']
+ for s in summaries:text.append('| '+s['scope']+' | '+'/'.join(num(s['input_tokens'][k]) for k in ('mean','median','p90'))+' | '+'/'.join(num(s['output_tokens'][k]) for k in ('mean','median','p90'))+' | '+'/'.join(num(s['usage_cost_usd'][k]) for k in ('mean','median'))+' |')
+ text+=['','墙钟是每题原run_one流程耗时，包含模型API等待、源码/grep和输出解析；不包含队列等待、批前全量SHA复核、一次性CPU快照准备或离线gold评价。进程CPU秒另存CSV，不能把墙钟当纯GPU计算时间或API服务端生成时间。']
  text+=['','费用依据真实usage、缓存与峰闲时官方价格推算，非账户账单核销。未知usage或费用记NA并单列，不当作0；总览CSV保留known subtotal及未知attempt数，存在未知时不能把已知subtotal称为总费用。历史复用费用不重复计入新增预算。所有新增队列共用原追加200的5美元账本，另建run不增加额度。推理保持原DeepSeek非思考设置、Prompt和方法；仅评价器变更。',
         '', '## 范围与限制', '', 'Lite与原外部样本在不同章节独立报告，不把百分比跨不同分母直接相减。Lite曾参与开发/训练，不能称独立外部泛化证据。30个既有封存Lite ID未解封。原未筛选追加200题仍保留用户暂停状态，未运行不计成答错。',
-        '评价v2使用Python3.12，只更新离线gold与预测身份校验，不替换在线3.11 AST/grep工具。完整性仅对所声明的既有具名Python函数目标集合；解析/补丁/对应不确定保持INCOMPLETE，新增函数、类/模块和非Python修改另列。旧gold、旧报告及原预测不改。',
+        '评价v2使用Python3.12，只更新离线gold与预测身份校验，不替换在线3.11 AST/grep工具。完整性仅对所声明的既有具名Python函数目标集合；解析/补丁/对应不确定保持INCOMPLETE，新增函数、类/模块和非Python修改另列。旧gold、旧报告及原预测不改。跨实验比较需同一issue集合、同一gold版本，不能直接把此处v2百分比与历史v1分数相减解释为模型提升。',
         '本工作目录实际在/tmp，以避免数据盘满；最终交付以delivery_receipt.json记录的永久副本/压缩证据和GitHub提交为准，不能依赖/tmp重启后存续。',
         '', '逐题未命中、召回不全与对应源码送达证据见[未命中分析.md](未命中分析.md)。']
+ text+=['','用量未知attempt='+str(sum(r['billing_unknown_attempts'] for r in rows))+'；费用未知attempt='+str(sum(r['cost_unknown_attempts'] for r in rows))+'。已尝试HTTP但缺终态result的题计执行失败，保留分母。']
+ if scope=='lite270':text+=['','原smoke5按阶段复用：前6阶段来自nonthinking_v1，最终4题来自v2、1题来自v3；175份跨目录原件与保存轨迹SHA逐一相同，请求正文、Prompt、参数、base均符合冻结契约。CSV保留逐请求真实run_id，不冒称7阶段都在v3重跑。历史费用只统计复用的385条请求，不代表全部旧试跑投入；来源详见Lite270最终统计与费用独立核验.md及原00_preflight.md第130行。']
  return '\n'.join(text)+'\n'
 
 
 def failure_md(rows,targets):
  text=['# 未命中与定位错误逐题证据分析','','原因是已核验的获取/排序环节，不能仅凭模型输出推断其内心推理。合法空列表与格式错误分开；新评价目标只离线出现，不反馈重跑。','']
+ missed=[r for r in rows if r['function_scorable'] and r['status']!='NOT_RUN' and r['function_hit_5']==0]
+ text += ['函数Top5完全未命中：'+str(len(missed))+'题；已命中但召回不全：'+str(sum(r['function_scorable'] and r['status']!='NOT_RUN' and r['function_hit_5']==1 and r['function_recall_5']<1 for r in rows))+'题。','', '| 未命中题的证据分类（组合标签不拆成多题） | 题数 |','|---|---:|']
+ for cause,n in collections.Counter(r['failure_category'] for r in missed).most_common():text.append('| '+cause+' | '+str(n)+' |')
+ text += ['', '| 未进入Top5的目标函数原因（按目标计数，含已命中题的漏召回） | 数量 |','|---|---:|']
+ for cause,n in collections.Counter(t['target_primary_cause_zh'] for t in targets if not t['hit_at_5']).most_common():text.append('| '+cause+' | '+str(n)+' |')
+ text.append('')
  for r in rows:
   if not r['function_scorable'] or r['status']=='NOT_RUN' or (r['function_hit_5']==1 and r['function_recall_5']==1):continue
   text += ['## '+r['instance_id'],'',f"来源={r['origin']}；状态={r['status']}；分类={r['failure_category']}。",'目标='+json.dumps(r['gold_functions'],ensure_ascii=False),'归一化Top10='+json.dumps(r['normalized_function_slots'],ensure_ascii=False),'原始预测='+json.dumps(r['raw_predicted_functions'][:10],ensure_ascii=False),'无效槽及原因='+json.dumps(r['invalid_function_slots'],ensure_ascii=False),
@@ -203,12 +218,16 @@ def failure_md(rows,targets):
    if t['instance_id']==r['instance_id']:
     text.append(f"| {t['gold_identity']} | {t['gold_rank_top10']} | {t['final_delivered_any_definition_full']}/{t['final_delivered_any_definition_partial']} | {t['target_primary_cause_zh']} |")
   text += ['',f"证据：`{r['result_path']}`；`{r['context_path']}`；`{r['gold_v2_path']}`。",'']
+ text+=['## 不进入函数主表的题目','','COMPLETE_EMPTY表示没有本次范围内的既有函数目标，不是模型失败；INCOMPLETE表示提取仍有未解决证据问题，不能借此判定位成功或失败。','', '| Issue | 评价状态 | 文件目标 | 范围外修改原因计数 | 未解决证据 |','|---|---|---|---|---|']
+ for r in rows:
+  if not r['function_scorable']:
+   text.append('| '+r['instance_id']+' | '+r['function_evaluation_status']+' | '+json.dumps(r['gold_files'],ensure_ascii=False)+' | '+json.dumps(r['scope_exempt_reason_counts'],ensure_ascii=False)+' | '+json.dumps(r['evaluator_errors'],ensure_ascii=False)+' |')
  return '\n'.join(text)+'\n'
 
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--cohort',choices=['lite270','external100','all'],default='all');p.add_argument('--allow-incomplete',action='store_true');a=p.parse_args()
- all_ledger=[];index=[]
+ all_ledger=[];index=['- [最终结果汇总](最终结果汇总.md)','- [全860题筛选清单CSV](rebench_lite_filtered_v1/screening_all860.csv)（173容量建议名单不是正式300题评测集）']
  for cohort in (['lite270','external100'] if a.cohort=='all' else [a.cohort]):
   manifest=C.load(C.ROOT/'manifests'/(cohort+'.json'))
   if manifest is None:raise RuntimeError('manifest missing: '+cohort)

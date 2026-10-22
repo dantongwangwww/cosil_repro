@@ -106,6 +106,70 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(invalid['parse_error']['type'], 'SyntaxError')
 
 
+class ExactOffsetTests(unittest.TestCase):
+    def item(self, hunks):
+        return gold.parse_patch('diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n' + hunks)[0]
+
+    def test_unique_complete_context_relocates_and_records_actual_lines(self):
+        item = self.item('@@ -1,2 +1,2 @@\n anchor\n-old\n+new\n')
+        placements = []
+        fixed, mapping, changes = gold.apply_file('extra\nanchor\nold\n', item['hunks'], placements)
+        self.assertEqual(fixed, 'extra\nanchor\nnew\n')
+        self.assertEqual(mapping, {1: 1, 2: 2})
+        self.assertEqual([(c['old_line'], c['new_line']) for c in changes], [(3, None), (None, 3)])
+        self.assertEqual(placements[0]['offset_lines'], 1)
+        self.assertEqual(placements[0]['proof'], 'unique_complete_old_hunk_exact')
+        self.assertFalse(placements[0]['fuzz'])
+
+    def test_ambiguous_full_context_does_not_choose_nearest_match(self):
+        item = self.item('@@ -3,2 +3,2 @@\n anchor\n-old\n+new\n')
+        with self.assertRaisesRegex(ValueError, 'ambiguous_hunk_offset'):
+            gold.apply_file('anchor\nold\nx\nanchor\nold\n', item['hunks'])
+
+    def test_repeated_anchor_is_ok_when_entire_old_block_is_unique(self):
+        item = self.item('@@ -2,2 +2,2 @@\n anchor\n-old\n+new\n')
+        placements = []
+        fixed, _, _ = gold.apply_file('anchor\nwrong\nx\nanchor\nold\n', item['hunks'], placements)
+        self.assertEqual(fixed, 'anchor\nwrong\nx\nanchor\nnew\n')
+        self.assertEqual(placements[0]['offset_lines'], 2)
+
+    def test_multiple_hunks_have_independent_offsets_and_net_additions(self):
+        item = self.item('@@ -1,2 +1,3 @@\n one\n-old1\n+new1\n+added\n@@ -4,2 +5,2 @@\n two\n-old2\n+new2\n')
+        placements = []
+        fixed, mapping, changes = gold.apply_file('extra\none\nold1\nbetween\nextra2\ntwo\nold2\n', item['hunks'], placements)
+        self.assertEqual(fixed, 'extra\none\nnew1\nadded\nbetween\nextra2\ntwo\nnew2\n')
+        self.assertEqual([p['offset_lines'] for p in placements], [1, 2])
+        self.assertEqual([p['actual_new_start'] for p in placements], [2, 7])
+        self.assertEqual([c['old_line'] for c in changes if c['change'] == '-'], [3, 7])
+        self.assertEqual(mapping[7], 6)
+
+    def test_offset_zero_keeps_declared_anchor_even_if_full_block_repeats(self):
+        item = self.item('@@ -1,2 +1,2 @@\n anchor\n-old\n+new\n')
+        placements = []
+        fixed, mapping, changes = gold.apply_file('anchor\nold\nx\nanchor\nold\n', item['hunks'], placements)
+        self.assertEqual(fixed, 'anchor\nnew\nx\nanchor\nold\n')
+        self.assertEqual(placements[0]['offset_lines'], 0)
+        self.assertEqual(placements[0]['proof'], 'declared_position_exact')
+        self.assertEqual(mapping, {1: 1, 3: 3, 4: 4, 5: 5})
+
+    def test_missing_context_or_whitespace_changes_are_not_fuzzed(self):
+        item = self.item('@@ -1,2 +1,2 @@\n anchor\n-old\n+new\n')
+        for base in ('wrong\nold\n', ' anchor\nold\n', 'anchor \nold\n'):
+            with self.subTest(base=base), self.assertRaisesRegex(ValueError, 'patch_base_line_mismatch'):
+                gold.apply_file(base, item['hunks'])
+
+    def test_actual_function_owner_uses_relocated_base_coordinates(self):
+        old = '# unrelated\n\ndef target():\n    return 1\n'
+        item = self.item('@@ -1,2 +1,2 @@\n def target():\n-    return 1\n+    return 2\n')
+        fixed = gold.apply_file(old, item['hunks'])[0]
+        parsed = gold.parse_many([old, fixed])
+        mapped = gold.map_file('a.py', 'a.py', old, item, parsed[gold.digest(old)], parsed[gold.digest(fixed)])
+        self.assertEqual(mapped['targets'], ['a.py::target'])
+        deleted = next(e for e in mapped['changed_line_evidence'] if e['change'] == '-')
+        self.assertEqual(deleted['old_line'], 4)
+        self.assertEqual(mapped['hunk_placements'][0]['actual_old_start'], 3)
+
+
 class CaseTests(unittest.TestCase):
     def fixture(self, base, files, patch_text, *, bad_sha=False):
         snapshot = base / 'snapshot'; snapshot.mkdir()

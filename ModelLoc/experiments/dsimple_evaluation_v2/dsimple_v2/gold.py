@@ -22,6 +22,7 @@ from .common import ROOT, FROZEN, PREVIOUS, PYTHON_AST, utc
 
 SCHEMA_VERSION = 2
 POLICY = 'existing_named_functions_v2'
+EVALUATION_REVISION = 'r2_exact_context_offsets'
 PARSE_CACHE = {}
 PARSER = None
 AST_WORKER = r'''
@@ -156,6 +157,9 @@ def parse_patch(text):
             hunk = {'old_start': int(match[1]), 'old_count': int(match[2] or 1),
                     'new_start': int(match[3]), 'new_count': int(match[4] or 1),
                     'seen_old': 0, 'seen_new': 0, 'lines': []}
+            if ((hunk['old_count'] and not hunk['old_start']) or
+                    (hunk['new_count'] and not hunk['new_start'])):
+                raise ValueError('invalid_hunk_coordinates')
             current['hunks'].append(hunk)
         elif line.startswith('rename from '):
             current['old'] = patch_path(line[12:]); current['metadata'].append(line)
@@ -178,19 +182,45 @@ def parse_patch(text):
     return files
 
 
-def apply_file(text, hunks):
+def apply_file(text, hunks, placements=None):
     """Return fixed text, exact unchanged new→old line map, and changed lines."""
     base = text.splitlines(keepends=True); out = []; line_map = {}; changes = []; position = 0
     for hidx, h in enumerate(hunks):
-        start = h['old_start'] - 1 if h['old_count'] else h['old_start']
-        if not position <= start <= len(base):
-            raise ValueError('overlapping_or_out_of_bounds_hunk')
+        declared_start = h['old_start'] - 1 if h['old_count'] else h['old_start']
+        old_values = [v for v in h['lines'] if v['kind'] in (' ', '-')]
+        expected_old = [v['text'] for v in old_values]
+        def matches(start):
+            return (position <= start <= len(base) and start + len(expected_old) <= len(base)
+                    and all(base[start + n].rstrip('\r\n') == line.rstrip('\r\n')
+                            and not (old_values[n].get('no_newline') and base[start + n].endswith(('\n', '\r')))
+                            for n, line in enumerate(expected_old)))
+        start = declared_start
+        if not matches(start):
+            # A stale hunk coordinate is acceptable only when the *entire*
+            # old/context block has exactly one exact occurrence after the
+            # preceding hunk. Never trim context, ignore spaces, choose the
+            # nearest repeated match, or infer an offset for an empty anchor.
+            if not expected_old:
+                raise ValueError('unanchored_hunk_out_of_bounds')
+            candidates = [n for n in range(position, len(base) - len(expected_old) + 1) if matches(n)]
+            if not candidates:
+                raise ValueError('patch_base_line_mismatch')
+            if len(candidates) != 1:
+                raise ValueError('ambiguous_hunk_offset: ' + str(len(candidates)) + ' exact matches')
+            start = candidates[0]
+        offset = start - declared_start
         for k in range(position, start):
             out.append(base[k]); line_map[len(out)] = k + 1
         position = start
         expected_new = h['new_start'] - 1 if h['new_count'] else h['new_start']
-        if len(out) != expected_new:
+        if len(out) != expected_new + offset:
             raise ValueError('new_hunk_position_mismatch')
+        if placements is not None:
+            placements.append({'hunk': hidx, 'declared_old_start': h['old_start'],
+                'declared_new_start': h['new_start'], 'actual_old_start': start + (1 if h['old_count'] else 0),
+                'actual_new_start': len(out) + (1 if h['new_count'] else 0), 'offset_lines': offset,
+                'proof': 'declared_position_exact' if offset == 0 else 'unique_complete_old_hunk_exact',
+                'fuzz': False, 'old_context_line_count': len(expected_old)})
         for value in h['lines']:
             kind, raw = value['kind'], value['text']
             if kind in (' ', '-'):
@@ -247,7 +277,8 @@ def continuations(old_defs, new_defs, line_map):
 
 
 def map_file(path, fixed_path, text, item, old_parse, new_parse):
-    fixed, line_map, changes = apply_file(text, item['hunks'])
+    placements = []
+    fixed, line_map, changes = apply_file(text, item['hunks'], placements)
     old_defs, new_defs = old_parse['definitions'], new_parse['definitions']
     matches, errors = continuations(old_defs, new_defs, line_map)
     old_names = {d['qualified_name'] for d in old_defs if d['kind'] == 'function'}
@@ -279,7 +310,8 @@ def map_file(path, fixed_path, text, item, old_parse, new_parse):
         evidence.append({**entry, 'base_function_id': identity, 'function_id': identity,
                          'mapping_proof': proof, 'matched_base_span': base_owner})
     return {'targets': sorted(targets), 'changed_line_evidence': evidence, 'scope_exempt_changes': exempt,
-            'errors': errors, 'fixed_sha256': digest(fixed), 'unchanged_line_map': [[n, o] for n, o in sorted(line_map.items())]}
+            'errors': errors, 'fixed_sha256': digest(fixed), 'hunk_placements': placements,
+            'unchanged_line_map': [[n, o] for n, o in sorted(line_map.items())]}
 
 
 def write_json(path, obj):
@@ -288,8 +320,13 @@ def write_json(path, obj):
     if not path.resolve().is_relative_to(allowed):
         raise PermissionError('v2 evaluator writes only new private eval_v2 tree')
     path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(obj, ensure_ascii=False, indent=2, allow_nan=False) + '\n'
+    # Preserve identical large base-index files and their revision-snapshot
+    # hardlinks; changed files still use atomic replacement, never in-place IO.
+    if path.is_file() and path.read_bytes() == text.encode():
+        return
     temp = path.with_name(path.name + '.tmp')
-    temp.write_text(json.dumps(obj, ensure_ascii=False, indent=2, allow_nan=False) + '\n'); temp.replace(path)
+    temp.write_text(text); temp.replace(path)
 
 
 def evaluate_case(job_path, benchmark_row_path, output_dir, v1_gold_path=None):
@@ -370,12 +407,13 @@ def evaluate_case(job_path, benchmark_row_path, output_dir, v1_gold_path=None):
         errors.extend({'path': path, **error} for error in mapped['errors'])
         base.update(existing_function_targets=mapped['targets'], diff_changed_line_count=len(applications[position][1]),
                     mapped_line_count=len(mapped['changed_line_evidence']), exempt_line_count=len(mapped['scope_exempt_changes']),
+                    hunk_placements=mapped['hunk_placements'],
                     function_correspondence_resolved=not mapped['errors'])
         file_evidence.append(base)
         write_json(output_dir / f'evidence/file-{position:04d}.json', {**base, **mapped})
     complete = not errors
     status = 'COMPLETE_NONEMPTY' if complete and targets else 'COMPLETE_EMPTY' if complete else 'INCOMPLETE'
-    result = {'schema_version': SCHEMA_VERSION, 'policy_version': POLICY, 'generated_utc': utc(),
+    result = {'schema_version': SCHEMA_VERSION, 'policy_version': POLICY, 'evaluation_revision': EVALUATION_REVISION, 'generated_utc': utc(),
               'instance_id': job['instance_id'], 'repo': job['repo'], 'base_commit': job['base_commit'],
               'status': status, 'existing_function_target_set_complete': complete,
               'existing_function_targets': sorted(targets), 'gold_functions': sorted(targets), 'gold_files': sorted(set(gold_files)),
@@ -411,7 +449,7 @@ def run_manifest(manifest_path, cohort):
         result['origin'] = row.get('origin'); results.append(result)
         print(json.dumps({'instance_id': iid, 'status': result['status'], 'existing_function_n': len(result['existing_function_targets']),
                           'errors': len(result['errors'])}), flush=True)
-    summary = {'schema_version': SCHEMA_VERSION, 'policy_version': POLICY, 'generated_utc': utc(), 'cohort': cohort,
+    summary = {'schema_version': SCHEMA_VERSION, 'policy_version': POLICY, 'evaluation_revision': EVALUATION_REVISION, 'generated_utc': utc(), 'cohort': cohort,
                'descriptor_path': str(manifest_path), 'descriptor_sha256': digest(Path(manifest_path).read_bytes()),
                'allocated_n': len(rows), 'statuses': dict(Counter(r['status'] for r in results)),
                'v1_statuses': dict(Counter(r['v1_mapping_status'] for r in results)),
