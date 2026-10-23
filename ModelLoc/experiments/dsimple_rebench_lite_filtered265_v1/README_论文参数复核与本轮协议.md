@@ -27,7 +27,7 @@
 
 本轮明确保留DeepSeek官方`deepseek-flash`（DeepSeek-V4.1-Flash-1017）、每次显式`thinking.type=disabled`。按当前DeepSeek官方文档，供应商默认temperature为1；实际请求省略temperature/top_p字段并保存真实请求。价格与默认值主源：https://api-docs.deepseek.com/api/create-chat-completion/ 、https://api-docs.deepseek.com/quick_start/pricing/ 。
 
-函数级Top10是用户指定扩展，使用独立JSON函数排序提示词，输出上限4,096，严格评价`path::qualified_name`。这个函数输出限额是本实验扩展约定，不是论文参数。不进行补丁生成、修复测试、训练或其他模型实验。原300题CQ2-CARE gold/empty补丁资格检查没有在本批执行，均标NOT_CHECKED，不能宣称完整复刻论文数据与修复率。
+函数级Top10是用户指定扩展，使用独立JSON函数排序提示词，输出上限4,096，严格评价`path::qualified_name`。这个函数输出限额是本实验扩展约定，不是论文参数。不进行补丁生成、修复测试、训练或其他模型实验。 金标和严格文件/函数计分仍限定原业务Python范围；测试、文档和非Python文本可作为检索证据，但不因此扩大评分目标。类体、模块级改动及base中不存在的新函数不冒充既有函数目标。原300题CQ2-CARE gold/empty补丁资格检查没有在本批执行，均标NOT_CHECKED，不能宣称完整复刻论文数据与修复率。
 
 论文未公开逐字提示词、哈希盐、源码扩展名白名单、grep命中排序及无定义时的窗口宽度。本轮将实际提示词、稳定盐、源码分类、稳定字典序和±30行窗口作为实现约定提前落盘，不能冒称这些细节来自论文。语料从同base commit获取非二进制文本，主文件仅展示源码，证据允许测试和其他文本命中。元数据的精确标识字面量遮罩须记录转换；若涉及原文，只能称遮罩后文本与base可追溯，不能宣称未改字节。
 
