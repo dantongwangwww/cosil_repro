@@ -290,6 +290,60 @@ class ReportTests(unittest.TestCase):
         self.assertIsNone(summary["total_cost_usd"])
         self.assertEqual(summary["billing_unknown_attempts"], 1)
 
+    def test_complete_continuation_wins_over_old_error_and_retains_response_less_400(self):
+        self.turn("Public progress before context rejection", [self.tool("read_file", {"path": "file.py"},
+                                                    self.read_data(content="Existing evidence"))])
+        unchanged_history = copy.deepcopy(self.history)
+        rejected_request = {"messages": unchanged_history, "max_tokens": 393216}
+        self.put("calls/0002/request.json", rejected_request)
+        self.put("calls/0002/attempt_0_started.json", {"utc": "synthetic"})
+        self.put("calls/0002/attempt_0_receipt.json", {"http_status": 400, "usage": None,
+                 "elapsed_seconds": 0.75, "billing_unknown": False})
+        old_error = {"type": "RuntimeError", "error": "DeepSeek API HTTP 400", "utc": "synthetic"}
+        self.put("error.json", old_error)
+        old_error_bytes = (self.run / "error.json").read_bytes()
+        self.assertEqual(render(self.run, self.docs)["summary"]["status"], "terminal_error")
+
+        # A failed HTTP turn contributes no assistant/tool messages. Only its
+        # successor's max_tokens changes; the existing history remains exact.
+        self.turn_count = 2
+        self.turn('{"files":[],"functions":[],"summary":"REAL_FINAL_AFTER_CONTINUATION"}')
+        continued_request = json.loads((self.run / "calls/0003/request.json").read_text())
+        continued_request["max_tokens"] = 393114
+        self.put("calls/0003/request.json", continued_request)
+        self.assertEqual(continued_request["messages"], rejected_request["messages"])
+        self.put("continuation.json", {"resumed_after_turn": 2, "messages_unchanged": True})
+        summary = self.generated()["summary"]
+        trace = (self.docs / TRACE_NAME).read_text()
+        rejected_section = trace.split("## 第 2 轮", 1)[1].split("## 第 3 轮", 1)[0]
+        self.assertEqual(summary["status"], "complete")
+        self.assertTrue(summary["model_final_localization_available"])
+        self.assertIsNone(summary["terminal_error"])
+        self.assertEqual(summary["model_turns"], 3)
+        self.assertEqual(summary["model_turns_with_public_response"], 2)
+        self.assertEqual(summary["actual_api_attempts"], 3)
+        self.assertEqual(summary["http_successful_attempts"], 2)
+        self.assertEqual(summary["http_error_attempts"], 1)
+        self.assertEqual(summary["known_token_totals"]["prompt_tokens"], 200)
+        self.assertEqual(summary["executed_tool_calls"], 1)
+        self.assertEqual(summary["warnings"], [])
+        self.assertIn("本轮未记录到模型的公开 assistant 响应", rejected_section)
+        self.assertIn('"http_status": 400', rejected_section)
+        self.assertNotIn("REAL_FINAL_AFTER_CONTINUATION", rejected_section)
+        self.assertNotIn("Public progress before context rejection", rejected_section)
+        self.assertIn("REAL_FINAL_AFTER_CONTINUATION", trace)
+        self.assertNotIn("模型未给出最终定位", trace)
+        self.assertEqual((self.run / "error.json").read_bytes(), old_error_bytes)
+        self.assertFalse((self.run / "calls/0002/result.json").exists())
+        self.assertFalse((self.run / "calls/0002/attempt_0_response.json").exists())
+        with (self.docs / CSV_NAME).open(encoding="utf-8-sig", newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual([row["turn"] for row in rows], ["1", "2", "3"])
+        self.assertEqual(rows[1]["http_successful_attempts"], "0")
+        self.assertEqual(rows[1]["request_id"], "")
+        self.assertEqual(rows[1]["prompt_tokens"], "")
+        self.assertEqual(rows[1]["completion_tokens"], "")
+
 
 if __name__ == "__main__":
     unittest.main()
