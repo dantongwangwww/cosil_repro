@@ -15,6 +15,7 @@ from code_repair50.image_transport import (
     containerd_manifest_bytes,
     docker_archive_manifest_bytes, OCI_MANIFEST, OCI_CONFIG, OCI_GZIP_LAYER,
     DOCKER_MANIFEST, expected_runtime_ids,
+    seed_verified_partial_cache, recover_verified_partial_image,
 )
 
 
@@ -306,6 +307,121 @@ class ImageTransportTests(unittest.TestCase):
         self.record.update(digest=digest, image_reference="swerebench/example@" + digest)
         with self.assertRaisesRegex(ImageTransportError, "gzip"):
             verify_manifest_record(self.record)
+
+    def partial_archive(self, directory, *, corrupt=False, extra=False):
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / "official_image.tar"
+        first_name = self.manifest["layers"][0]["digest"].split(":")[1] + ".tar.gz"
+        contents = {self.config_digest: self.config,
+                    first_name: self.layers[0] if not corrupt else b"x" * len(self.layers[0])}
+        if extra:
+            contents["../../escape"] = b"bad"
+        with tarfile.open(path, "w") as tar:
+            for name, body in contents.items():
+                info = tarfile.TarInfo(name)
+                info.size = len(body)
+                tar.addfile(info, io.BytesIO(body))
+        return path
+
+    def test_partial_cache_seed_hashes_bytes_and_preserves_original(self):
+        partial = self.partial_archive(self.root / "original")
+        before = partial.read_bytes()
+        result = seed_verified_partial_cache(partial, self.record, self.root / "cache")
+        target = self.root / "cache" / self.manifest["layers"][0]["digest"]
+        self.assertEqual(target.read_bytes(), self.layers[0])
+        self.assertEqual(result["missing_blob_bytes"], len(self.layers[1]))
+        self.assertEqual(partial.read_bytes(), before)
+        self.assertFalse(result["cache_trusted_by_filename_only"])
+
+    def test_partial_corrupt_layer_is_never_published_as_cache(self):
+        partial = self.partial_archive(self.root / "original", corrupt=True)
+        with self.assertRaisesRegex(ImageTransportError, "digest/size"):
+            seed_verified_partial_cache(partial, self.record, self.root / "cache")
+        self.assertFalse((self.root / "cache" / self.manifest["layers"][0]["digest"]).exists())
+
+    def test_partial_archive_unexpected_path_rejected(self):
+        partial = self.partial_archive(self.root / "original", extra=True)
+        with self.assertRaisesRegex(ImageTransportError, "Unexpected"):
+            seed_verified_partial_cache(partial, self.record, self.root / "cache")
+        self.assertFalse((self.root / "escape").exists())
+
+    def test_recovery_missing_volume_gate_stops_before_network(self):
+        workdir = self.root / "original"
+        partial = self.partial_archive(workdir)
+        with patch("code_repair50.image_transport.probe_crane") as probe, \
+             patch("code_repair50.image_transport.download_archive") as download:
+            with self.assertRaisesRegex(ImageTransportError, "small-recovery limit"):
+                recover_verified_partial_image(Mock(), self.record, workdir=workdir, max_missing_blob_bytes=0)
+        probe.assert_not_called()
+        download.assert_not_called()
+        failure = json.loads((workdir / "recovery_attempt_1/recovery_receipt.json").read_text())
+        self.assertEqual(failure["status"], "FAILED")
+        self.assertTrue(partial.exists())
+        with self.assertRaises(FileExistsError):
+            recover_verified_partial_image(Mock(), self.record, workdir=workdir)
+
+    def test_recovery_uses_same_digest_official_cache_and_new_tar(self):
+        complete_bytes = self.archive().read_bytes()
+        workdir = self.root / "original"
+        partial = self.partial_archive(workdir)
+        original_bytes = partial.read_bytes()
+        def download(record, archive, output, *, cache_path):
+            self.assertEqual(record["image_reference"], self.record["image_reference"])
+            cached = cache_path / self.manifest["layers"][0]["digest"]
+            self.assertEqual(cached.read_bytes(), self.layers[0])
+            archive.write_bytes(complete_bytes)
+            output.mkdir()
+            receipt = verify_docker_archive(archive, record)
+            (output / "archive_receipt.json").write_text(json.dumps(receipt))
+            return receipt
+        def ensure(client, record, *, workdir):
+            self.assertEqual(workdir, self.root / "original/recovery_attempt_1")
+            return {"loaded_image_verified": True, "runtime_image_reference": self.config_digest,
+                    "loaded_identity_receipt_path": str(workdir / "loaded_identity_receipt_v2.json")}
+        with patch("code_repair50.image_transport.probe_crane"), \
+             patch("code_repair50.image_transport.download_archive", side_effect=download), \
+             patch("code_repair50.image_transport.ensure_verified_image", side_effect=ensure):
+            result = recover_verified_partial_image(Mock(), self.record, workdir=workdir)
+        self.assertEqual(partial.read_bytes(), original_bytes)
+        completed = json.loads(Path(result["recovery_receipt_path"]).read_text())
+        self.assertEqual(completed["status"], "SUCCEEDED")
+        self.assertEqual(completed["max_explicit_recovery_attempts"], 1)
+
+    def test_failed_recovery_does_not_fall_back_to_full_download(self):
+        workdir = self.root / "original"
+        self.partial_archive(workdir)
+        with patch("code_repair50.image_transport.probe_crane"), \
+             patch("code_repair50.image_transport.download_archive",
+                   side_effect=ImageTransportError("Bounded transport failure")) as download:
+            with self.assertRaises(ImageTransportError):
+                recover_verified_partial_image(Mock(), self.record, workdir=workdir)
+        self.assertEqual(download.call_count, 1)
+        with patch("code_repair50.image_transport.download_archive") as later:
+            with self.assertRaisesRegex(ImageTransportError, "Prior recovery failed"):
+                ensure_verified_image(Mock(), self.record, workdir=workdir)
+        later.assert_not_called()
+
+    def test_completed_recovery_is_reused_without_touching_original_partial(self):
+        workdir = self.root / "original"
+        partial = self.partial_archive(workdir)
+        original = partial.read_bytes()
+        child = workdir / "recovery_attempt_1"
+        child.mkdir()
+        receipt = verify_docker_archive(self.archive(), self.record)
+        (child / "loaded_identity_receipt_v2.json").write_text(json.dumps(receipt))
+        marker = {"status": "SUCCEEDED", "source_reference": self.record["image_reference"],
+                  "source_manifest_digest": self.record["digest"], "resolved_workdir": str(child.resolve())}
+        (child / "recovery_receipt.json").write_text(json.dumps(marker))
+        attrs = {"Id": self.config_digest, "RootFS": {"Type": "layers", "Layers": self.diff_ids},
+                 "Os": "linux", "Architecture": "amd64", "RepoDigests": []}
+        client = Mock()
+        client.images.get.return_value.attrs = attrs
+        with patch("code_repair50.image_transport.download_archive") as download:
+            result = ensure_verified_image(client, self.record, workdir=workdir)
+        download.assert_not_called()
+        self.assertEqual(partial.read_bytes(), original)
+        self.assertEqual(result["runtime_image_reference"], self.config_digest)
+        self.assertTrue(result["original_partial_preserved"])
 
 
 if __name__ == "__main__":

@@ -88,7 +88,7 @@ def verify_manifest_record(record):
     return manifest
 
 
-def crane_pull_argv(binary, image_record, archive):
+def crane_pull_argv(binary, image_record, archive, *, cache_path=None):
     """Plan only; no network, subprocess, daemon mutation, or credential lookup."""
     verify_manifest_record(image_record)
     archive = Path(archive)
@@ -96,8 +96,14 @@ def crane_pull_argv(binary, image_record, archive):
         raise ImageTransportError("Refuse to overwrite an image archive")
     if not archive.is_absolute():
         raise ImageTransportError("Archive path must be absolute")
-    return [str(binary), "--platform", "linux/amd64", "pull",
-            image_record["image_reference"], str(archive), "--format", "tarball"]
+    command = [str(binary), "--platform", "linux/amd64", "pull",
+               image_record["image_reference"], str(archive)]
+    if cache_path is not None:
+        cache_path = Path(cache_path)
+        if not cache_path.is_absolute() or cache_path.is_symlink():
+            raise ImageTransportError("Recovery cache must be an absolute private directory")
+        command.extend(["--cache_path", str(cache_path)])
+    return command + ["--format", "tarball"]
 
 
 def verify_docker_archive(archive, image_record):
@@ -341,7 +347,7 @@ def probe_crane(image_record, output, binary=DEFAULT_CRANE):
 def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
                      timeout=1800, reserve_bytes=20 * 1024 ** 3,
                      shared_store=Path("/mnt/skygruop0/containerd"),
-                     shared_reserve_bytes=10 * 1024 ** 3):
+                     shared_reserve_bytes=10 * 1024 ** 3, cache_path=None):
     """Explicit opt-in network transport; does not load images or start containers.
 
     The caller is responsible for stopping the failed own daemon-pull attempt
@@ -357,7 +363,7 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
     if (shutil.disk_usage(archive.parent).free < required
             or shutil.disk_usage(shared_store).free < shared_reserve_bytes):
         raise ImageTransportError("Insufficient archive-disk space including fixed reserve")
-    command = crane_pull_argv(binary, image_record, archive)
+    command = crane_pull_argv(binary, image_record, archive, cache_path=cache_path)
     env = crane_environment(output / "anonymous-docker-config")
     started = time.monotonic()
     log = output / "crane_pull.log"
@@ -382,6 +388,7 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
     receipt = verify_docker_archive(archive, image_record)
     receipt.update(crane_version=CRANE_VERSION, crane_binary_sha256=CRANE_BINARY_SHA256,
                    transport_elapsed_seconds=time.monotonic() - started,
+                   private_layer_cache_path=str(cache_path) if cache_path is not None else None,
                    shared_daemon_configuration_modified=False, images_loaded=0)
     (output / "archive_receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     return receipt
@@ -454,6 +461,165 @@ def previous_own_load_logs(workdir, receipt):
     return sorted(evidence)
 
 
+def seed_verified_partial_cache(partial_archive, manifest_record, cache_dir, *, budget_check=None):
+    """Copy only digest-verified complete gzip blobs into a new private cache.
+
+    No third-party path is extracted and no network is used. Every filename is
+    derived from the original verified manifest. A truncated tail is missing,
+    never a trusted cache entry. A corrupt complete member fails closed.
+    """
+    manifest = verify_manifest_record(manifest_record)
+    partial_archive, cache_dir = Path(partial_archive), Path(cache_dir)
+    if partial_archive.is_symlink() or cache_dir.is_symlink():
+        raise ImageTransportError("Recovery source/cache symlinks are rejected")
+    cache_dir.mkdir(parents=True, mode=0o700, exist_ok=False)
+    expected = {manifest["config"]["digest"]: {**manifest["config"], "role": "config"}}
+    for layer in manifest["layers"]:
+        expected[layer["digest"].split(":", 1)[1] + ".tar.gz"] = {**layer, "role": "compressed_layer"}
+    before = partial_archive.stat()
+    seen, verified, seeded = set(), [], []
+    truncated = False
+    last_budget_check = time.monotonic()
+    with tarfile.open(partial_archive, "r:") as bundle:
+        try:
+            for member in bundle:
+                if member.name in seen or not member.isfile():
+                    raise ImageTransportError("Duplicate/nonregular partial archive member")
+                seen.add(member.name)
+                if member.name == "manifest.json":
+                    continue
+                if member.name not in expected:
+                    raise ImageTransportError("Unexpected partial archive path")
+                target = expected[member.name]
+                if member.size != target["size"]:
+                    raise ImageTransportError("Partial member header size differs from original manifest")
+                stream = bundle.extractfile(member)
+                cache_target = cache_dir / target["digest"]
+                temporary = cache_dir / (".seed-" + target["digest"].split(":", 1)[1])
+                out = temporary.open("xb") if target["role"] == "compressed_layer" else None
+                if out is not None:
+                    os.fchmod(out.fileno(), 0o600)
+                digest, count = hashlib.sha256(), 0
+                try:
+                    while block := stream.read(1024 * 1024):
+                        if budget_check is not None and time.monotonic() - last_budget_check >= 1:
+                            budget_check()
+                            last_budget_check = time.monotonic()
+                        digest.update(block)
+                        count += len(block)
+                        if out is not None:
+                            out.write(block)
+                except (tarfile.ReadError, EOFError):
+                    truncated = True
+                    break
+                finally:
+                    if out is not None:
+                        out.close()
+                actual = "sha256:" + digest.hexdigest()
+                if count != target["size"] or actual != target["digest"]:
+                    raise ImageTransportError("Complete partial blob failed original digest/size check")
+                item = {"member_name": member.name, "role": target["role"],
+                        "digest": actual, "bytes": count, "digest_and_size_verified": True}
+                verified.append(item)
+                if out is not None:
+                    if cache_target.exists():
+                        raise ImageTransportError("Refuse to overwrite an existing cache blob")
+                    os.replace(temporary, cache_target)
+                    seeded.append({**item, "cache_path": str(cache_target.resolve())})
+        except (tarfile.ReadError, EOFError):
+            truncated = True
+    after = partial_archive.stat()
+    if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+        raise ImageTransportError("Original partial archive changed during recovery")
+    verified_names = {item["member_name"] for item in verified}
+    missing = [{"member_name": name, "digest": value["digest"], "bytes": value["size"],
+                "role": value["role"]} for name, value in expected.items() if name not in verified_names]
+    with partial_archive.open("rb") as source:
+        partial_sha, partial_bytes = _sha(source)
+    return {"schema": "repair50_verified_partial_cache_seed_v1",
+        "source_reference": manifest_record["image_reference"],
+        "partial_archive_path": str(partial_archive.resolve()),
+        "partial_archive_sha256": partial_sha, "partial_archive_bytes": partial_bytes,
+        "partial_archive_modified": False, "truncated_tail_observed": truncated,
+        "verified_members": verified, "seeded_compressed_layers": seeded,
+        "seeded_compressed_bytes": sum(item["bytes"] for item in seeded),
+        "missing_blob_members": missing,
+        "missing_blob_bytes": sum(item["bytes"] for item in missing),
+        "network_requests": 0, "cache_trusted_by_filename_only": False}
+
+
+def recover_verified_partial_image(client, manifest_record, *, workdir,
+                                   max_missing_blob_bytes=16 * 1024 ** 2):
+    """One explicit official-crane recovery, with immutable old failure evidence.
+
+    This is never an automatic retry of model/test outcomes. A preexisting
+    attempt, even failed, cannot be overwritten or repeated by this entry point.
+    """
+    manifest = verify_manifest_record(manifest_record)
+    if type(max_missing_blob_bytes) is not int or not 0 <= max_missing_blob_bytes <= 16 * 1024 ** 2:
+        raise ImageTransportError("Recovery missing-blob limit must be between zero and the frozen 16MiB cap")
+    workdir = Path(workdir)
+    partial = workdir / "official_image.tar"
+    if not partial.is_file() or partial.is_symlink():
+        raise ImageTransportError("No regular original partial archive to recover")
+    attempt = workdir / "recovery_attempt_1"
+    attempt.mkdir(mode=0o700, exist_ok=False)
+    result_path = attempt / "recovery_receipt.json"
+    started = time.monotonic()
+    request = {"schema": "repair50_official_crane_recovery_request_v1",
+        "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"],
+        "original_partial_archive_path": str(partial.resolve()),
+        "max_missing_blob_bytes": max_missing_blob_bytes,
+        "max_explicit_recovery_attempts": 1, "model_requests_authorized": 0,
+        "prechange_github_checkpoint": "ef9d4afc6f18fc9f15d8b5f8efc82294a053a2de"}
+    _save(attempt / "recovery_request.json", request)
+    try:
+        compressed = sum(layer["size"] for layer in manifest["layers"])
+        # Both private cache and newly generated full tar coexist with the old
+        # partial. Keep an additional metadata allowance and fixed 20GiB reserve.
+        required_extra = 2 * compressed + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
+        if (shutil.disk_usage(attempt).free < required_extra
+                or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+            raise ImageTransportError("Insufficient disk budget for recovery cache, new tar and reserves")
+        def budget_check():
+            if (shutil.disk_usage(attempt).free < 20 * 1024 ** 3
+                    or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                raise ImageTransportError("Recovery cache copy reached a disk reserve gate")
+        seed = seed_verified_partial_cache(partial, manifest_record, attempt / "private_layer_cache",
+                                           budget_check=budget_check)
+        _save(attempt / "cache_seed_receipt.json", seed)
+        if seed["missing_blob_bytes"] > max_missing_blob_bytes:
+            raise ImageTransportError("Missing blob volume exceeds the fixed small-recovery limit")
+        probe_crane(manifest_record, attempt / "probe")
+        receipt = download_archive(manifest_record, attempt / "official_image.tar", attempt / "download",
+                                   cache_path=attempt / "private_layer_cache")
+        if receipt.get("compressed_layers_verified") is not True or receipt.get("uncompressed_layers_verified") is not True:
+            raise ImageTransportError("Recovered archive did not pass full ordinary blob/diffID verification")
+        loaded = ensure_verified_image(client, manifest_record, workdir=attempt)
+        if loaded.get("loaded_image_verified") is not True:
+            raise ImageTransportError("Recovered image did not pass ordinary loaded-image identity verification")
+        completed = {**request, "status": "SUCCEEDED", "elapsed_seconds": time.monotonic() - started,
+            "resolved_workdir": str(attempt.resolve()),
+            "cache_seed_receipt_path": str((attempt / "cache_seed_receipt.json").resolve()),
+            "seeded_compressed_bytes": seed["seeded_compressed_bytes"],
+            "expected_missing_blob_bytes": seed["missing_blob_bytes"],
+            "loaded_identity_receipt_path": loaded["loaded_identity_receipt_path"],
+            "runtime_image_reference": loaded["runtime_image_reference"],
+            "original_partial_archive_modified": False, "model_requests": 0,
+            "qualifications_started": 0}
+        _save(result_path, completed)
+        return {**loaded, "recovery_receipt_path": str(result_path.resolve()),
+                "original_partial_preserved": True}
+    except Exception as exc:
+        _save(result_path, {**request, "status": "FAILED", "elapsed_seconds": time.monotonic() - started,
+            "error_type": type(exc).__name__, "error_message": (
+                str(exc) if isinstance(exc, ImageTransportError) else "Nontransport exception; original private logs preserved"),
+            "original_partial_archive_modified": False, "model_requests": 0,
+            "qualifications_started": 0, "automatic_retry_authorized": False})
+        raise
+
+
 def ensure_verified_image(client, manifest_record, *, workdir):
     """Explicit fallback entry point, called serially by the qualification worker.
 
@@ -464,6 +630,19 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    recovery_path = workdir / "recovery_attempt_1/recovery_receipt.json"
+    if recovery_path.exists():
+        recovery = json.loads(recovery_path.read_text())
+        expected_directory = workdir / "recovery_attempt_1"
+        if (recovery.get("status") != "SUCCEEDED"
+                or recovery.get("source_reference") != manifest_record["image_reference"]
+                or recovery.get("source_manifest_digest") != manifest_record["digest"]
+                or recovery.get("resolved_workdir") != str(expected_directory.resolve())
+                or expected_directory.is_symlink()):
+            raise ImageTransportError("Prior recovery failed or belongs to another source; stop without automatic retry")
+        recovered = ensure_verified_image(client, manifest_record, workdir=expected_directory)
+        return {**recovered, "recovery_receipt_path": str(recovery_path.resolve()),
+                "original_partial_preserved": True}
     loaded_path = workdir / "loaded_identity_receipt_v2.json"
     load_directory = workdir
     previous_path = loaded_path if loaded_path.exists() else workdir / "loaded_identity_receipt.json"
