@@ -13,6 +13,8 @@ from code_repair50.image_transport import (
     verify_loaded_image, verify_manifest_record, crane_environment, ensure_verified_image,
     guard_existing_tags,
     containerd_manifest_bytes,
+    docker_archive_manifest_bytes, OCI_MANIFEST, OCI_CONFIG, OCI_GZIP_LAYER,
+    DOCKER_MANIFEST, expected_runtime_ids,
 )
 
 
@@ -111,7 +113,8 @@ class ImageTransportTests(unittest.TestCase):
         self.config = json.dumps({"os": "linux", "architecture": "amd64",
             "rootfs": {"type": "layers", "diff_ids": self.diff_ids}}).encode()
         self.config_digest = "sha256:" + hashlib.sha256(self.config).hexdigest()
-        self.manifest["config"] = {"digest": self.config_digest, "size": len(self.config)}
+        self.manifest["config"] = {"mediaType": "application/vnd.docker.container.image.v1+json",
+                                   "digest": self.config_digest, "size": len(self.config)}
         digest = "sha256:" + hashlib.sha256(json.dumps(self.manifest,
             separators=(",", ":")).encode()).hexdigest()
         self.record.update(digest=digest, image_reference="swerebench/example@" + digest)
@@ -240,6 +243,69 @@ class ImageTransportTests(unittest.TestCase):
         self.assertTrue(result["loaded_by_this_run"])
         self.assertEqual(result["runtime_image_reference"], attrs["Id"])
         self.assertEqual((self.root / "docker_load.log").read_text(), original_log)
+
+    def make_oci_source(self):
+        self.manifest["mediaType"] = OCI_MANIFEST
+        self.manifest["config"]["mediaType"] = OCI_CONFIG
+        for layer in self.manifest["layers"]:
+            layer["mediaType"] = OCI_GZIP_LAYER
+        digest = "sha256:" + hashlib.sha256(json.dumps(self.manifest,
+            separators=(",", ":")).encode()).hexdigest()
+        self.record.update(digest=digest, image_reference="swerebench/example@" + digest)
+
+    def test_oci_gzip_archive_uses_same_full_blob_and_diff_id_checks(self):
+        self.make_oci_source()
+        receipt = verify_docker_archive(self.archive(), self.record)
+        self.assertEqual(receipt["source_manifest_digest"], self.record["digest"])
+        self.assertEqual(receipt["registry_manifest"]["mediaType"], OCI_MANIFEST)
+        self.assertTrue(receipt["compressed_layers_verified"])
+        self.assertTrue(receipt["uncompressed_layers_verified"])
+
+    def test_oci_native_manifest_id_is_supported(self):
+        self.make_oci_source()
+        receipt = verify_docker_archive(self.archive(), self.record)
+        result = verify_loaded_image(self.docker29_attrs(receipt), receipt)
+        self.assertEqual(result["runtime_manifest"]["mediaType"], OCI_MANIFEST)
+        self.assertFalse(result["runtime_descriptor_media_types_translated"])
+
+    def test_oci_docker_archive_mime_mapping_is_explicit_and_digest_bound(self):
+        self.make_oci_source()
+        original = json.dumps(self.manifest)
+        receipt = verify_docker_archive(self.archive(), self.record)
+        raw = docker_archive_manifest_bytes(self.manifest)
+        attrs = self.docker29_attrs(receipt)
+        attrs["Id"] = "sha256:" + hashlib.sha256(raw).hexdigest()
+        attrs["Descriptor"] = {"digest": attrs["Id"], "size": len(raw), "mediaType": DOCKER_MANIFEST}
+        result = verify_loaded_image(attrs, receipt)
+        self.assertEqual(json.dumps(self.manifest), original)
+        self.assertEqual(result["source_manifest_digest"], self.record["digest"])
+        self.assertEqual(result["local_image_id_scheme"], "DOCKER_ARCHIVE_OCI_MEDIA_TYPE_MAPPING")
+        self.assertTrue(result["runtime_descriptor_media_types_translated"])
+        self.assertFalse(result["same_original_config_and_compressed_layer_descriptors"])
+        self.assertTrue(result["same_original_config_and_compressed_blob_digests_and_sizes"])
+        self.assertFalse(result["original_repo_digest_present"])
+        self.assertIn(attrs["Id"], expected_runtime_ids(receipt))
+
+    def test_oci_mapping_cannot_change_a_layer_digest(self):
+        self.make_oci_source()
+        receipt = verify_docker_archive(self.archive(), self.record)
+        transformed = json.loads(docker_archive_manifest_bytes(self.manifest))
+        transformed["layers"][0]["digest"] = "sha256:" + "e" * 64
+        raw = json.dumps(transformed, separators=(",", ":")).encode()
+        attrs = self.docker29_attrs(receipt)
+        attrs["Id"] = "sha256:" + hashlib.sha256(raw).hexdigest()
+        attrs["Descriptor"] = {"digest": attrs["Id"], "size": len(raw), "mediaType": DOCKER_MANIFEST}
+        with self.assertRaisesRegex(ImageTransportError, "exact digest-bound"):
+            verify_loaded_image(attrs, receipt)
+
+    def test_oci_unknown_compression_is_not_treated_as_gzip(self):
+        self.make_oci_source()
+        self.manifest["layers"][0]["mediaType"] = "application/vnd.oci.image.layer.v1.tar+zstd"
+        digest = "sha256:" + hashlib.sha256(json.dumps(self.manifest,
+            separators=(",", ":")).encode()).hexdigest()
+        self.record.update(digest=digest, image_reference="swerebench/example@" + digest)
+        with self.assertRaisesRegex(ImageTransportError, "gzip"):
+            verify_manifest_record(self.record)
 
 
 if __name__ == "__main__":

@@ -249,7 +249,8 @@ def evaluate_in_worker(task,arm,patch_path,directory):
                   integrity_fix_checkpoint=INTEGRITY_FIX_CHECKPOINT,
                   executor_source_sha256_at_start=digest(__file__),stage='IMAGE_IDENTITY_OR_TRANSPORT')
     try:
-        patch=Path(patch_path).read_text()
+        patch_bytes=Path(patch_path).read_bytes()
+        patch=patch_bytes.decode('utf-8',errors='strict')
         record['stage']='PRIVATE_SCORING_PATH_INTEGRITY_CHECK'
         try:guard=scoring_test_guard(arm,patch,row['test_patch'])
         except (ValueError,UnicodeError) as exc:
@@ -287,7 +288,7 @@ def evaluate_in_worker(task,arm,patch_path,directory):
         if actual.exit_code or actual.output.decode().strip()!=row['base_commit']:
             raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH')
         from swebench.harness.docker_utils import copy_to_container,exec_run_with_timeout
-        business=directory/'patch.diff';business.write_text(patch)
+        business=directory/'patch.diff';business.write_bytes(patch_bytes)
         record['stage']='BUSINESS_PATCH_APPLICATION'
         if patch.strip():
             copy_to_container(container,business,PurePosixPath('/patch.diff'))

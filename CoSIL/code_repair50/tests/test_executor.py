@@ -23,6 +23,19 @@ class QualificationTests(unittest.TestCase):
     def test_gold_failure_or_empty_success_cannot_qualify(self):
         self.assertFalse(qualifies({**self.good(),'resolved':False},self.empty()))
         self.assertFalse(qualifies(self.good(),{**self.empty(),'resolved':True}))
+    def test_old_newline_changed_patch_is_infrastructure_not_task_exclusion(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder=Path(temporary);(folder/'gold').mkdir()
+            (folder/'gold.diff').write_bytes(b'original\r\n')
+            (folder/'gold/patch.diff').write_bytes(b'original\n')
+            result={'gold_receipt':str(folder/'gold/result.json'),'qualification_passed':False,'system_blocked':False}
+            corrected=Q.audit_gold_patch_identity(result)
+            self.assertTrue(corrected['system_blocked'])
+            self.assertEqual(corrected['reason'],'SYSTEM_PATCH_ARTIFACT_INTEGRITY')
+            self.assertFalse(result['system_blocked'])
+            self.assertEqual(Q.audit_gold_patch_identity(result),corrected)
+            (folder/'gold/patch.diff').write_bytes(b'original\r\n')
+            self.assertEqual(Q.audit_gold_patch_identity(result),result)
     def test_empty_patch_application_failure_does_not_qualify(self):
         self.assertFalse(qualifies(self.good(),{'resolved':False,'status':'PATCH_APPLICATION_FAILED'}))
     def test_pins_must_be_official_digest_references(self):
@@ -91,6 +104,9 @@ class QualificationTests(unittest.TestCase):
                         'gold_receipt':'g','empty_receipt':'e','system_blocked':False}
             with patch.object(E,'OUT',out),patch.object(E,'LIVE',live),patch.object(Q,'qualify_task',side_effect=qualify),contextlib.redirect_stdout(io.StringIO()):
                 result=Q.run(3)
+                frozen_review=(live/'first3_engineering_review.json').read_bytes()
+                self.assertEqual(Q.run(3),result)
+                self.assertEqual((live/'first3_engineering_review.json').read_bytes(),frozen_review)
             status=json.loads((live/'live_status.json').read_text())
             self.assertEqual([x['instance_id'] for x in status['selected']],['x2','y','z'])
             self.assertEqual(result['qualified_count'],3)

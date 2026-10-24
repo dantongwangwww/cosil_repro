@@ -21,17 +21,30 @@ def system_failure(record):
     return any(value in message for value in ['SYSTEM_DISK_CAPACITY','NO SPACE LEFT ON DEVICE',
         'PERMISSION DENIED','CANNOT CONNECT TO THE DOCKER','SYSTEM_IMAGE_PULL']) or record.get('error_type') in ['ImageTransportError','SYSTEM_IMAGE_IDENTITY']
 
+def audit_gold_patch_identity(result):
+    """Preserve an old receipt while preventing byte-changing I/O from excluding a task."""
+    receipt=result.get('gold_receipt')
+    if not receipt:return result
+    folder=Path(receipt).parent.parent;expected=folder/'gold.diff';applied=folder/'gold/patch.diff'
+    if not (expected.exists() and applied.exists()) or expected.read_bytes()==applied.read_bytes():return result
+    review={'error_type':'SYSTEM_PATCH_ARTIFACT_INTEGRITY','qualification_receipt_preserved':True,
+            'expected_sha256':E.digest(expected),'applied_sha256':E.digest(applied),
+            'gold_receipt':receipt,'reason':'Applied business patch bytes differ from the frozen reference patch; this is not a task qualification failure'}
+    E.save(folder/'gold_patch_byte_integrity_failure.json',review)
+    return {**result,'system_blocked':True,'reason':'SYSTEM_PATCH_ARTIFACT_INTEGRITY',
+            'patch_integrity_review':str(folder/'gold_patch_byte_integrity_failure.json')}
+
 def qualify_task(candidate,retry_infrastructure=False):
     iid=candidate['instance_id'];folder=E.LIVE/'candidates'/iid
     prior=folder/'qualification.json'
     if prior.exists():
-        old=E.read(prior)
+        old=audit_gold_patch_identity(E.read(prior))
         if retry_infrastructure and old.get('system_blocked'):
             number=2;original_folder=folder
             while True:
                 folder=original_folder/('infrastructure_attempt_'+str(number))
                 if not (folder/'qualification.json').exists():break
-                previous=E.read(folder/'qualification.json')
+                previous=audit_gold_patch_identity(E.read(folder/'qualification.json'))
                 if not previous.get('system_blocked'):return previous
                 number+=1
         else:return old
@@ -117,7 +130,11 @@ def run(limit=50,inspect_first=3,retry_infrastructure=False):
                 **status,'reason':'SYSTEM_BLOCK_OR_THREE_CONSECUTIVE_QUALIFICATION_FAILURES_REQUIRES_AUDIT'})
             return status
         if len(audit)==inspect_first:
-            E.save(E.LIVE/'first3_engineering_review.json',{'reviewed_at':E.utc(),'records':audit,
+            review=E.LIVE/'first3_engineering_review.json'
+            existing=E.read(review) if review.exists() else None
+            if existing and (existing.get('records')!=audit or existing.get('qualification_count')!=len(selected)):
+                raise RuntimeError('Frozen first3 engineering review disagrees with replayed qualification receipts')
+            if not existing:E.save(review,{'reviewed_at':E.utc(),'records':audit,
                 'scope':'Engineering chain check only; no model outcomes or prompt adjustment',
                 'all_artifact_receipts_present':all(x.get('gold_receipt') and x.get('empty_receipt') for x in audit),
                 'qualification_count':len(selected),'model_requests':0})

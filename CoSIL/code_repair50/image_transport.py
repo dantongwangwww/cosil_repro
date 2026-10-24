@@ -29,6 +29,15 @@ CRANE_BINARY_SHA256 = "8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25
 DEFAULT_CRANE = Path("/tmp/repair50_20261024/tools/crane-v0.22.1/crane")
 HASH = re.compile(r"sha256:[0-9a-f]{64}\Z")
 REFERENCE = re.compile(r"swerebench/[a-z0-9_.-]+@sha256:[0-9a-f]{64}\Z")
+DOCKER_MANIFEST = "application/vnd.docker.distribution.manifest.v2+json"
+DOCKER_CONFIG = "application/vnd.docker.container.image.v1+json"
+DOCKER_GZIP_LAYER = "application/vnd.docker.image.rootfs.diff.tar.gzip"
+OCI_MANIFEST = "application/vnd.oci.image.manifest.v1+json"
+OCI_CONFIG = "application/vnd.oci.image.config.v1+json"
+OCI_GZIP_LAYER = "application/vnd.oci.image.layer.v1.tar+gzip"
+SUPPORTED_GZIP_LAYERS = {DOCKER_GZIP_LAYER, OCI_GZIP_LAYER}
+OCI_TO_DOCKER_MEDIA_TYPES = {OCI_MANIFEST: DOCKER_MANIFEST,
+    OCI_CONFIG: DOCKER_CONFIG, OCI_GZIP_LAYER: DOCKER_GZIP_LAYER}
 
 
 class ImageTransportError(ValueError):
@@ -61,15 +70,19 @@ def verify_manifest_record(record):
         raise ImageTransportError("Registry manifest digest mismatch")
     if manifest.get("schemaVersion") != 2 or not isinstance(manifest.get("layers"), list):
         raise ImageTransportError("Unsupported manifest schema")
+    if manifest.get("mediaType") not in {DOCKER_MANIFEST, OCI_MANIFEST}:
+        raise ImageTransportError("Unsupported source image manifest media type")
     config = manifest.get("config", {})
     if not HASH.fullmatch(config.get("digest", "")):
         raise ImageTransportError("Invalid registry config digest")
+    if config.get("mediaType") not in {DOCKER_CONFIG, OCI_CONFIG}:
+        raise ImageTransportError("Unsupported source image config media type")
     layers = manifest["layers"]
     for layer in layers:
         if not HASH.fullmatch(layer.get("digest", "")):
             raise ImageTransportError("Invalid layer digest")
-        if layer.get("mediaType") != "application/vnd.docker.image.rootfs.diff.tar.gzip":
-            raise ImageTransportError("Only frozen gzip Docker layers are supported")
+        if layer.get("mediaType") not in SUPPORTED_GZIP_LAYERS:
+            raise ImageTransportError("Only digest-pinned Docker/OCI gzip layers are supported")
         if type(layer.get("size")) is not int or layer["size"] < 1:
             raise ImageTransportError("Invalid layer size")
     return manifest
@@ -175,6 +188,33 @@ def containerd_manifest_bytes(manifest):
     return json.dumps(candidate, separators=(",", ":"), ensure_ascii=False).encode()
 
 
+def docker_archive_manifest_bytes(manifest):
+    """Predict only the documented MIME representation lost in a Docker tar.
+
+    This does not rewrite the source manifest or a blob. It permits no change
+    to config/layer digest, size or order. The resulting complete digest must
+    still exactly equal the daemon's real immutable Id and Descriptor.
+    """
+    candidate = json.loads(json.dumps(manifest))
+    candidate["mediaType"] = OCI_TO_DOCKER_MEDIA_TYPES.get(candidate["mediaType"], candidate["mediaType"])
+    for descriptor in [candidate["config"], *candidate["layers"]]:
+        descriptor["mediaType"] = OCI_TO_DOCKER_MEDIA_TYPES.get(descriptor["mediaType"], descriptor["mediaType"])
+    return containerd_manifest_bytes(candidate)
+
+
+def runtime_manifest_candidates(manifest):
+    raw = json.dumps(manifest, separators=(",", ":"), ensure_ascii=False).encode()
+    result = [("ORIGINAL_MANIFEST_DIGEST", raw, False)]
+    try:
+        result.append(("CONTAINERD_RESERIALIZED_MANIFEST_DIGEST", containerd_manifest_bytes(manifest), False))
+        converted = docker_archive_manifest_bytes(manifest)
+        if json.loads(converted) != manifest:
+            result.append(("DOCKER_ARCHIVE_OCI_MEDIA_TYPE_MAPPING", converted, True))
+    except ImageTransportError:
+        pass
+    return result
+
+
 def expected_runtime_ids(archive_receipt):
     ids = [archive_receipt["config_digest"]]
     manifest = archive_receipt.get("registry_manifest")
@@ -182,12 +222,7 @@ def expected_runtime_ids(archive_receipt):
         verify_manifest_record({"manifest": manifest,
             "image_reference": archive_receipt["source_reference"],
             "digest": archive_receipt["source_manifest_digest"]})
-        ids.append(archive_receipt["source_manifest_digest"])
-        try:
-            raw = containerd_manifest_bytes(manifest)
-        except ImageTransportError:
-            pass
-        else:
+        for _, raw, _ in runtime_manifest_candidates(manifest):
             ids.append("sha256:" + hashlib.sha256(raw).hexdigest())
     return list(dict.fromkeys(ids))
 
@@ -213,30 +248,29 @@ def verify_loaded_image(inspect, archive_receipt):
     if image_id == expected:
         identity_scheme = "LEGACY_CONFIG_DIGEST"
         runtime_manifest = None
+        translated_media_types = None
     else:
         if manifest is None:
             raise ImageTransportError("Manifest-addressed image needs exact original manifest evidence")
         descriptor = inspect.get("Descriptor") or {}
         if descriptor.get("digest") != image_id:
             raise ImageTransportError("Docker image ID and Descriptor differ")
-        registry_raw = json.dumps(manifest, separators=(",", ":"), ensure_ascii=False).encode()
-        candidates = [("ORIGINAL_MANIFEST_DIGEST", registry_raw)]
-        try:
-            candidates.append(("CONTAINERD_RESERIALIZED_MANIFEST_DIGEST", containerd_manifest_bytes(manifest)))
-        except ImageTransportError:
-            pass
-        matches = [(name, raw) for name, raw in candidates
+        candidates = runtime_manifest_candidates(manifest)
+        matches = [(name, raw, translated) for name, raw, translated in candidates
                    if "sha256:" + hashlib.sha256(raw).hexdigest() == image_id
                    and descriptor.get("size") == len(raw)
-                   and descriptor.get("mediaType") == manifest.get("mediaType")]
+                   and descriptor.get("mediaType") == json.loads(raw).get("mediaType")]
         if not matches:
             raise ImageTransportError("Local manifest identity is not an exact digest-bound serialization of original config and layers")
-        identity_scheme, raw = matches[0]
+        identity_scheme, raw, translated_media_types = matches[0]
         runtime_manifest = json.loads(raw)
     return {**archive_receipt, "loaded_image_verified": True,
             "runtime_image_reference": image_id, "local_image_id_scheme": identity_scheme,
             "runtime_manifest": runtime_manifest,
-            "same_original_config_and_compressed_layer_descriptors": True,
+            "same_original_config_and_compressed_layer_descriptors": (
+                not translated_media_types if translated_media_types is not None else None),
+            "same_original_config_and_compressed_blob_digests_and_sizes": True,
+            "runtime_descriptor_media_types_translated": translated_media_types,
             "original_repo_digest_present": archive_receipt["source_reference"]
                 in (inspect.get("RepoDigests") or []),
             "runtime_reference_policy": "Use verified immutable local image ID; never claim RepoDigests survived docker load"}
