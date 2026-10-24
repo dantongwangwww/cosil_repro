@@ -7,6 +7,7 @@ changed; the three derived outputs are atomically replaced on regeneration.
 import argparse
 from collections import Counter, defaultdict
 import csv
+import gzip
 import hashlib
 import io
 import json
@@ -96,12 +97,22 @@ class Sources:
 
     def read(self, relative):
         name = Path(relative).as_posix()
-        raw = self.path(name).read_bytes()
+        try:
+            raw = self.path(name).read_bytes()
+        except FileNotFoundError:
+            if not re.fullmatch(r"calls/\d+/request\.json", name):
+                raise
+            with gzip.open(self.path(name + ".gz"), "rb") as stream:
+                raw = stream.read()
         self.hashes[name] = hashlib.sha256(raw).hexdigest()
         return json.loads(raw)
 
     def optional(self, relative):
-        return self.read(relative) if self.path(relative).is_file() else None
+        name = Path(relative).as_posix()
+        available = self.path(name).is_file()
+        if not available and re.fullmatch(r"calls/\d+/request\.json", name):
+            available = self.path(name + ".gz").is_file()
+        return self.read(name) if available else None
 
     def numbered(self, relative, directories=False):
         directory = self.path(relative)
