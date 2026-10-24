@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import time
 
-from . import contexts, executor, locator, prepare, reporting, run, sources
+from . import case_analysis, contexts, executor, locator, prepare, reporting, run, sources
 from .budget import BudgetExceeded, BudgetLedger, timestamp
 from .provider import DeepSeekProvider, PromptCounter, ResponseContractError, TransportExhausted, UnknownBilling
 
@@ -87,6 +87,7 @@ def refresh_report(roster,output,ledger=None):
     stamp=timestamp().replace(':','').replace('+','_')
     target=output/'reports'/stamp
     summary=reporting.build_report(roster,records,audits,target)
+    case_analysis.build_case_report(roster,records,audits,artifact_root=output,output_dir=target)
     if ledger is not None:prepare.durable(target/'budget_summary.json',prepare.json_bytes(ledger.summary()))
     pointer=output/'latest_report.json'
     temp=pointer.with_suffix('.pending');temp.write_bytes(prepare.json_bytes({'report_dir':str(target),'updated_at':timestamp()}));temp.replace(pointer)

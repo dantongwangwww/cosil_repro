@@ -28,5 +28,20 @@ class MainGuardTests(unittest.TestCase):
         audit=main.audit_location({'instance_id':'synthetic'},gold,result,pair)
         self.assertFalse(audit['A_function_hit1']);self.assertTrue(audit['A_function_hit5'])
 
+    def test_report_snapshot_contains_offline_diagnosis_without_model_calls(self):
+        with tempfile.TemporaryDirectory() as d:
+            out=Path(d)
+            roster={'frozen':False,'tasks':[{'instance_id':'synthetic_task','repo':'synthetic/repo','base_commit':'a'*40}]}
+            with mock.patch.object(main,'DeepSeekProvider') as provider:
+                main.refresh_report(roster,out)
+                provider.assert_not_called()
+            import json
+            target=Path(json.loads((out/'latest_report.json').read_text())['report_dir'])
+            diagnosis=json.loads((target/'修复失败诊断.json').read_text())
+            self.assertEqual(diagnosis['pair_class_counts'],{'UNPAIRED_OR_UNDETERMINED':1})
+            self.assertFalse(diagnosis['formal_frozen'])
+            self.assertTrue((target/'修复失败逐题诊断.csv').exists())
+            self.assertTrue((target/'修复失败分析_先分类再逐题.md').exists())
+
 
 if __name__=='__main__':unittest.main()
