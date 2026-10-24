@@ -44,6 +44,7 @@ LABEL = 'cosil.repair50.20261024'
 CHECKPOINT = '8ddd2ae3700c660f7832c600b1ca1b71813fbf45'
 ENGINEERING_FIX_CHECKPOINT = '50c40d43bc8c5147c623cca816bc3c8a27a57925'
 INTEGRITY_FIX_CHECKPOINT = '6ac31aa324994b5b689932d1543f49e445408f96'
+BASE_IDENTITY_FIX_CHECKPOINT = '9df8f833805534fcbfd47544ed34dedd0c61b8b3'
 
 def utc(): return dt.datetime.now(dt.timezone.utc).isoformat()
 def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -175,6 +176,21 @@ def scoring_test_guard(arm,patch,test_patch):
     return {'passed':not blocked,'rule':'NO_SCORING_TEST_PATCH_PATH_MODIFICATION',
             'blocked_path_count':len(blocked)}
 
+def check_base_worktree(container,directory):
+    """Record the exact initial status; never repair/reset a dirty image."""
+    result=container.exec_run(['git','status','--porcelain','--untracked-files=normal'],workdir='/testbed')
+    raw=result.output;directory=Path(directory)
+    (directory/'base_worktree_status.txt').write_bytes(raw)
+    receipt={'returncode':result.exit_code,'output_bytes':len(raw),
+             'output_sha256':hashlib.sha256(raw).hexdigest(),
+             'clean':result.exit_code==0 and raw==b'',
+             'raw_status_path':str(directory/'base_worktree_status.txt'),
+             'command':['git','status','--porcelain','--untracked-files=normal'],
+             'base_tree_mutated':False}
+    save(directory/'base_worktree_status.json',receipt)
+    if not receipt['clean']:raise RuntimeError('SYSTEM_BASE_WORKTREE_DIRTY: initial base status is nonempty or unverifiable')
+    return receipt
+
 def safe_remove_reference(client,reference,baseline_ids,pulled_here):
     record={'reference':reference,'removed':False}
     if not pulled_here:return {**record,'reason':'NOT_PULLED_BY_THIS_RUN'}
@@ -247,6 +263,7 @@ def evaluate_in_worker(task,arm,patch_path,directory):
         'prechange_github_checkpoint':CHECKPOINT,'logpaths':{'directory':str(directory)}}
     record.update(engineering_fix_checkpoint=ENGINEERING_FIX_CHECKPOINT,
                   integrity_fix_checkpoint=INTEGRITY_FIX_CHECKPOINT,
+                  base_identity_fix_checkpoint=BASE_IDENTITY_FIX_CHECKPOINT,
                   executor_source_sha256_at_start=digest(__file__),stage='IMAGE_IDENTITY_OR_TRANSPORT')
     try:
         patch_bytes=Path(patch_path).read_bytes()
@@ -287,6 +304,9 @@ def evaluate_in_worker(task,arm,patch_path,directory):
             'expected':row['base_commit']})
         if actual.exit_code or actual.output.decode().strip()!=row['base_commit']:
             raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH')
+        record['stage']='BASE_WORKTREE_IDENTITY'
+        base_status=check_base_worktree(container,directory)
+        record.update(base_worktree_clean=True,base_worktree_status_receipt=str(directory/'base_worktree_status.json'))
         from swebench.harness.docker_utils import copy_to_container,exec_run_with_timeout
         business=directory/'patch.diff';business.write_bytes(patch_bytes)
         record['stage']='BUSINESS_PATCH_APPLICATION'

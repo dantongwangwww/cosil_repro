@@ -61,6 +61,52 @@ class QualificationTests(unittest.TestCase):
         self.assertTrue(E.LIMITS['network_disabled']);self.assertEqual(E.LIMITS['cap_drop'],['ALL'])
         self.assertIn('no-new-privileges:true',E.LIMITS['security_opt'])
         self.assertNotIn('volumes',E.LIMITS);self.assertNotIn('device_requests',E.LIMITS)
+    def test_initial_base_status_is_exactly_empty_and_never_mutated(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            container=Mock();container.exec_run.return_value=Mock(exit_code=0,output=b'')
+            result=E.check_base_worktree(container,temporary)
+            self.assertTrue(result['clean']);self.assertFalse(result['base_tree_mutated'])
+            self.assertEqual((Path(temporary)/'base_worktree_status.txt').read_bytes(),b'')
+            container.exec_run.assert_called_once_with(['git','status','--porcelain','--untracked-files=normal'],workdir='/testbed')
+    def test_modified_untracked_or_unverifiable_base_stops_without_repair(self):
+        for code,raw in [(0,b' M pkg/business.py\n'),(0,b'?? generated.py\n'),(128,b'fatal: unsafe repository\n')]:
+            with self.subTest(returncode=code,status=raw),tempfile.TemporaryDirectory() as temporary:
+                container=Mock();container.exec_run.return_value=Mock(exit_code=code,output=raw)
+                with self.assertRaisesRegex(RuntimeError,'SYSTEM_BASE_WORKTREE_DIRTY'):
+                    E.check_base_worktree(container,temporary)
+                self.assertFalse(json.loads((Path(temporary)/'base_worktree_status.json').read_text())['clean'])
+                self.assertEqual((Path(temporary)/'base_worktree_status.txt').read_bytes(),raw)
+                self.assertEqual(container.exec_run.call_count,1)
+    def test_old_clean_base_audit_binds_exact_empty_log_and_head(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            live=Path(temporary);folder=live/'task/empty';folder.mkdir(parents=True)
+            task={'instance_id':'task','base_commit':'a'*40,'image_reference':'pinned','empty_receipt':str(folder/'result.json')}
+            E.save(folder/'result.json',{'image_reference':'pinned'})
+            E.save(folder/'base_head.json',{'returncode':0,'head':'a'*40})
+            (folder/'test_output.txt').write_text('+ git status\nHEAD detached\nnothing to commit, working tree clean\n+ git show\ncommit text\n>>>>> Start Test Output\n')
+            with patch.object(E,'LIVE',live):
+                saved=Q.audit_initial_base_identity(task)
+                self.assertEqual(Q.audit_initial_base_identity(task),saved)
+                self.assertTrue(E.read(saved)['before_business_and_test_patches'])
+                (folder/'test_output.txt').write_text('+ git status\n?? unknown.py\n+ git show\nnothing to commit, working tree clean\n>>>>> Start Test Output\n')
+                with self.assertRaisesRegex(RuntimeError,'SYSTEM_BASE_WORKTREE_DIRTY'):Q.audit_initial_base_identity(task)
+                (folder/'test_output.txt').write_text('+ git reset --hard HEAD\n+ git status\nnothing to commit, working tree clean\n+ git show\n>>>>> Start Test Output\n')
+                with self.assertRaisesRegex(RuntimeError,'SYSTEM_BASE_WORKTREE_DIRTY'):Q.audit_initial_base_identity(task)
+    def test_explicit_clean_base_audit_does_not_accept_wrong_commit_or_raw_status(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            live=Path(temporary);folder=live/'task/empty';folder.mkdir(parents=True)
+            task={'instance_id':'task','base_commit':'a'*40,'image_reference':'pinned','empty_receipt':str(folder/'result.json')}
+            E.save(folder/'result.json',{'image_reference':'pinned','base_worktree_clean':True})
+            E.save(folder/'base_head.json',{'returncode':0,'head':'a'*40})
+            container=Mock();container.exec_run.return_value=Mock(exit_code=0,output=b'')
+            E.check_base_worktree(container,folder)
+            with patch.object(E,'LIVE',live):
+                saved=Q.audit_initial_base_identity(task)
+                self.assertEqual(E.read(saved)['evidence'],'EXPLICIT_PRE_BUSINESS_PATCH_PORCELAIN')
+                (folder/'base_worktree_status.txt').write_bytes(b'?? new.py\n')
+                with self.assertRaisesRegex(RuntimeError,'SYSTEM_BASE_WORKTREE_DIRTY'):Q.audit_initial_base_identity(task)
+                with self.assertRaisesRegex(RuntimeError,'SYSTEM_BASE_COMMIT_MISMATCH'):
+                    Q.audit_initial_base_identity({**task,'base_commit':'b'*40})
     def test_scoring_nonconventional_path_is_private_and_protected(self):
         tests='diff --git a/pkg/checks.py b/pkg/checks.py\n--- a/pkg/checks.py\n+++ b/pkg/checks.py\n@@ -1 +1 @@\n-old\n+new\n'
         guard=E.scoring_test_guard('A',tests,tests)
@@ -79,7 +125,8 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaises(ValueError):E.scoring_test_guard('A','--- a/x\n+++ b/x\n',tests)
         self.assertTrue(E.scoring_test_guard('A','',tests)['passed'])
     def test_capacity_permission_pull_failure_is_a_system_stop(self):
-        for error in ['SYSTEM_DISK_CAPACITY: no room','permission denied','SYSTEM_IMAGE_PULL: offline']:
+        for error in ['SYSTEM_DISK_CAPACITY: no room','permission denied','SYSTEM_IMAGE_PULL: offline',
+                      'SYSTEM_BASE_COMMIT_MISMATCH','SYSTEM_BASE_WORKTREE_DIRTY']:
             self.assertTrue(system_failure({'error':error}))
         self.assertFalse(system_failure({'resolved':False,'status':'TEST_COMPLETED'}))
         self.assertTrue(system_failure({'error_type':'SYSTEM_IMAGE_IDENTITY','underlying_error_type':'ImageNotFound'}))
@@ -111,5 +158,19 @@ class QualificationTests(unittest.TestCase):
             self.assertEqual([x['instance_id'] for x in status['selected']],['x2','y','z'])
             self.assertEqual(result['qualified_count'],3)
             self.assertFalse((live/'qualified50.json').exists())
+    def test_fifty_successful_tests_cannot_freeze_without_clean_base_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            out=Path(temporary);live=out/'qualification_live'
+            rows=[{'instance_id':f'task{i}','repo':f'repo{i}/project','candidate_rank':str(i+1)} for i in range(50)]
+            with (out/'candidate_order.csv').open('w',newline='') as handle:
+                writer=csv.DictWriter(handle,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+            def qualify(row,**kwargs):
+                return {'instance_id':row['instance_id'],'task':row,'qualification_passed':True,
+                        'gold_receipt':'g','empty_receipt':'e','system_blocked':False}
+            with patch.object(E,'OUT',out),patch.object(E,'LIVE',live),patch.object(Q,'qualify_task',side_effect=qualify),patch.object(Q,'audit_initial_base_identity',side_effect=RuntimeError('SYSTEM_BASE_WORKTREE_DIRTY')),contextlib.redirect_stdout(io.StringIO()):
+                result=Q.run(50)
+            self.assertEqual(result['status'],'SYSTEM_BASE_IDENTITY_AUDIT_BLOCKED')
+            self.assertFalse((live/'qualified50.json').exists())
+            self.assertTrue((live/'base_identity_freeze_block.json').exists())
 
 if __name__=='__main__':unittest.main()

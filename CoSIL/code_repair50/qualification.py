@@ -5,6 +5,7 @@ import csv
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 import time
 from . import executor as E
@@ -19,7 +20,8 @@ def qualifies(gold,empty):
 def system_failure(record):
     message=str(record.get('error','')).upper()
     return any(value in message for value in ['SYSTEM_DISK_CAPACITY','NO SPACE LEFT ON DEVICE',
-        'PERMISSION DENIED','CANNOT CONNECT TO THE DOCKER','SYSTEM_IMAGE_PULL']) or record.get('error_type') in ['ImageTransportError','SYSTEM_IMAGE_IDENTITY']
+        'PERMISSION DENIED','CANNOT CONNECT TO THE DOCKER','SYSTEM_IMAGE_PULL',
+        'SYSTEM_BASE_COMMIT_MISMATCH','SYSTEM_BASE_WORKTREE_DIRTY']) or record.get('error_type') in ['ImageTransportError','SYSTEM_IMAGE_IDENTITY']
 
 def audit_gold_patch_identity(result):
     """Preserve an old receipt while preventing byte-changing I/O from excluding a task."""
@@ -33,6 +35,46 @@ def audit_gold_patch_identity(result):
     E.save(folder/'gold_patch_byte_integrity_failure.json',review)
     return {**result,'system_blocked':True,'reason':'SYSTEM_PATCH_ARTIFACT_INTEGRITY',
             'patch_integrity_review':str(folder/'gold_patch_byte_integrity_failure.json')}
+
+def audit_initial_base_identity(task):
+    """Freeze clean-base evidence, including old official empty-run git status."""
+    receipt_path=Path(task['empty_receipt']);receipt=E.read(receipt_path);folder=receipt_path.parent
+    head_path=folder/'base_head.json';head=E.read(head_path)
+    if head.get('returncode')!=0 or head.get('head')!=task['base_commit']:
+        raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH: frozen qualification audit')
+    if receipt.get('image_reference')!=task['image_reference']:
+        raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH: base evidence image identity differs')
+    proof={'audit_version':'v2_initial_state_no_reset','instance_id':task['instance_id'],'base_commit':task['base_commit'],
+           'image_reference':task['image_reference'],'empty_receipt':str(receipt_path),
+           'empty_receipt_sha256':E.digest(receipt_path),'base_head_receipt':str(head_path),
+           'base_head_receipt_sha256':E.digest(head_path),'clean':True,'tree_mutated':False}
+    status_path=folder/'base_worktree_status.json'
+    if receipt.get('base_worktree_clean') is True and status_path.exists():
+        status=E.read(status_path);raw=folder/'base_worktree_status.txt'
+        if not (status.get('clean') is True and status.get('returncode')==0
+                and status.get('output_bytes')==0 and raw.read_bytes()==b''
+                and status.get('output_sha256')==E.digest(raw)):
+            raise RuntimeError('SYSTEM_BASE_WORKTREE_DIRTY: explicit status evidence invalid')
+        proof.update(evidence='EXPLICIT_PRE_BUSINESS_PATCH_PORCELAIN',
+                     status_receipt=str(status_path),status_receipt_sha256=E.digest(status_path))
+    else:
+        log=folder/'test_output.txt';text=log.read_bytes().decode('utf-8',errors='strict')
+        initial=text.split('>>>>> Start Test Output',1)[0]
+        match=re.search(r'(?ms)^\+ git status\r?\n(.*?)^\+ git show(?:\r?\n|$)',initial)
+        status=match.group(1) if match else ''
+        before_status=initial[:match.start()] if match else initial
+        mutation_before_status=re.search(r'(?m)^\+ git\b[^\n]*\b(?:checkout|reset|restore|clean|apply|switch|read-tree)\b',before_status)
+        if ('nothing to commit, working tree clean' not in status
+                or mutation_before_status
+                or any(x in status for x in ['Changes not staged for commit','Changes to be committed','Untracked files:'])):
+            raise RuntimeError('SYSTEM_BASE_WORKTREE_DIRTY: old empty-run initial status lacks clean evidence')
+        proof.update(evidence='EXISTING_OFFICIAL_EMPTY_RUN_INITIAL_GIT_STATUS',
+                     log_path=str(log),log_sha256=E.digest(log),
+                     status_excerpt_sha256=hashlib.sha256(status.encode()).hexdigest(),
+                     before_business_and_test_patches=True,no_checkout_reset_or_apply_before_status=True)
+    path=E.LIVE/'base_identity_audit_v2'/(task['instance_id']+'.json')
+    E.save(path,proof)
+    return str(path)
 
 def qualify_task(candidate,retry_infrastructure=False):
     iid=candidate['instance_id'];folder=E.LIVE/'candidates'/iid
@@ -139,6 +181,12 @@ def run(limit=50,inspect_first=3,retry_infrastructure=False):
                 'all_artifact_receipts_present':all(x.get('gold_receipt') and x.get('empty_receipt') for x in audit),
                 'qualification_count':len(selected),'model_requests':0})
     if len(selected)==50:
+        try:selected=[{**task,'initial_base_identity_audit_path':audit_initial_base_identity(task)} for task in selected]
+        except Exception as exc:
+            block={'status':'SYSTEM_BASE_IDENTITY_AUDIT_BLOCKED','frozen':False,'qualified_count':50,
+                   'error_type':type(exc).__name__,'error':str(exc),'model_requests':0}
+            E.save(E.LIVE/'base_identity_freeze_block.json',block)
+            return block
         E.save(E.LIVE/'qualified50.json',{'frozen':True,'frozen_at':E.utc(),'tasks':selected,
             'candidate_order_sha256':E.digest(order),'dataset_sha256':E.DATASET_SHA,
             'harness_commit':E.COMMIT,'scope':'Existing-function-target development diagnostic; 50 different repositories',

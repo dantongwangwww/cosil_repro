@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import tarfile
 import time
+import urllib.parse
 
 CRANE_VERSION = "v0.22.1"
 CRANE_RELEASE = (
@@ -42,6 +43,73 @@ OCI_TO_DOCKER_MEDIA_TYPES = {OCI_MANIFEST: DOCKER_MANIFEST,
 
 class ImageTransportError(ValueError):
     pass
+
+
+class CraneDownloadError(ImageTransportError):
+    """A failed crane process, explicitly separate from verification errors."""
+    def __init__(self, record, receipt_path):
+        self.record = record
+        self.phase = record["phase"]
+        self.category = record["category"]
+        self.receipt_path = Path(receipt_path)
+        super().__init__("Crane download failed: " + self.category + "; private failure evidence preserved")
+
+
+def classify_crane_download_failure(log_bytes, manifest_record, archive, returncode):
+    """Recognize only a normal CLI exit with a final, exact registry blob EOF."""
+    category = "OTHER_CRANE_DOWNLOAD_FAILURE"
+    if returncode != 1 or len(log_bytes) > 1024 ** 2:
+        return category
+    text = log_bytes.decode(errors="replace")
+    forbidden = ("no space left", "permission denied", "timed out", "timeout",
+                 "deadline exceeded", "context canceled", "digest mismatch",
+                 "checksum mismatch", "hash mismatch", "broken pipe", "x509:")
+    if any(marker in text.lower() for marker in forbidden):
+        return category
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return category
+    prefix = "Error: saving tarball " + str(archive) + ': Get "'
+    final = lines[-1]
+    suffix = '": EOF'
+    if not final.startswith(prefix) or not final.endswith(suffix):
+        return category
+    url = final[len(prefix):-len(suffix)]
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        if (parsed.scheme != "https" or parsed.hostname not in {"registry-1.docker.io", "index.docker.io"}
+                or parsed.port not in (None, 443) or parsed.username or parsed.password):
+            return category
+    except ValueError:
+        return category
+    repository = manifest_record["image_reference"].split("@", 1)[0]
+    descriptors = [manifest_record["manifest"]["config"], *manifest_record["manifest"]["layers"]]
+    expected_paths = {"/v2/" + repository + "/blobs/" + item["digest"] for item in descriptors}
+    if urllib.parse.unquote(parsed.path) not in expected_paths:
+        return category
+    return "REGISTRY_BLOB_GET_EOF"
+
+
+def persist_crane_download_failure(manifest_record, archive, log, returncode):
+    """Persist private original evidence before considering any recovery."""
+    archive, log = Path(archive), Path(log)
+    with log.open("rb") as source:
+        log_sha, log_size = _sha(source)
+    raw = log.read_bytes() if log_size <= 1024 ** 2 else b""
+    category = classify_crane_download_failure(raw, manifest_record, archive, returncode)
+    info = archive.stat() if archive.is_file() and not archive.is_symlink() else None
+    record = {"schema": "repair50_crane_download_failure_v1", "phase": "crane_download",
+        "category": category, "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"],
+        "archive_path": str(archive.absolute()), "private_log_path": str(log.absolute()),
+        "private_log_sha256": log_sha, "private_log_bytes": log_size,
+        "process_returncode": returncode,
+        "partial_archive_bytes": info.st_size if info else None,
+        "partial_archive_mtime_ns": info.st_mtime_ns if info else None,
+        "raw_urls_or_tokens_disclosed": False, "model_requests": 0}
+    path = log.parent / "download_failure_receipt.json"
+    _save(path, record)
+    return CraneDownloadError(record, path)
 
 
 def _sha(stream):
@@ -370,7 +438,7 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
     with log.open("xb") as handle:
         os.fchmod(handle.fileno(), 0o600)
         process = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL,
-                                   stdout=handle, stderr=subprocess.STDOUT)
+                                   stdout=handle, stderr=subprocess.STDOUT, umask=0o077)
         while process.poll() is None:
             if (time.monotonic() - started > timeout
                     or shutil.disk_usage(archive.parent).free < reserve_bytes
@@ -384,7 +452,7 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
                 raise ImageTransportError("Own crane download stopped at timeout or disk-reserve gate")
             time.sleep(1)
     if process.returncode:
-        raise ImageTransportError("Crane archive download failed; private raw transport log preserved")
+        raise persist_crane_download_failure(image_record, archive, log, process.returncode)
     receipt = verify_docker_archive(archive, image_record)
     receipt.update(crane_version=CRANE_VERSION, crane_binary_sha256=CRANE_BINARY_SHA256,
                    transport_elapsed_seconds=time.monotonic() - started,
@@ -461,18 +529,20 @@ def previous_own_load_logs(workdir, receipt):
     return sorted(evidence)
 
 
-def seed_verified_partial_cache(partial_archive, manifest_record, cache_dir, *, budget_check=None):
-    """Copy only digest-verified complete gzip blobs into a new private cache.
+def _inspect_partial_archive(partial_archive, manifest_record, cache_dir=None, *, budget_check=None):
+    """Inspect or copy only digest-verified complete blobs; no network.
 
     No third-party path is extracted and no network is used. Every filename is
     derived from the original verified manifest. A truncated tail is missing,
     never a trusted cache entry. A corrupt complete member fails closed.
     """
     manifest = verify_manifest_record(manifest_record)
-    partial_archive, cache_dir = Path(partial_archive), Path(cache_dir)
-    if partial_archive.is_symlink() or cache_dir.is_symlink():
+    partial_archive = Path(partial_archive)
+    cache_dir = Path(cache_dir) if cache_dir is not None else None
+    if partial_archive.is_symlink() or (cache_dir is not None and cache_dir.is_symlink()):
         raise ImageTransportError("Recovery source/cache symlinks are rejected")
-    cache_dir.mkdir(parents=True, mode=0o700, exist_ok=False)
+    if cache_dir is not None:
+        cache_dir.mkdir(parents=True, mode=0o700, exist_ok=False)
     expected = {manifest["config"]["digest"]: {**manifest["config"], "role": "config"}}
     for layer in manifest["layers"]:
         expected[layer["digest"].split(":", 1)[1] + ".tar.gz"] = {**layer, "role": "compressed_layer"}
@@ -494,9 +564,10 @@ def seed_verified_partial_cache(partial_archive, manifest_record, cache_dir, *, 
                 if member.size != target["size"]:
                     raise ImageTransportError("Partial member header size differs from original manifest")
                 stream = bundle.extractfile(member)
-                cache_target = cache_dir / target["digest"]
-                temporary = cache_dir / (".seed-" + target["digest"].split(":", 1)[1])
-                out = temporary.open("xb") if target["role"] == "compressed_layer" else None
+                copying = cache_dir is not None and target["role"] == "compressed_layer"
+                cache_target = cache_dir / target["digest"] if copying else None
+                temporary = cache_dir / (".seed-" + target["digest"].split(":", 1)[1]) if copying else None
+                out = temporary.open("xb") if copying else None
                 if out is not None:
                     os.fchmod(out.fileno(), 0o600)
                 digest, count = hashlib.sha256(), 0
@@ -542,10 +613,88 @@ def seed_verified_partial_cache(partial_archive, manifest_record, cache_dir, *, 
         "partial_archive_sha256": partial_sha, "partial_archive_bytes": partial_bytes,
         "partial_archive_modified": False, "truncated_tail_observed": truncated,
         "verified_members": verified, "seeded_compressed_layers": seeded,
+        "verified_compressed_bytes": sum(item["bytes"] for item in verified if item["role"] == "compressed_layer"),
         "seeded_compressed_bytes": sum(item["bytes"] for item in seeded),
         "missing_blob_members": missing,
         "missing_blob_bytes": sum(item["bytes"] for item in missing),
         "network_requests": 0, "cache_trusted_by_filename_only": False}
+
+
+def seed_verified_partial_cache(partial_archive, manifest_record, cache_dir, *, budget_check=None):
+    """Copy strictly verified blobs into a new official-format private cache."""
+    return _inspect_partial_archive(partial_archive, manifest_record, cache_dir, budget_check=budget_check)
+
+
+def inspect_verified_partial_archive(partial_archive, manifest_record):
+    """Read-only eligibility evidence; does not create cache files or a retry."""
+    return _inspect_partial_archive(partial_archive, manifest_record)
+
+
+def automatic_eof_recovery_eligibility(failure, manifest_record, workdir):
+    """Fail-closed eligibility for the single proven small-tail EOF recovery."""
+    verify_manifest_record(manifest_record)
+    workdir = Path(workdir)
+    decision = {"schema": "repair50_automatic_eof_recovery_eligibility_v1",
+        "eligible": False, "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"],
+        "original_failure_receipt_path": str(failure.receipt_path.absolute()),
+        "max_missing_blob_bytes": 16 * 1024 ** 2, "max_recovery_attempts": 1,
+        "prechange_github_checkpoint": "9df8f833805534fcbfd47544ed34dedd0c61b8b3"}
+    def denied(reason):
+        return {**decision, "reason": reason}
+    if (failure.phase != "crane_download" or failure.category != "REGISTRY_BLOB_GET_EOF"
+            or failure.record.get("process_returncode") != 1):
+        return denied("NOT_A_NORMAL_EXIT_FINAL_REGISTRY_BLOB_EOF")
+    if (failure.record.get("source_reference") != manifest_record["image_reference"]
+            or failure.record.get("source_manifest_digest") != manifest_record["digest"]):
+        return denied("FAILURE_SOURCE_IDENTITY_MISMATCH")
+    if workdir.name != manifest_record["digest"].split(":", 1)[1]:
+        return denied("NOT_THE_STABLE_DIGEST_WORK_DIRECTORY")
+    if (workdir / "recovery_attempt_1").exists():
+        return denied("RECOVERY_ATTEMPT_ALREADY_EXISTS")
+    if (workdir.is_symlink() or not workdir.is_dir()
+            or workdir.stat().st_uid != os.getuid() or workdir.stat().st_mode & 0o077):
+        return denied("WORK_DIRECTORY_IS_NOT_PRIVATE_AND_OWNED")
+    archive = workdir / "official_image.tar"
+    log = workdir / "download/crane_pull.log"
+    receipt = workdir / "download/download_failure_receipt.json"
+    registry = workdir / "registry_manifest_receipt.json"
+    if (failure.receipt_path.absolute() != receipt.absolute()
+            or failure.record.get("archive_path") != str(archive.absolute())
+            or failure.record.get("private_log_path") != str(log.absolute())):
+        return denied("FAILURE_PATHS_OUTSIDE_EXPECTED_PRIVATE_SCOPE")
+    for path in (archive, log, receipt, registry):
+        if (path.is_symlink() or not path.is_file() or path.stat().st_uid != os.getuid()
+                or path.stat().st_mode & 0o022):
+            return denied("FAILURE_FILE_IS_NOT_REGULAR_OWNED_AND_PROTECTED")
+    if json.loads(receipt.read_text()) != failure.record:
+        return denied("PERSISTED_FAILURE_RECEIPT_DIFFERS")
+    archived_registry = json.loads(registry.read_text())
+    verify_manifest_record(archived_registry)
+    if (archived_registry.get("image_reference") != manifest_record["image_reference"]
+            or archived_registry.get("manifest") != manifest_record["manifest"]):
+        return denied("PRIVATE_REGISTRY_EVIDENCE_DIFFERS")
+    info = archive.stat()
+    if (info.st_size != failure.record.get("partial_archive_bytes")
+            or info.st_mtime_ns != failure.record.get("partial_archive_mtime_ns")):
+        return denied("PARTIAL_CHANGED_AFTER_ORIGINAL_FAILURE")
+    with log.open("rb") as source:
+        log_sha, log_size = _sha(source)
+    if (log_sha != failure.record.get("private_log_sha256")
+            or log_size != failure.record.get("private_log_bytes")):
+        return denied("ORIGINAL_FAILURE_LOG_CHANGED")
+    if classify_crane_download_failure(log.read_bytes(), manifest_record, archive, 1) != "REGISTRY_BLOB_GET_EOF":
+        return denied("FINAL_FAILURE_NO_LONGER_MATCHES_STRICT_EOF_RULE")
+    compressed = sum(layer["size"] for layer in manifest_record["manifest"]["layers"])
+    required = 2 * compressed + manifest_record["manifest"]["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
+    if (shutil.disk_usage(workdir).free < required
+            or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+        return denied("DISK_BUDGET_GATE")
+    inspection = inspect_verified_partial_archive(archive, manifest_record)
+    decision["readonly_partial_inspection"] = inspection
+    if inspection["missing_blob_bytes"] > decision["max_missing_blob_bytes"]:
+        return {**decision, "reason": "MISSING_BLOBS_EXCEED_FIXED_SMALL_TAIL_LIMIT"}
+    return {**decision, "eligible": True, "reason": "EXACT_OWNED_STABLE_SOURCE_SMALL_TAIL_EOF"}
 
 
 def recover_verified_partial_image(client, manifest_record, *, workdir,
@@ -682,7 +831,22 @@ def ensure_verified_image(client, manifest_record, *, workdir):
         # archive inspection rather than assume the absence of tags.
         receipt = {**receipt, **current}
     else:
-        receipt = download_archive(manifest_record, archive, workdir / "download")
+        try:
+            receipt = download_archive(manifest_record, archive, workdir / "download")
+        except CraneDownloadError as failure:
+            eligibility = automatic_eof_recovery_eligibility(failure, manifest_record, workdir)
+            eligibility_path = workdir / "automatic_eof_recovery_eligibility.json"
+            _save(eligibility_path, eligibility)
+            if not eligibility["eligible"]:
+                if eligibility["reason"] == "DISK_BUDGET_GATE":
+                    raise ImageTransportError("Disk budget blocked automatic small-tail EOF recovery; original failure preserved") from failure
+                raise
+            # Exactly one explicit helper invocation. Any error propagates;
+            # there is no retry loop and no handler around the recovery itself.
+            recovered = recover_verified_partial_image(client, manifest_record, workdir=workdir)
+            return {**recovered, "automatic_eof_recovery_triggered": True,
+                    "automatic_recovery_eligibility_path": str(eligibility_path.resolve()),
+                    "original_download_failure_receipt_path": str(failure.receipt_path.resolve())}
     image, verified_existing = find_verified_image(client, receipt)
     if image is not None:
         own_logs = previous_own_load_logs(workdir, receipt)

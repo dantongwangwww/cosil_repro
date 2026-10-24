@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+from contextlib import contextmanager, ExitStack
 
 from code_repair50.image_transport import (
     ImageTransportError, crane_pull_argv, verify_docker_archive,
@@ -16,6 +17,8 @@ from code_repair50.image_transport import (
     docker_archive_manifest_bytes, OCI_MANIFEST, OCI_CONFIG, OCI_GZIP_LAYER,
     DOCKER_MANIFEST, expected_runtime_ids,
     seed_verified_partial_cache, recover_verified_partial_image,
+    CraneDownloadError, classify_crane_download_failure, automatic_eof_recovery_eligibility,
+    persist_crane_download_failure,
 )
 
 
@@ -422,6 +425,181 @@ class ImageTransportTests(unittest.TestCase):
         self.assertEqual(partial.read_bytes(), original)
         self.assertEqual(result["runtime_image_reference"], self.config_digest)
         self.assertTrue(result["original_partial_preserved"])
+
+    @contextmanager
+    def eof_worker(self, *, returncode=1, final_tail="EOF", preceding="retrying EOF\n",
+                   hostname="registry-1.docker.io", private=True, prior_attempt=False,
+                   corrupt_partial=False, recovery_error=None, disk_low_after_download=False):
+        template = self.partial_archive(self.root / "template", corrupt=corrupt_partial).read_bytes()
+        workdir = self.root / self.record["digest"].split(":")[1]
+        workdir.mkdir(mode=0o700 if private else 0o755)
+        if not private:
+            workdir.chmod(0o755)
+        if prior_attempt:
+            (workdir / "recovery_attempt_1").mkdir()
+        def spawn(command, **kwargs):
+            archive = Path(command[command.index("pull") + 2])
+            archive.write_bytes(template)
+            archive.chmod(0o600)  # Match the real child-only umask=077 contract.
+            url = "https://" + hostname + "/v2/swerebench/example/blobs/" + self.manifest["layers"][-1]["digest"]
+            raw = (preceding + "Error: saving tarball " + str(archive) + ': Get "' + url + '": ' + final_tail + "\n").encode()
+            kwargs["stdout"].write(raw)
+            kwargs["stdout"].flush()
+            process = Mock(returncode=returncode)
+            process.poll.return_value = returncode
+            return process
+        count = 0
+        def usage(path):
+            nonlocal count
+            count += 1
+            return Mock(free=0 if disk_low_after_download and count > 2 else 2 ** 50)
+        with ExitStack() as stack:
+            stack.enter_context(patch("code_repair50.image_transport.verified_binary", return_value=Path("/tmp/fake-crane")))
+            stack.enter_context(patch("code_repair50.image_transport.probe_crane"))
+            stack.enter_context(patch("code_repair50.image_transport.shutil.disk_usage", side_effect=usage))
+            process = stack.enter_context(patch("code_repair50.image_transport.subprocess.Popen", side_effect=spawn))
+            recover = stack.enter_context(patch("code_repair50.image_transport.recover_verified_partial_image",
+                side_effect=recovery_error,
+                return_value={"loaded_image_verified": True, "runtime_image_reference": self.config_digest,
+                              "recovery_receipt_path": str(workdir / "recovery_attempt_1/recovery_receipt.json")}))
+            yield {"run": lambda: ensure_verified_image(Mock(), self.record, workdir=workdir),
+                   "recover": recover, "process": process, "workdir": workdir, "partial_bytes": template}
+
+    def test_strict_final_download_eof_automatically_recovers_once(self):
+        with self.eof_worker() as case:
+            result = case["run"]()
+            case["recover"].assert_called_once()
+            self.assertEqual(case["process"].call_count, 1)
+            self.assertTrue(result["automatic_eof_recovery_triggered"])
+            self.assertEqual((case["workdir"] / "official_image.tar").read_bytes(), case["partial_bytes"])
+            evidence = json.loads((case["workdir"] / "download/download_failure_receipt.json").read_text())
+            self.assertEqual(evidence["phase"], "crane_download")
+            self.assertEqual(evidence["category"], "REGISTRY_BLOB_GET_EOF")
+            decision = json.loads((case["workdir"] / "automatic_eof_recovery_eligibility.json").read_text())
+            self.assertTrue(decision["eligible"])
+            self.assertEqual(decision["readonly_partial_inspection"]["seeded_compressed_bytes"], 0)
+            self.assertFalse((case["workdir"] / "private_layer_cache").exists())
+
+    def test_automatic_recovery_failure_is_not_looped(self):
+        with self.eof_worker(recovery_error=ImageTransportError("Recovery failed once")) as case:
+            with self.assertRaisesRegex(ImageTransportError, "failed once"):
+                case["run"]()
+            case["recover"].assert_called_once()
+            self.assertEqual(case["process"].call_count, 1)
+            self.assertTrue((case["workdir"] / "download/download_failure_receipt.json").exists())
+
+    def test_real_crane_index_docker_host_is_the_same_fixed_registry(self):
+        with self.eof_worker(hostname="index.docker.io") as case:
+            self.assertTrue(case["run"]()["automatic_eof_recovery_triggered"])
+            case["recover"].assert_called_once()
+
+    def test_intentional_terminated_download_never_recovers(self):
+        with self.eof_worker(returncode=143) as case:
+            with self.assertRaises(CraneDownloadError):
+                case["run"]()
+            case["recover"].assert_not_called()
+
+    def test_non_eof_exit_is_not_eligible(self):
+        with self.eof_worker(final_tail="403 Forbidden") as case:
+            with self.assertRaises(CraneDownloadError):
+                case["run"]()
+            case["recover"].assert_not_called()
+
+    def test_permission_or_disk_markers_prevent_eof_classification(self):
+        for marker in ("permission denied", "no space left on device", "context deadline exceeded"):
+            with self.subTest(marker=marker):
+                archive = self.root / "new.tar"
+                url = "https://registry-1.docker.io/v2/swerebench/example/blobs/" + self.manifest["layers"][-1]["digest"]
+                raw = (marker + '\nError: saving tarball ' + str(archive) + ': Get "' + url + '": EOF\n').encode()
+                self.assertEqual(classify_crane_download_failure(raw, self.record, archive, 1), "OTHER_CRANE_DOWNLOAD_FAILURE")
+
+    def test_foreign_host_final_eof_is_not_eligible(self):
+        with self.eof_worker(hostname="untrusted.invalid") as case:
+            with self.assertRaises(CraneDownloadError):
+                case["run"]()
+            case["recover"].assert_not_called()
+
+    def test_unprotected_work_directory_prevents_automatic_recovery(self):
+        with self.eof_worker(private=False) as case:
+            with self.assertRaises(CraneDownloadError):
+                case["run"]()
+            case["recover"].assert_not_called()
+
+    def test_prior_attempt_prevents_automatic_second_recovery(self):
+        with self.eof_worker(prior_attempt=True) as case:
+            with self.assertRaises(CraneDownloadError):
+                case["run"]()
+            case["recover"].assert_not_called()
+
+    def test_large_missing_blob_prevents_automatic_recovery(self):
+        self.manifest["layers"][-1]["size"] = 16 * 1024 ** 2 + 1
+        digest = "sha256:" + hashlib.sha256(json.dumps(self.manifest, separators=(",", ":")).encode()).hexdigest()
+        self.record.update(digest=digest, image_reference="swerebench/example@" + digest)
+        with self.eof_worker() as case:
+            with self.assertRaises(CraneDownloadError):
+                case["run"]()
+            case["recover"].assert_not_called()
+            decision = json.loads((case["workdir"] / "automatic_eof_recovery_eligibility.json").read_text())
+            self.assertEqual(decision["reason"], "MISSING_BLOBS_EXCEED_FIXED_SMALL_TAIL_LIMIT")
+
+    def test_corrupt_existing_blob_is_identity_failure_not_recovery(self):
+        with self.eof_worker(corrupt_partial=True) as case:
+            with self.assertRaisesRegex(ImageTransportError, "digest/size"):
+                case["run"]()
+            case["recover"].assert_not_called()
+            self.assertTrue((case["workdir"] / "download/download_failure_receipt.json").exists())
+
+    def test_disk_budget_rejection_does_not_get_retried_as_eof(self):
+        with self.eof_worker(disk_low_after_download=True) as case:
+            with self.assertRaisesRegex(ImageTransportError, "Disk budget blocked"):
+                case["run"]()
+            case["recover"].assert_not_called()
+
+    def test_non_download_identity_exception_is_not_caught_for_recovery(self):
+        workdir = self.root / self.record["digest"].split(":")[1]
+        with patch("code_repair50.image_transport.probe_crane"), \
+             patch("code_repair50.image_transport.download_archive",
+                   side_effect=ImageTransportError("Compressed digest mismatch")), \
+             patch("code_repair50.image_transport.recover_verified_partial_image") as recover:
+            with self.assertRaisesRegex(ImageTransportError, "digest mismatch"):
+                ensure_verified_image(Mock(), self.record, workdir=workdir)
+        recover.assert_not_called()
+
+    def test_native_permission_and_timeout_exceptions_never_trigger_recovery(self):
+        for error in (PermissionError("Archive write denied"), TimeoutError("Transport deadline")):
+            with self.subTest(error=type(error).__name__):
+                workdir = self.root / self.record["digest"].split(":")[1]
+                with patch("code_repair50.image_transport.probe_crane"), \
+                     patch("code_repair50.image_transport.download_archive", side_effect=error), \
+                     patch("code_repair50.image_transport.recover_verified_partial_image") as recover:
+                    with self.assertRaises(type(error)) as raised:
+                        ensure_verified_image(Mock(), self.record, workdir=workdir)
+                self.assertIs(raised.exception, error)
+                recover.assert_not_called()
+
+    def test_download_failure_from_another_source_cannot_trigger_recovery(self):
+        record = {"phase": "crane_download", "category": "REGISTRY_BLOB_GET_EOF",
+                  "process_returncode": 1, "source_reference": "swerebench/other@" + self.record["digest"],
+                  "source_manifest_digest": self.record["digest"]}
+        failure = CraneDownloadError(record, self.root / "failure.json")
+        result = automatic_eof_recovery_eligibility(failure, self.record, self.root)
+        self.assertFalse(result["eligible"])
+        self.assertEqual(result["reason"], "FAILURE_SOURCE_IDENTITY_MISMATCH")
+
+    def test_partial_mutation_after_failed_download_prevents_recovery(self):
+        def persist_then_mutate(record, archive, log, returncode):
+            failure = persist_crane_download_failure(record, archive, log, returncode)
+            with archive.open("ab") as output:
+                output.write(b"changed-after-failure")
+            return failure
+        with self.eof_worker() as case:
+            with patch("code_repair50.image_transport.persist_crane_download_failure",
+                       side_effect=persist_then_mutate):
+                with self.assertRaises(CraneDownloadError):
+                    case["run"]()
+            case["recover"].assert_not_called()
+            decision = json.loads((case["workdir"] / "automatic_eof_recovery_eligibility.json").read_text())
+            self.assertEqual(decision["reason"], "PARTIAL_CHANGED_AFTER_ORIGINAL_FAILURE")
 
 
 if __name__ == "__main__":
