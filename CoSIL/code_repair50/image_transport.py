@@ -28,6 +28,7 @@ CRANE_RELEASE = (
 CRANE_ARCHIVE_SHA256 = "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0"
 CRANE_BINARY_SHA256 = "8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992"
 DEFAULT_CRANE = Path("/tmp/repair50_20261024/tools/crane-v0.22.1/crane")
+TRANSPORT_ROOT = Path("/tmp/repair50_20261024/image_transport")
 HASH = re.compile(r"sha256:[0-9a-f]{64}\Z")
 REFERENCE = re.compile(r"swerebench/[a-z0-9_.-]+@sha256:[0-9a-f]{64}\Z")
 DOCKER_MANIFEST = "application/vnd.docker.distribution.manifest.v2+json"
@@ -958,6 +959,166 @@ def explicit_verified_transport_retry(client, manifest_record, *, workdir, sourc
         raise
 
 
+def discover_initial_cache_sources(manifest_record, workdir):
+    """Deterministic metadata discovery confined to this run's trusted scope.
+
+    This does not trust a receipt's filename or full-verification flag alone:
+    selected donors subsequently require whole archive SHA and target blob SHA
+    verification in seed_full_verified_archive_cache.
+    """
+    manifest = verify_manifest_record(manifest_record)
+    workdir = Path(workdir)
+    result = {"schema": "repair50_initial_cache_discovery_v1",
+        "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"],
+        "discovery_root": str(TRANSPORT_ROOT.absolute()), "candidates": [], "selected_receipts": []}
+    if (workdir.parent.absolute() != TRANSPORT_ROOT.absolute()
+            or workdir.name != manifest_record["digest"].split(":", 1)[1]
+            or workdir.is_symlink() or TRANSPORT_ROOT.is_symlink()
+            or not workdir.is_dir() or workdir.stat().st_uid != os.getuid() or workdir.stat().st_mode & 0o077):
+        return {**result, "reason": "OUTSIDE_THIS_RUN_STABLE_DIGEST_SCOPE"}
+    required = {item["digest"]: item["size"] for item in manifest["layers"]}
+    candidates = []
+    for directory in sorted(TRANSPORT_ROOT.iterdir()):
+        if (directory == workdir or not re.fullmatch(r"[0-9a-f]{64}", directory.name)
+                or directory.is_symlink() or not directory.is_dir()
+                or directory.stat().st_uid != os.getuid() or directory.stat().st_mode & 0o077):
+            continue
+        for relative in ("download/archive_receipt.json", "recovery_attempt_1/download/archive_receipt.json",
+                         "transport_retry_1/download/archive_receipt.json"):
+            path = directory / relative
+            if not path.exists():
+                continue
+            if not _owned_regular_in_private_scope(path):
+                raise ImageTransportError("Run-scoped initial-cache donor receipt lost private ownership")
+            receipt = json.loads(path.read_text())
+            # Old incomplete receipts are visible audit records, never donors.
+            if (receipt.get("compressed_layers_verified") is not True
+                    or receipt.get("uncompressed_layers_verified") is not True
+                    or not isinstance(receipt.get("registry_manifest"), dict)):
+                result["candidates"].append({"receipt_path": str(path.absolute()), "status": "INCOMPLETE_LEGACY_RECEIPT"})
+                continue
+            source = {"image_reference": receipt.get("source_reference"),
+                      "digest": receipt.get("source_manifest_digest"), "manifest": receipt["registry_manifest"]}
+            source_manifest = verify_manifest_record(source)
+            archive = path.parent.parent / "official_image.tar"
+            if (source["digest"] != "sha256:" + directory.name
+                    or receipt.get("config_digest") != source_manifest["config"]["digest"]
+                    or receipt.get("archive_path") != str(archive.absolute())
+                    or not _owned_regular_in_private_scope(archive)):
+                raise ImageTransportError("Run-scoped initial-cache donor source/path binding differs")
+            if relative != "download/archive_receipt.json":
+                if relative.startswith("recovery_attempt_1/"):
+                    route_path, schema = directory / "recovery_attempt_1/recovery_receipt.json", None
+                else:
+                    route_path = directory / "transport_retry_1/transport_retry_receipt.json"
+                    schema = "repair50_explicit_transport_retry_v1"
+                if not route_path.exists():
+                    result["candidates"].append({"receipt_path": str(path.absolute()), "status": "NO_COMPLETED_RECOVERY_ROUTE"})
+                    continue
+                if not _owned_regular_in_private_scope(route_path):
+                    raise ImageTransportError("Initial-cache donor route is not privately owned")
+                route = json.loads(route_path.read_text())
+                if route.get("status") != "SUCCEEDED":
+                    result["candidates"].append({"receipt_path": str(path.absolute()), "status": "RECOVERY_ROUTE_NOT_SUCCEEDED"})
+                    continue
+                if (route.get("source_reference") != source["image_reference"]
+                        or route.get("source_manifest_digest") != source["digest"]
+                        or route.get("resolved_workdir") != str(archive.parent.resolve())
+                        or (schema is not None and route.get("schema") != schema)):
+                    raise ImageTransportError("Initial-cache donor recovery route belongs to another source")
+            shared = {item["digest"] for item in source_manifest["layers"]
+                      if required.get(item["digest"]) == item["size"]}
+            result["candidates"].append({"receipt_path": str(path.absolute()), "status": "ELIGIBLE_METADATA",
+                "shared_target_bytes": sum(required[blob] for blob in shared)})
+            if shared:
+                candidates.append((path, shared))
+    missing = set(required)
+    while candidates:
+        candidates.sort(key=lambda item: (-sum(required[blob] for blob in item[1] & missing), str(item[0])))
+        path, shared = candidates.pop(0)
+        if not (shared & missing):
+            break
+        result["selected_receipts"].append(str(path.absolute()))
+        missing -= shared
+    return {**result, "reason": "TRUSTED_RUN_METADATA_DISCOVERED", "uncovered_target_bytes": sum(required[blob] for blob in missing)}
+
+
+def cleanup_new_initial_cache(cache, manifest_record):
+    """Delete only this successful first download's fully rehashed plain blobs."""
+    manifest = verify_manifest_record(manifest_record)
+    cache = Path(cache)
+    if (cache.name != "initial_layer_cache" or cache.parent.parent.absolute() != TRANSPORT_ROOT.absolute()
+            or cache.parent.name != manifest_record["digest"].split(":", 1)[1]
+            or cache.is_symlink() or not cache.is_dir()
+            or cache.stat().st_uid != os.getuid() or cache.stat().st_mode & 0o077):
+        raise ImageTransportError("Refuse cleanup outside this new private initial cache")
+    expected = {item["digest"]: item["size"] for item in manifest["layers"]}
+    verified = []
+    # Verify the entire set before deleting any entry. Unknown/temp/symlink
+    # entries preserve the cache and fail closed rather than recurse blindly.
+    for path in sorted(cache.iterdir()):
+        if (path.name not in expected or path.is_symlink() or not path.is_file()
+                or path.stat().st_uid != os.getuid()):
+            raise ImageTransportError("Unexpected/nonregular blob in new initial cache; preserve it")
+        with path.open("rb") as source:
+            digest, size = _sha(source)
+        if digest != path.name or size != expected[path.name]:
+            raise ImageTransportError("Initial cache blob changed after complete archive verification")
+        verified.append({"path": str(path.absolute()), "digest": digest, "bytes": size})
+    for item in verified:
+        Path(item["path"]).unlink()
+    cache.rmdir()
+    return {"schema": "repair50_initial_cache_cleanup_v1", "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"], "removed_verified_blobs": verified,
+        "removed_compressed_bytes": sum(item["bytes"] for item in verified),
+        "only_new_initial_cache_removed": True, "prior_archives_and_caches_modified": False}
+
+
+def first_download_with_private_cache(manifest_record, archive, output, *, workdir):
+    """A first download only; failures keep its cache/evidence and propagate."""
+    manifest = verify_manifest_record(manifest_record)
+    workdir = Path(workdir)
+    # This public helper derives its own scope/selection. A future caller
+    # cannot inject an unchecked discovery dict or foreign donor list.
+    discovery = discover_initial_cache_sources(manifest_record, workdir)
+    if not discovery["selected_receipts"]:
+        raise ImageTransportError("No trusted run-scoped source for initial private cache")
+    state = workdir / "initial_cache"
+    state.mkdir(mode=0o700, exist_ok=False)
+    _save(state / "discovery_receipt.json", discovery)
+    cache = workdir / "initial_layer_cache"
+    try:
+        required = 2 * sum(item["size"] for item in manifest["layers"]) + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
+        if (shutil.disk_usage(workdir).free < required
+                or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+            raise ImageTransportError("Insufficient disk for first-download cache, tar and reserves")
+        last_check = 0.0
+        def budget_check():
+            nonlocal last_check
+            now = time.monotonic()
+            if now - last_check >= 1:
+                last_check = now
+                if (shutil.disk_usage(workdir).free < 20 * 1024 ** 3
+                        or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                    raise ImageTransportError("First-download cache reached a disk reserve gate")
+        seed = seed_full_verified_archive_cache(manifest_record, discovery["selected_receipts"], cache,
+                                                budget_check=budget_check)
+        _save(state / "cache_seed_receipt.json", seed)
+        receipt = download_archive(manifest_record, archive, output, cache_path=cache)
+        if receipt.get("compressed_layers_verified") is not True or receipt.get("uncompressed_layers_verified") is not True:
+            raise ImageTransportError("First-download archive failed complete ordinary blob/diffID gates")
+        cleanup = cleanup_new_initial_cache(cache, manifest_record)
+        _save(state / "cleanup_receipt.json", cleanup)
+        return {**receipt, "initial_cache_seed_receipt_path": str((state / "cache_seed_receipt.json").resolve()),
+                "initial_cache_cleanup_receipt_path": str((state / "cleanup_receipt.json").resolve())}
+    except Exception as exc:
+        _save(state / "failure_receipt.json", {"schema": "repair50_initial_cache_failure_v1",
+            "source_reference": manifest_record["image_reference"], "source_manifest_digest": manifest_record["digest"],
+            "error_type": type(exc).__name__, "cache_preserved": cache.exists(), "automatic_full_retry_authorized": False})
+        raise
+
+
 def ensure_verified_image(client, manifest_record, *, workdir):
     """Explicit fallback entry point, called serially by the qualification worker.
 
@@ -992,6 +1153,10 @@ def ensure_verified_image(client, manifest_record, *, workdir):
         recovered = ensure_verified_image(client, manifest_record, workdir=expected_directory)
         return {**recovered, "recovery_receipt_path": str(recovery_path.resolve()),
                 "original_partial_preserved": True}
+    if (workdir / "initial_cache/failure_receipt.json").exists():
+        raise ImageTransportError("Prior first-download private-cache failure; preserve the scene and stop")
+    if (workdir / "initial_cache").exists() and not (workdir / "initial_cache/cleanup_receipt.json").exists():
+        raise ImageTransportError("Incomplete prior first-download cache stage; preserve the scene and stop")
     loaded_path = workdir / "loaded_identity_receipt_v2.json"
     load_directory = workdir
     previous_path = loaded_path if loaded_path.exists() else workdir / "loaded_identity_receipt.json"
@@ -1032,7 +1197,15 @@ def ensure_verified_image(client, manifest_record, *, workdir):
         receipt = {**receipt, **current}
     else:
         try:
-            receipt = download_archive(manifest_record, archive, workdir / "download")
+            discovery = None
+            if (not archive.exists() and not (workdir / "download/crane_pull.log").exists()
+                    and not (workdir / "initial_cache").exists()):
+                discovery = discover_initial_cache_sources(manifest_record, workdir)
+            if discovery and discovery["selected_receipts"]:
+                receipt = first_download_with_private_cache(manifest_record, archive, workdir / "download",
+                                                           workdir=workdir)
+            else:
+                receipt = download_archive(manifest_record, archive, workdir / "download")
         except CraneDownloadError as failure:
             eligibility = automatic_eof_recovery_eligibility(failure, manifest_record, workdir)
             eligibility_path = workdir / "automatic_eof_recovery_eligibility.json"

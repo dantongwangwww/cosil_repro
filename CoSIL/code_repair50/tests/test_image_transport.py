@@ -20,6 +20,7 @@ from code_repair50.image_transport import (
     CraneDownloadError, classify_crane_download_failure, automatic_eof_recovery_eligibility,
     persist_crane_download_failure,
     seed_full_verified_archive_cache, explicit_verified_transport_retry,
+    discover_initial_cache_sources, first_download_with_private_cache, cleanup_new_initial_cache,
 )
 
 
@@ -737,6 +738,157 @@ class ImageTransportTests(unittest.TestCase):
         with patch("code_repair50.image_transport.download_archive") as pull:
             with self.assertRaisesRegex(ImageTransportError, "another source"):
                 ensure_verified_image(Mock(), self.record, workdir=workdir)
+        pull.assert_not_called()
+
+    def initial_cache_fixture(self):
+        archive, receipt_path = self.full_archive_source()
+        donor = self.root / self.record["digest"].split(":")[1]
+        (donor / "download").mkdir(parents=True)
+        donor.chmod(0o700)
+        moved = donor / "official_image.tar"
+        archive.rename(moved)
+        receipt = json.loads(receipt_path.read_text())
+        receipt["archive_path"] = str(moved.resolve())
+        target_receipt = donor / "download/archive_receipt.json"
+        target_receipt.write_text(json.dumps(receipt))
+        config = json.loads(self.config)
+        config["target_config"] = True
+        self.config = json.dumps(config).encode()
+        self.config_digest = "sha256:" + hashlib.sha256(self.config).hexdigest()
+        self.manifest["config"].update(digest=self.config_digest, size=len(self.config))
+        digest = "sha256:" + hashlib.sha256(json.dumps(self.manifest, separators=(",", ":")).encode()).hexdigest()
+        self.record.update(digest=digest, image_reference="swerebench/target@" + digest)
+        target = self.root / digest.split(":")[1]
+        target.mkdir(mode=0o700)
+        return donor, target_receipt, target
+
+    def test_initial_discovery_is_confined_to_this_run_and_deterministic(self):
+        donor, receipt, target = self.initial_cache_fixture()
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root):
+            first = discover_initial_cache_sources(self.record, target)
+            second = discover_initial_cache_sources(self.record, target)
+            outside = self.root / "outside" / target.name
+            outside.mkdir(parents=True)
+            external = discover_initial_cache_sources(self.record, outside)
+        self.assertEqual(first, second)
+        self.assertEqual(first["selected_receipts"], [str(receipt)])
+        self.assertEqual(first["uncovered_target_bytes"], 0)
+        self.assertEqual(external["selected_receipts"], [])
+        self.assertTrue((donor / "official_image.tar").exists())
+
+    def test_initial_discovery_rejects_receipt_pointing_outside_its_source(self):
+        _, receipt_path, target = self.initial_cache_fixture()
+        receipt = json.loads(receipt_path.read_text())
+        receipt["archive_path"] = str(self.root / "foreign.tar")
+        receipt_path.write_text(json.dumps(receipt))
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root):
+            with self.assertRaisesRegex(ImageTransportError, "source/path binding"):
+                discover_initial_cache_sources(self.record, target)
+
+    def test_initial_discovery_does_not_use_failed_recovery_archives(self):
+        donor, receipt_path, target = self.initial_cache_fixture()
+        child = donor / "transport_retry_1"
+        (child / "download").mkdir(parents=True)
+        archive = child / "official_image.tar"
+        (donor / "official_image.tar").rename(archive)
+        receipt = json.loads(receipt_path.read_text())
+        receipt["archive_path"] = str(archive)
+        receipt_path.unlink()
+        (child / "download/archive_receipt.json").write_text(json.dumps(receipt))
+        (child / "transport_retry_receipt.json").write_text(json.dumps({"status": "FAILED"}))
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root):
+            result = discover_initial_cache_sources(self.record, target)
+        self.assertEqual(result["selected_receipts"], [])
+        self.assertEqual(result["candidates"][0]["status"], "RECOVERY_ROUTE_NOT_SUCCEEDED")
+
+    def test_initial_ensure_uses_same_digest_and_removes_only_new_cache(self):
+        donor, receipt_path, target = self.initial_cache_fixture()
+        original = (donor / "official_image.tar").read_bytes()
+        old_cache = donor / "private_layer_cache"
+        old_cache.mkdir()
+        (old_cache / "old-evidence").write_bytes(b"preserve")
+        complete = self.archive().read_bytes()
+        def download(record, archive, output, *, cache_path):
+            self.assertEqual(record["image_reference"], self.record["image_reference"])
+            self.assertEqual(cache_path, target / "initial_layer_cache")
+            self.assertEqual((cache_path / self.manifest["layers"][0]["digest"]).read_bytes(), self.layers[0])
+            archive.write_bytes(complete)
+            output.mkdir()
+            receipt = verify_docker_archive(archive, record)
+            (output / "archive_receipt.json").write_text(json.dumps(receipt))
+            return receipt
+        client = Mock()
+        client.images.get.return_value.attrs = {"Id": self.config_digest,
+            "RootFS": {"Type": "layers", "Layers": self.diff_ids}, "Os": "linux", "Architecture": "amd64"}
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root), \
+             patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=2 ** 50)), \
+             patch("code_repair50.image_transport.probe_crane"), \
+             patch("code_repair50.image_transport.download_archive", side_effect=download) as pull:
+            result = ensure_verified_image(client, self.record, workdir=target)
+        self.assertEqual(pull.call_count, 1)
+        self.assertTrue(result["loaded_image_verified"])
+        self.assertFalse((target / "initial_layer_cache").exists())
+        self.assertTrue((target / "initial_cache/cleanup_receipt.json").exists())
+        self.assertEqual((donor / "official_image.tar").read_bytes(), original)
+        self.assertEqual((old_cache / "old-evidence").read_bytes(), b"preserve")
+        with patch("code_repair50.image_transport.discover_initial_cache_sources") as discovery, \
+             patch("code_repair50.image_transport.download_archive") as later:
+            ensure_verified_image(client, self.record, workdir=target)
+        discovery.assert_not_called()
+        later.assert_not_called()
+
+    def test_initial_download_failure_preserves_cache_and_blocks_fresh_fallback(self):
+        _, _, target = self.initial_cache_fixture()
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root), \
+             patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=2 ** 50)), \
+             patch("code_repair50.image_transport.download_archive", side_effect=PermissionError("blocked")) as pull:
+            with self.assertRaises(PermissionError):
+                first_download_with_private_cache(self.record, target / "official_image.tar", target / "download", workdir=target)
+        self.assertEqual(pull.call_count, 1)
+        self.assertTrue((target / "initial_layer_cache").is_dir())
+        self.assertTrue((target / "initial_cache/failure_receipt.json").exists())
+        with patch("code_repair50.image_transport.download_archive") as later:
+            with self.assertRaisesRegex(ImageTransportError, "private-cache failure"):
+                ensure_verified_image(Mock(), self.record, workdir=target)
+        later.assert_not_called()
+
+    def test_initial_cache_unknown_file_prevents_any_cleanup(self):
+        _, receipt, target = self.initial_cache_fixture()
+        cache = target / "initial_layer_cache"
+        seed_full_verified_archive_cache(self.record, [receipt], cache)
+        (cache / "unknown").write_bytes(b"preserve")
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root):
+            with self.assertRaisesRegex(ImageTransportError, "Unexpected/nonregular"):
+                cleanup_new_initial_cache(cache, self.record)
+        self.assertEqual(len(list(cache.iterdir())), 3)
+
+    def test_initial_cache_changed_blob_prevents_any_cleanup(self):
+        _, receipt, target = self.initial_cache_fixture()
+        cache = target / "initial_layer_cache"
+        seed_full_verified_archive_cache(self.record, [receipt], cache)
+        blob = cache / self.manifest["layers"][1]["digest"]
+        blob.write_bytes(b"changed")
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root):
+            with self.assertRaisesRegex(ImageTransportError, "changed after"):
+                cleanup_new_initial_cache(cache, self.record)
+        self.assertEqual(len(list(cache.iterdir())), 2)
+
+    def test_initial_cache_disk_gate_precedes_seed_and_network(self):
+        _, _, target = self.initial_cache_fixture()
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root), \
+             patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=0)), \
+             patch("code_repair50.image_transport.download_archive") as pull:
+            with self.assertRaisesRegex(ImageTransportError, "Insufficient disk"):
+                first_download_with_private_cache(self.record, target / "official_image.tar", target / "download", workdir=target)
+        pull.assert_not_called()
+        self.assertFalse((target / "initial_layer_cache").exists())
+
+    def test_incomplete_initial_cache_stage_cannot_be_silently_bypassed(self):
+        _, _, target = self.initial_cache_fixture()
+        (target / "initial_cache").mkdir()
+        with patch("code_repair50.image_transport.download_archive") as pull:
+            with self.assertRaisesRegex(ImageTransportError, "Incomplete prior"):
+                ensure_verified_image(Mock(), self.record, workdir=target)
         pull.assert_not_called()
 
 
