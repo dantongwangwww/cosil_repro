@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
 from pathlib import Path
 import time
@@ -18,6 +20,15 @@ HISTORY=locator.PAPER.parent/'runs/20261023_paper_params_retest93_nonthinking_v1
 
 
 def load(path):return prepare.load(path)
+
+
+@contextmanager
+def controller_lock(output):
+    output=Path(output);output.mkdir(parents=True,exist_ok=True)
+    with (output/'controller.lock').open('a+') as handle:
+        try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError:raise RuntimeError('A repair50 controller is already active; no duplicate start')
+        yield
 
 
 def audit_location(task,gold,result,pair):
@@ -88,6 +99,11 @@ def main():
     parser.add_argument('--phase',choices=('run','prepare','report'),default='run')
     parser.add_argument('--wait-seconds',type=int,default=0)
     args=parser.parse_args()
+    if args.phase=='report':return execute(args)
+    with controller_lock(OUTPUT):return execute(args)
+
+
+def execute(args):
     deadline=time.monotonic()+args.wait_seconds
     while not ROSTER.exists():
         if time.monotonic()>=deadline:raise RuntimeError('Official 50-task qualification is not frozen; zero model calls')

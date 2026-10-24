@@ -19,7 +19,7 @@ def qualifies(gold,empty):
 def system_failure(record):
     message=str(record.get('error','')).upper()
     return any(value in message for value in ['SYSTEM_DISK_CAPACITY','NO SPACE LEFT ON DEVICE',
-        'PERMISSION DENIED','CANNOT CONNECT TO THE DOCKER','SYSTEM_IMAGE_PULL']) or record.get('error_type')=='ImageTransportError'
+        'PERMISSION DENIED','CANNOT CONNECT TO THE DOCKER','SYSTEM_IMAGE_PULL']) or record.get('error_type') in ['ImageTransportError','SYSTEM_IMAGE_IDENTITY']
 
 def qualify_task(candidate,retry_infrastructure=False):
     iid=candidate['instance_id'];folder=E.LIVE/'candidates'/iid
@@ -27,8 +27,13 @@ def qualify_task(candidate,retry_infrastructure=False):
     if prior.exists():
         old=E.read(prior)
         if retry_infrastructure and old.get('system_blocked'):
-            folder=folder/'infrastructure_attempt_2'
-            if (folder/'qualification.json').exists():return E.read(folder/'qualification.json')
+            number=2;original_folder=folder
+            while True:
+                folder=original_folder/('infrastructure_attempt_'+str(number))
+                if not (folder/'qualification.json').exists():break
+                previous=E.read(folder/'qualification.json')
+                if not previous.get('system_blocked'):return previous
+                number+=1
         else:return old
     folder.mkdir(parents=True,exist_ok=True,mode=0o700)
     row=E.private_row(iid)
@@ -83,7 +88,7 @@ def run(limit=50,inspect_first=3,retry_infrastructure=False):
         'model_calls':0})
     for candidate in candidates:
         if len(selected)>=limit:break
-        iid=candidate['instance_id'];repo=candidate['repo']
+        iid=candidate['instance_id'];repo=candidate['repo'].casefold()
         if repo in repos:
             audit.append({'instance_id':iid,'reason':'REPOSITORY_ALREADY_HAS_QUALIFIED_TASK'})
             continue
@@ -107,7 +112,7 @@ def run(limit=50,inspect_first=3,retry_infrastructure=False):
         live=E.LIVE/'live_status.json';temporary=E.LIVE/'live_status.pending'
         temporary.write_text(json.dumps(status,ensure_ascii=False,indent=2)+'\n');temporary.replace(live)
         if result.get('system_blocked') or failures>=3:
-            suffix='_transport_retry' if retry_infrastructure else ''
+            suffix=('_transport_retry_'+str(len(list(E.LIVE.glob('stop_*transport_retry*.json')))+1)) if retry_infrastructure else ''
             E.save(E.LIVE/('stop_'+str(candidate['candidate_rank'])+suffix+'.json'),{
                 **status,'reason':'SYSTEM_BLOCK_OR_THREE_CONSECUTIVE_QUALIFICATION_FAILURES_REQUIRES_AUDIT'})
             return status

@@ -52,6 +52,7 @@ class QualificationTests(unittest.TestCase):
         for error in ['SYSTEM_DISK_CAPACITY: no room','permission denied','SYSTEM_IMAGE_PULL: offline']:
             self.assertTrue(system_failure({'error':error}))
         self.assertFalse(system_failure({'resolved':False,'status':'TEST_COMPLETED'}))
+        self.assertTrue(system_failure({'error_type':'SYSTEM_IMAGE_IDENTITY','underlying_error_type':'ImageNotFound'}))
     def test_unqualified_or_wrong_arm_never_launches_formal_worker(self):
         with patch.object(E,'launch_worker') as run:
             with self.assertRaises(RuntimeError):

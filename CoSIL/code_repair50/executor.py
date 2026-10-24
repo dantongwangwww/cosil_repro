@@ -42,6 +42,7 @@ TIMEOUT = 1800
 WORKER_WALL_TIMEOUT = 3 * 1800 + 900  # download + load + tests + identity-verification allowance
 LABEL = 'cosil.repair50.20261024'
 CHECKPOINT = '8ddd2ae3700c660f7832c600b1ca1b71813fbf45'
+ENGINEERING_FIX_CHECKPOINT = '50c40d43bc8c5147c623cca816bc3c8a27a57925'
 
 def utc(): return dt.datetime.now(dt.timezone.utc).isoformat()
 def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -172,13 +173,15 @@ def acquire_image(client,task,directory):
     manifest=read(manifest_path)
     if manifest['image_reference']!=reference:raise RuntimeError('SYSTEM_IMAGE_DIGEST_MISMATCH')
     from .image_transport import ensure_verified_image
+    transport_source_sha=digest(ROOT/'code_repair50/image_transport.py')
     receipt=ensure_verified_image(client,manifest,workdir=WORK/'image_transport'/manifest['digest'].split(':',1)[1])
     image=client.images.get(receipt['runtime_image_reference'])
     save(directory/'verified_image_transport.json',receipt)
-    return image,bool(receipt.get('new_to_daemon')),{
+    return image,bool(receipt.get('new_to_daemon') or receipt.get('loaded_by_this_run')),{
         'reference':reference,'runtime_image_reference':image.id,'registry_digest_preservation_claimed':False,
         'transport':'Verified original registry manifest/config/compressed layers/diffIDs; user-proxy archive transfer then local Docker load',
         'cached':receipt.get('cached'),'image_id':image.id,'receipt':str(directory/'verified_image_transport.json'),
+        'image_transport_source_sha256_at_import':transport_source_sha,
         'free_before_bytes':free,'planning_required_bytes':required}
 
 def evaluate_in_worker(task,arm,patch_path,directory):
@@ -193,9 +196,12 @@ def evaluate_in_worker(task,arm,patch_path,directory):
         'patch_applied':None,'apply_ok':None,'environment_error':False,'test_seconds':None,
         'official_verdict':False,'official_result':None,'error_type':None,
         'prechange_github_checkpoint':CHECKPOINT,'logpaths':{'directory':str(directory)}}
+    record.update(engineering_fix_checkpoint=ENGINEERING_FIX_CHECKPOINT,
+                  executor_source_sha256_at_start=digest(__file__),stage='IMAGE_IDENTITY_OR_TRANSPORT')
     try:
         image,pulled,pull=acquire_image(client,task,directory);save(directory/'image_receipt.json',pull)
         remember_lease(task['image_reference'],image,pulled)
+        record['stage']='OFFICIAL_TEST_SPEC'
         spec=make_spec(row,task['image_reference'],mods)
         patch=Path(patch_path).read_text();save(directory/'protocol.json',{
             'empty_business_patch':not bool(patch.strip()),'official_eval_script_sha256':hashlib.sha256(spec.eval_script.encode()).hexdigest(),
@@ -212,6 +218,7 @@ def evaluate_in_worker(task,arm,patch_path,directory):
             'mounts':container.attrs.get('Mounts',[]),'host_config_selected':{
                 k:container.attrs['HostConfig'].get(k) for k in ['NetworkMode','Privileged','CapDrop','SecurityOpt','PidsLimit','Memory','NanoCpus','Binds','DeviceRequests']}})
         container.start()
+        record['stage']='BASE_IDENTITY'
         actual=container.exec_run(['git','rev-parse','HEAD'],workdir='/testbed')
         save(directory/'base_head.json',{'returncode':actual.exit_code,'head':actual.output.decode(errors='replace').strip(),
             'expected':row['base_commit']})
@@ -219,6 +226,7 @@ def evaluate_in_worker(task,arm,patch_path,directory):
             raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH')
         from swebench.harness.docker_utils import copy_to_container,exec_run_with_timeout
         business=directory/'patch.diff';business.write_text(patch)
+        record['stage']='BUSINESS_PATCH_APPLICATION'
         if patch.strip():
             copy_to_container(container,business,PurePosixPath('/patch.diff'))
             applied=container.exec_run(['git','apply','--verbose','/patch.diff'],workdir='/testbed',user='root')
@@ -232,6 +240,7 @@ def evaluate_in_worker(task,arm,patch_path,directory):
             record['patch_applied']=record['apply_ok']=True
         eval_file=directory/'eval.sh';eval_file.write_text(spec.eval_script)
         copy_to_container(container,eval_file,PurePosixPath('/eval.sh'))
+        record['stage']='OFFICIAL_TEST_EXECUTION'
         output,timed_out,seconds=exec_run_with_timeout(container,'/bin/bash /eval.sh',TIMEOUT)
         test_log=directory/'test_output.txt';test_log.write_text(output)
         record['test_seconds']=seconds;record['logpaths'].update(test_output=str(test_log),eval_script=str(eval_file),patch_apply=str(directory/'patch_apply.log'))
@@ -258,7 +267,10 @@ def evaluate_in_worker(task,arm,patch_path,directory):
             note='Missing observations alone cannot distinguish infrastructure failure from a model patch breaking collection/imports')
         return record
     except Exception as exc:
-        record.update(status='ENVIRONMENT_ERROR',environment_error=True,error_type=type(exc).__name__,error=str(exc))
+        image_stage=record.get('stage')=='IMAGE_IDENTITY_OR_TRANSPORT'
+        record.update(status='ENVIRONMENT_ERROR',environment_error=True,
+            error_type='SYSTEM_IMAGE_IDENTITY' if image_stage else type(exc).__name__,
+            underlying_error_type=type(exc).__name__,error=str(exc))
         return record
     finally:
         if container is not None:
@@ -297,23 +309,30 @@ def launch_worker(task,arm,patch_path,directory):
             subprocess.run(['sg','docker','-c',shlex.join(cleanup_command)],cwd=WORK,env=env,capture_output=True,text=True,timeout=90)
             if not (directory/'result.json').exists():save(directory/'result.json',{
                 'instance_id':task['instance_id'],'arm':arm,'status':'WORKER_WALL_TIMEOUT','resolved':None,
-                'official_verdict':False,'test_completed':False,'environment_error':True,
-                'error_type':'WORKER_WALL_TIMEOUT','path':str(directory/'result.json'),
+                'official_verdict':False,'test_completed':False,'environment_error':None,
+                'error_type':'UNKNOWN_OR_PATCH_TIMEOUT','path':str(directory/'result.json'),
                 'test_seconds':None,'elapsed_seconds':WORKER_WALL_TIMEOUT,'own_process_group_terminated':True})
     if not (directory/'result.json').exists():
         raise RuntimeError('Evaluator worker did not persist result: '+stderr[-2000:])
     return read(directory/'result.json')
 
 def run_evaluation(iid,arm,patch_path,*,task=None,output_dir=None):
-    if task is None:
-        roster=read(LIVE/'qualified50.json')
-        if roster.get('frozen') is not True:raise RuntimeError('Formal 50-task roster not frozen')
-        matches=[x for x in roster['tasks'] if x['instance_id']==iid]
-        if len(matches)!=1:raise ValueError('Task outside the frozen repair50 roster')
-        task=matches[0]
-    if task['instance_id']!=iid:raise ValueError('Task identity mismatch')
-    if task.get('qualification_passed') is not True:raise RuntimeError('Unqualified task blocked')
     if arm not in ['A','B']:raise ValueError('Only the two frozen repair arms are accepted')
+    if task is not None and task.get('qualification_passed') is not True:raise RuntimeError('Unqualified task blocked')
+    if not (LIVE/'qualified50.json').exists():raise RuntimeError('Formal 50-task roster not frozen')
+    roster=read(LIVE/'qualified50.json')
+    tasks=roster.get('tasks',[])
+    if (roster.get('frozen') is not True or len(tasks)!=50
+            or len({x['instance_id'] for x in tasks})!=50
+            or len({x['repo'].casefold() for x in tasks})!=50
+            or not all(x.get('qualification_passed') is True for x in tasks)):
+        raise RuntimeError('Formal 50-task qualification gate invalid')
+    matches=[x for x in tasks if x['instance_id']==iid]
+    if len(matches)!=1:raise ValueError('Task outside the frozen repair50 roster')
+    canonical=matches[0]
+    if task is not None and any(task.get(k)!=canonical.get(k) for k in ['instance_id','repo','base_commit','image_reference']):
+        raise ValueError('Supplied task disagrees with frozen qualification identity')
+    task=canonical
     target=Path(output_dir) if output_dir else OUT/'formal_tests'/iid/arm
     return launch_worker(task,arm,patch_path,target)
 

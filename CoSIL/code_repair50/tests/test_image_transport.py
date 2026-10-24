@@ -12,6 +12,7 @@ from code_repair50.image_transport import (
     ImageTransportError, crane_pull_argv, verify_docker_archive,
     verify_loaded_image, verify_manifest_record, crane_environment, ensure_verified_image,
     guard_existing_tags,
+    containerd_manifest_bytes,
 )
 
 
@@ -27,7 +28,9 @@ class ImageTransportTests(unittest.TestCase):
             "rootfs": {"type": "layers", "diff_ids": self.diff_ids}}).encode()
         self.config_digest = "sha256:" + hashlib.sha256(self.config).hexdigest()
         self.manifest = {"schemaVersion": 2,
-            "config": {"digest": self.config_digest, "size": len(self.config)},
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "config": {"mediaType": "application/vnd.docker.container.image.v1+json",
+                       "digest": self.config_digest, "size": len(self.config)},
             "layers": [{"mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
                 "size": len(body), "digest": "sha256:" + hashlib.sha256(body).hexdigest()}
                        for body in self.layers]}
@@ -36,13 +39,13 @@ class ImageTransportTests(unittest.TestCase):
         self.record = {"digest": digest, "manifest": self.manifest,
             "image_reference": "swerebench/example@" + digest}
 
-    def archive(self, *, corrupt_layer=False, extra=False, reorder=False):
+    def archive(self, *, corrupt_layer=False, extra=False, reorder=False, repo_tags=None):
         path = self.root / "image.tar"
         layer_names = [layer["digest"].split(":")[1] + ".tar.gz"
                        for layer in self.manifest["layers"]]
         contents = {self.config_digest: self.config,
                     **dict(zip(layer_names, self.layers))}
-        descriptor = {"Config": self.config_digest, "RepoTags": None,
+        descriptor = {"Config": self.config_digest, "RepoTags": repo_tags,
                       "Layers": layer_names[::-1] if reorder else layer_names}
         contents["manifest.json"] = json.dumps([descriptor]).encode()
         if corrupt_layer:
@@ -161,6 +164,82 @@ class ImageTransportTests(unittest.TestCase):
         client = Mock()
         self.assertEqual(guard_existing_tags(client, [], self.config_digest), [])
         client.images.get.assert_not_called()
+
+    def docker29_attrs(self, receipt):
+        raw = containerd_manifest_bytes(receipt["registry_manifest"])
+        image_id = "sha256:" + hashlib.sha256(raw).hexdigest()
+        return {"Id": image_id,
+            "Descriptor": {"digest": image_id, "size": len(raw),
+                "mediaType": receipt["registry_manifest"]["mediaType"]},
+            "RootFS": {"Type": "layers", "Layers": self.diff_ids},
+            "Os": "linux", "Architecture": "amd64", "RepoDigests": []}
+
+    def test_docker29_manifest_id_keeps_exact_original_identity(self):
+        receipt = verify_docker_archive(self.archive(), self.record)
+        attrs = self.docker29_attrs(receipt)
+        self.assertNotEqual(attrs["Id"], self.config_digest)
+        result = verify_loaded_image(attrs, receipt)
+        self.assertEqual(result["runtime_image_reference"], attrs["Id"])
+        self.assertEqual(result["config_digest"], self.config_digest)
+        self.assertTrue(result["same_original_config_and_compressed_layer_descriptors"])
+
+    def test_docker29_wrong_descriptor_rejected(self):
+        receipt = verify_docker_archive(self.archive(), self.record)
+        attrs = self.docker29_attrs(receipt)
+        attrs["Descriptor"]["digest"] = "sha256:" + "d" * 64
+        with self.assertRaisesRegex(ImageTransportError, "Descriptor"):
+            verify_loaded_image(attrs, receipt)
+
+    def test_docker29_unknown_manifest_even_with_same_rootfs_rejected(self):
+        receipt = verify_docker_archive(self.archive(), self.record)
+        attrs = self.docker29_attrs(receipt)
+        attrs["Id"] = attrs["Descriptor"]["digest"] = "sha256:" + "d" * 64
+        with self.assertRaisesRegex(ImageTransportError, "exact digest-bound"):
+            verify_loaded_image(attrs, receipt)
+
+    def test_docker29_same_exact_image_is_not_tag_conflict(self):
+        receipt = verify_docker_archive(self.archive(), self.record)
+        attrs = self.docker29_attrs(receipt)
+        client = Mock()
+        client.images.get.return_value.id = attrs["Id"]
+        client.images.get.return_value.attrs = attrs
+        result = guard_existing_tags(client, ["swerebench/example:i-was-a-digest"], receipt)
+        self.assertEqual(result[0]["unchanged_image_id"], attrs["Id"])
+
+    def test_docker29_prior_successful_load_is_reused_without_reload(self):
+        tags = ["index.docker.io/swerebench/example:i-was-a-digest"]
+        receipt = verify_docker_archive(self.archive(repo_tags=tags), self.record)
+        attrs = self.docker29_attrs(receipt)
+        # Match the real crash: archive and successful load log exist but the
+        # config-addressed lookup prevented a loaded identity receipt.
+        original_archive = self.root / "image.tar"
+        original_archive.rename(self.root / "official_image.tar")
+        receipt["archive_path"] = str(self.root / "official_image.tar")
+        (self.root / "download").mkdir()
+        old_receipt = dict(receipt)
+        old_receipt.pop("registry_manifest")
+        (self.root / "download/archive_receipt.json").write_text(json.dumps(old_receipt))
+        original_log = "Loaded image: swerebench/example:i-was-a-digest\n"
+        (self.root / "docker_load.log").write_text(original_log)
+        class ImageNotFound(Exception):
+            pass
+        image = Mock(id=attrs["Id"], attrs=attrs)
+        client = Mock()
+        def lookup(reference):
+            if reference == attrs["Id"]:
+                return image
+            raise ImageNotFound()
+        client.images.get.side_effect = lookup
+        with patch("code_repair50.image_transport.probe_crane"), \
+             patch("code_repair50.image_transport.download_archive") as download, \
+             patch("code_repair50.image_transport.subprocess.Popen") as process:
+            result = ensure_verified_image(client, self.record, workdir=self.root)
+        download.assert_not_called()
+        process.assert_not_called()
+        self.assertFalse(result["new_to_daemon"])
+        self.assertTrue(result["loaded_by_this_run"])
+        self.assertEqual(result["runtime_image_reference"], attrs["Id"])
+        self.assertEqual((self.root / "docker_load.log").read_text(), original_log)
 
 
 if __name__ == "__main__":

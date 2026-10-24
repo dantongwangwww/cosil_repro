@@ -145,6 +145,7 @@ def verify_docker_archive(archive, image_record):
     return {"schema": "repair50_official_offline_image_identity_v1",
             "source_reference": image_record["image_reference"],
             "source_manifest_digest": image_record["digest"],
+            "registry_manifest": manifest,
             "repo_tags": repo_tags,
             "config_digest": config_sha, "diff_ids": diff_ids,
             "archive_path": str(archive.resolve()), "archive_sha256": archive_sha,
@@ -155,6 +156,42 @@ def verify_docker_archive(archive, image_record):
             "loaded_image_verified": False}
 
 
+def containerd_manifest_bytes(manifest):
+    """Exact Go descriptor field order, without changing any field or blob.
+
+    Docker 29's containerd store can expose this reserialized manifest digest
+    as Id. A candidate is useful only if its complete SHA256 exactly matches
+    the actual daemon Descriptor and Id; semantic similarity alone is rejected.
+    """
+    if set(manifest) != {"schemaVersion", "mediaType", "config", "layers"}:
+        raise ImageTransportError("Unsupported containerd manifest serialization")
+    def descriptor(value):
+        if set(value) != {"mediaType", "digest", "size"}:
+            raise ImageTransportError("Unsupported containerd descriptor serialization")
+        return {"mediaType": value["mediaType"], "digest": value["digest"], "size": value["size"]}
+    candidate = {"schemaVersion": manifest["schemaVersion"], "mediaType": manifest["mediaType"],
+                 "config": descriptor(manifest["config"]),
+                 "layers": [descriptor(value) for value in manifest["layers"]]}
+    return json.dumps(candidate, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def expected_runtime_ids(archive_receipt):
+    ids = [archive_receipt["config_digest"]]
+    manifest = archive_receipt.get("registry_manifest")
+    if manifest is not None:
+        verify_manifest_record({"manifest": manifest,
+            "image_reference": archive_receipt["source_reference"],
+            "digest": archive_receipt["source_manifest_digest"]})
+        ids.append(archive_receipt["source_manifest_digest"])
+        try:
+            raw = containerd_manifest_bytes(manifest)
+        except ImageTransportError:
+            pass
+        else:
+            ids.append("sha256:" + hashlib.sha256(raw).hexdigest())
+    return list(dict.fromkeys(ids))
+
+
 def verify_loaded_image(inspect, archive_receipt):
     """Bind Docker's local immutable ID and rootfs to the original registry image."""
     if (archive_receipt.get("schema") != "repair50_official_offline_image_identity_v1"
@@ -162,13 +199,44 @@ def verify_loaded_image(inspect, archive_receipt):
             or archive_receipt.get("uncompressed_layers_verified") is not True):
         raise ImageTransportError("Missing verified archive receipt")
     expected = archive_receipt["config_digest"]
-    if (not HASH.fullmatch(expected) or inspect.get("Id") != expected
+    image_id = inspect.get("Id", "")
+    if (not HASH.fullmatch(expected) or not HASH.fullmatch(image_id)
             or inspect.get("RootFS", {}).get("Type") != "layers"
             or inspect.get("RootFS", {}).get("Layers") != archive_receipt["diff_ids"]
             or inspect.get("Os") != "linux" or inspect.get("Architecture") != "amd64"):
         raise ImageTransportError("Loaded image ID, platform or diff IDs differ")
+    manifest = archive_receipt.get("registry_manifest")
+    if manifest is not None:
+        expected_runtime_ids(archive_receipt)  # Revalidate the original manifest binding.
+        if manifest["config"]["digest"] != expected:
+            raise ImageTransportError("Original manifest/config identity binding differs")
+    if image_id == expected:
+        identity_scheme = "LEGACY_CONFIG_DIGEST"
+        runtime_manifest = None
+    else:
+        if manifest is None:
+            raise ImageTransportError("Manifest-addressed image needs exact original manifest evidence")
+        descriptor = inspect.get("Descriptor") or {}
+        if descriptor.get("digest") != image_id:
+            raise ImageTransportError("Docker image ID and Descriptor differ")
+        registry_raw = json.dumps(manifest, separators=(",", ":"), ensure_ascii=False).encode()
+        candidates = [("ORIGINAL_MANIFEST_DIGEST", registry_raw)]
+        try:
+            candidates.append(("CONTAINERD_RESERIALIZED_MANIFEST_DIGEST", containerd_manifest_bytes(manifest)))
+        except ImageTransportError:
+            pass
+        matches = [(name, raw) for name, raw in candidates
+                   if "sha256:" + hashlib.sha256(raw).hexdigest() == image_id
+                   and descriptor.get("size") == len(raw)
+                   and descriptor.get("mediaType") == manifest.get("mediaType")]
+        if not matches:
+            raise ImageTransportError("Local manifest identity is not an exact digest-bound serialization of original config and layers")
+        identity_scheme, raw = matches[0]
+        runtime_manifest = json.loads(raw)
     return {**archive_receipt, "loaded_image_verified": True,
-            "runtime_image_reference": expected,
+            "runtime_image_reference": image_id, "local_image_id_scheme": identity_scheme,
+            "runtime_manifest": runtime_manifest,
+            "same_original_config_and_compressed_layer_descriptors": True,
             "original_repo_digest_present": archive_receipt["source_reference"]
                 in (inspect.get("RepoDigests") or []),
             "runtime_reference_policy": "Use verified immutable local image ID; never claim RepoDigests survived docker load"}
@@ -297,8 +365,10 @@ def _save(path, value):
         handle.write(data)
 
 
-def guard_existing_tags(client, repo_tags, expected_config_digest):
+def guard_existing_tags(client, repo_tags, expected_identity):
     """A load must never redirect a preexisting tag to a different image."""
+    expected_config_digest = (expected_identity["config_digest"]
+                              if isinstance(expected_identity, dict) else expected_identity)
     if not HASH.fullmatch(expected_config_digest):
         raise ImageTransportError("Invalid expected config identity")
     checked = []
@@ -310,10 +380,44 @@ def guard_existing_tags(client, repo_tags, expected_config_digest):
                 raise
             checked.append({"tag": tag, "existing": False})
         else:
-            if image.id != expected_config_digest:
-                raise ImageTransportError("Offline image load would overwrite a preexisting different tag")
+            try:
+                if isinstance(expected_identity, dict):
+                    verify_loaded_image(image.attrs, expected_identity)
+                elif image.id != expected_config_digest:
+                    raise ImageTransportError("Different legacy config identity")
+            except ImageTransportError as exc:
+                raise ImageTransportError("Offline image load would overwrite a preexisting different tag") from exc
             checked.append({"tag": tag, "existing": True, "unchanged_image_id": image.id})
     return checked
+
+
+def find_verified_image(client, receipt):
+    """Lookup immutable candidates, without assuming Docker Id is a config hash."""
+    for reference in expected_runtime_ids(receipt):
+        try:
+            image = client.images.get(reference)
+        except Exception as exc:
+            if type(exc).__name__ not in {"ImageNotFound", "NotFound"}:
+                raise
+        else:
+            return image, verify_loaded_image(image.attrs, receipt)
+    return None, None
+
+
+def previous_own_load_logs(workdir, receipt):
+    """Recover ownership evidence after load succeeded but old ID lookup failed."""
+    tags = [tag.removeprefix("index.docker.io/").removeprefix("docker.io/")
+            for tag in receipt.get("repo_tags", [])]
+    evidence = []
+    for path in Path(workdir).glob("**/docker_load.log"):
+        if not path.is_file() or path.stat().st_size > 1024 * 1024:
+            continue
+        text = path.read_text(errors="replace")
+        if any("Loaded image: " + tag in text for tag in tags):
+            evidence.append(str(path.resolve()))
+        elif any("Loaded image ID: " + iid in text for iid in expected_runtime_ids(receipt)):
+            evidence.append(str(path.resolve()))
+    return sorted(evidence)
 
 
 def ensure_verified_image(client, manifest_record, *, workdir):
@@ -326,16 +430,17 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    loaded_path = workdir / "loaded_identity_receipt.json"
+    loaded_path = workdir / "loaded_identity_receipt_v2.json"
     load_directory = workdir
-    if loaded_path.exists():
-        previous = json.loads(loaded_path.read_text())
+    previous_path = loaded_path if loaded_path.exists() else workdir / "loaded_identity_receipt.json"
+    if previous_path.exists():
+        previous = json.loads(previous_path.read_text())
         if (previous.get("source_reference") != manifest_record["image_reference"]
                 or previous.get("source_manifest_digest") != manifest_record["digest"]
                 or previous.get("config_digest") != manifest["config"]["digest"]):
             raise ImageTransportError("Existing receipt belongs to another image")
         try:
-            image = client.images.get(previous["config_digest"])
+            image = client.images.get(previous.get("runtime_image_reference", previous["config_digest"]))
         except Exception as exc:
             if type(exc).__name__ not in {"ImageNotFound", "NotFound"}:
                 raise
@@ -343,19 +448,12 @@ def ensure_verified_image(client, manifest_record, *, workdir):
             # task. Reuse the verified archive, preserving the first load log.
             load_directory = workdir / ("reload-" + str(time.time_ns()))
             load_directory.mkdir(mode=0o700)
-            loaded_path = load_directory / "loaded_identity_receipt.json"
+            loaded_path = load_directory / "loaded_identity_receipt_v2.json"
         else:
             verified = verify_loaded_image(image.attrs, previous)
             return {**verified, "registry_reference": verified["source_reference"],
-                    "loaded_identity_receipt_path": str(loaded_path.resolve()),
+                    "loaded_identity_receipt_path": str(previous_path.resolve()),
                     "new_to_daemon": False, "cached": True}
-    existed_before = False
-    try:
-        client.images.get(manifest["config"]["digest"])
-        existed_before = True
-    except Exception as exc:
-        if type(exc).__name__ not in {"ImageNotFound", "NotFound"}:
-            raise
     _save(workdir / "registry_manifest_receipt.json", manifest_record)
     if not (workdir / "probe/manifest_probe_receipt.json").exists():
         probe_crane(manifest_record, workdir / "probe")
@@ -369,14 +467,30 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                 raise ImageTransportError("Previously downloaded image content differs")
         # Older receipts may predate tag accounting; always use this fresh
         # archive inspection rather than assume the absence of tags.
-        receipt["repo_tags"] = current["repo_tags"]
+        receipt = {**receipt, **current}
     else:
         receipt = download_archive(manifest_record, archive, workdir / "download")
+    image, verified_existing = find_verified_image(client, receipt)
+    if image is not None:
+        own_logs = previous_own_load_logs(workdir, receipt)
+        loaded = {**verified_existing, "registry_reference": receipt["source_reference"],
+            "new_to_daemon": False, "loaded_by_this_run": bool(own_logs),
+            "own_successful_load_log_paths": own_logs,
+            "load_performed_in_this_call": False, "cached": True,
+            "archive_receipt_path": str(receipt_path.resolve()),
+            "loaded_identity_receipt_path": str(loaded_path.resolve()),
+            "recovered_after_legacy_config_id_lookup_failure": bool(own_logs)}
+        _save(loaded_path, loaded)
+        return loaded
     shared_store = Path("/mnt/skygruop0/containerd")
     if (shutil.disk_usage(shared_store).free < 10 * 1024 ** 3
             or shutil.disk_usage("/tmp").free < 20 * 1024 ** 3):
         raise ImageTransportError("Disk reserve gate stopped before offline image load")
-    tag_checks = guard_existing_tags(client, receipt["repo_tags"], receipt["config_digest"])
+    tag_checks = guard_existing_tags(client, receipt["repo_tags"], receipt)
+    if (load_directory / "docker_load.log").exists():
+        load_directory = workdir / ("reload-" + str(time.time_ns()))
+        load_directory.mkdir(mode=0o700)
+        loaded_path = load_directory / "loaded_identity_receipt_v2.json"
     log = load_directory / "docker_load.log"
     started = time.monotonic()
     env = crane_environment(workdir / "load-anonymous-config")
@@ -402,9 +516,11 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                     process.wait(timeout=10)
     if process.returncode:
         raise ImageTransportError("Offline Docker image load failed; raw private load log preserved")
-    image = client.images.get(receipt["config_digest"])
-    loaded = verify_loaded_image(image.attrs, receipt)
-    loaded.update(registry_reference=loaded["source_reference"], new_to_daemon=not existed_before,
+    image, loaded = find_verified_image(client, receipt)
+    if image is None:
+        raise ImageTransportError("Offline load returned success but no exact verified immutable image was found")
+    loaded.update(registry_reference=loaded["source_reference"], new_to_daemon=True,
+                  loaded_by_this_run=True, load_performed_in_this_call=True,
                   archive_receipt_path=str(receipt_path.resolve()),
                   registry_manifest_receipt_path=str((workdir / "registry_manifest_receipt.json").resolve()),
                   docker_load_log_path=str(log.resolve()),
