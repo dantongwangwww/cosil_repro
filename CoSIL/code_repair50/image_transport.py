@@ -112,10 +112,12 @@ def persist_crane_download_failure(manifest_record, archive, log, returncode):
     return CraneDownloadError(record, path)
 
 
-def _sha(stream):
+def _sha(stream, *, budget_check=None):
     result = hashlib.sha256()
     total = 0
     while block := stream.read(1024 * 1024):
+        if budget_check is not None:
+            budget_check()
         result.update(block)
         total += len(block)
     return "sha256:" + result.hexdigest(), total
@@ -769,6 +771,193 @@ def recover_verified_partial_image(client, manifest_record, *, workdir,
         raise
 
 
+def _owned_regular_in_private_scope(path):
+    """Old 0664 archives remain protected by their owned 0700 parent scope."""
+    path = Path(path)
+    if path.is_symlink() or not path.is_file() or path.stat().st_uid != os.getuid():
+        return False
+    for directory in path.parents:
+        if directory.is_symlink():
+            return False
+        info = directory.stat()
+        if info.st_uid == os.getuid() and info.st_mode & 0o077 == 0:
+            return True
+    return False
+
+
+def seed_full_verified_archive_cache(manifest_record, source_archive_receipts, cache_dir, *, budget_check=None):
+    """Reuse only rehashed target blobs from unchanged, previously verified tars.
+
+    Sources are local archive-receipt paths, never registry tags or filenames
+    supplied by a third-party tar. Full archive SHA binds each source to its
+    earlier complete compressed/diffID verification; selected blobs are also
+    independently rehashed against the new target's original manifest.
+    """
+    manifest = verify_manifest_record(manifest_record)
+    cache_dir = Path(cache_dir)
+    cache_dir.mkdir(mode=0o700, parents=False, exist_ok=False)
+    needed = {item["digest"]: item for item in manifest["layers"]}
+    seeded, sources = [], []
+    for receipt_path in source_archive_receipts:
+        if not needed:
+            break
+        receipt_path = Path(receipt_path)
+        if not _owned_regular_in_private_scope(receipt_path):
+            raise ImageTransportError("Source full-archive receipt is not an owned protected regular file")
+        receipt_bytes = receipt_path.read_bytes()
+        receipt = json.loads(receipt_bytes)
+        source_record = {"image_reference": receipt.get("source_reference"),
+                         "digest": receipt.get("source_manifest_digest"),
+                         "manifest": receipt.get("registry_manifest")}
+        source_manifest = verify_manifest_record(source_record)
+        if (receipt.get("compressed_layers_verified") is not True
+                or receipt.get("uncompressed_layers_verified") is not True
+                or receipt.get("config_digest") != source_manifest["config"]["digest"]):
+            raise ImageTransportError("Source archive lacks complete earlier blob/diffID verification")
+        shared = {item["digest"] for item in source_manifest["layers"]
+                  if item["digest"] in needed and item["size"] == needed[item["digest"]]["size"]}
+        if not shared:
+            continue
+        archive = Path(receipt["archive_path"])
+        if not archive.is_absolute() or not _owned_regular_in_private_scope(archive):
+            raise ImageTransportError("Source full archive is not an owned protected regular file")
+        before = archive.stat()
+        with archive.open("rb") as source:
+            digest, size = _sha(source, budget_check=budget_check)
+        if digest != receipt.get("archive_sha256") or size != receipt.get("archive_bytes"):
+            raise ImageTransportError("Source full archive differs from its prior verification receipt")
+        copied = []
+        with tarfile.open(archive, "r:") as bundle:
+            members = bundle.getmembers()
+            names = [member.name for member in members]
+            if len(names) != len(set(names)) or any(not member.isfile() for member in members):
+                raise ImageTransportError("Source full archive contains duplicate/nonregular members")
+            for blob in sorted(shared):
+                expected = needed[blob]
+                name = blob.split(":", 1)[1] + ".tar.gz"
+                member = bundle.getmember(name)
+                if member.size != expected["size"]:
+                    raise ImageTransportError("Shared source blob header differs from target manifest")
+                temporary = cache_dir / (".seed-" + blob.split(":", 1)[1])
+                target = cache_dir / blob
+                result, count = hashlib.sha256(), 0
+                with bundle.extractfile(member) as source, temporary.open("xb") as output:
+                    os.fchmod(output.fileno(), 0o600)
+                    while block := source.read(1024 * 1024):
+                        if budget_check is not None:
+                            budget_check()
+                        result.update(block)
+                        count += len(block)
+                        output.write(block)
+                if "sha256:" + result.hexdigest() != blob or count != expected["size"]:
+                    raise ImageTransportError("Shared source blob failed target digest/size verification")
+                os.replace(temporary, target)
+                copied.append({"digest": blob, "bytes": count, "cache_path": str(target.resolve())})
+                del needed[blob]
+        after = archive.stat()
+        if ((before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns)
+                or receipt_path.read_bytes() != receipt_bytes):
+            raise ImageTransportError("Source archive or receipt changed during cache seeding")
+        sources.append({"receipt_path": str(receipt_path.resolve()),
+            "receipt_sha256": "sha256:" + hashlib.sha256(receipt_bytes).hexdigest(),
+            "source_reference": source_record["image_reference"],
+            "archive_path": str(archive.resolve()), "archive_sha256": digest,
+            "archive_bytes": size, "prior_full_archive_identity_reverified": True,
+            "source_archive_modified": False, "seeded_layers": copied})
+        seeded.extend(copied)
+    return {"schema": "repair50_verified_cross_archive_cache_seed_v1",
+        "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"], "source_archives": sources,
+        "seeded_layers": seeded, "seeded_compressed_bytes": sum(item["bytes"] for item in seeded),
+        "missing_blob_bytes": sum(item["size"] for item in needed.values()),
+        "cache_trusted_by_filename_only": False, "network_requests": 0}
+
+
+def explicit_verified_transport_retry(client, manifest_record, *, workdir, source_archive_receipts):
+    """One explicitly authorized full transport retry, separate from small EOF.
+
+    Caller must serialize this with and wait for the old own worker/CLI to end.
+    This helper never stops another process or launches qualifications/models.
+    It preserves the old partial/log and writes a route only after every normal
+    final archive/diffID/loaded-identity gate has passed.
+    """
+    manifest = verify_manifest_record(manifest_record)
+    source_archive_receipts = tuple(Path(item) for item in source_archive_receipts)
+    if not source_archive_receipts:
+        raise ImageTransportError("Explicit transport retry requires prior full-verified source receipts")
+    workdir = Path(workdir)
+    if (workdir.name != manifest_record["digest"].split(":", 1)[1]
+            or workdir.is_symlink() or not workdir.is_dir()
+            or workdir.stat().st_uid != os.getuid() or workdir.stat().st_mode & 0o077):
+        raise ImageTransportError("Explicit transport retry requires the owned private stable digest workdir")
+    original = [workdir / "official_image.tar", workdir / "download/crane_pull.log"]
+    snapshots = []
+    for path in original:
+        if not _owned_regular_in_private_scope(path):
+            raise ImageTransportError("Explicit retry requires protected original partial/log evidence")
+        with path.open("rb") as source:
+            digest, size = _sha(source)
+        snapshots.append({"path": str(path.resolve()), "sha256": digest,
+                          "bytes": size, "mtime_ns": path.stat().st_mtime_ns})
+    attempt = workdir / "transport_retry_1"
+    attempt.mkdir(mode=0o700, exist_ok=False)
+    path = attempt / "transport_retry_receipt.json"
+    started = time.monotonic()
+    request = {"schema": "repair50_explicit_transport_retry_v1",
+        "source_reference": manifest_record["image_reference"], "source_manifest_digest": manifest_record["digest"],
+        "original_evidence": snapshots, "max_explicit_transport_retries": 1,
+        "source_archive_receipts": [str(Path(item).resolve()) for item in source_archive_receipts],
+        "prechange_github_checkpoint": "60734aaeb2ada5fd15243358930aacf0d4c2a965",
+        "model_requests": 0, "qualifications_started": 0}
+    _save(attempt / "transport_retry_request.json", request)
+    try:
+        compressed = sum(item["size"] for item in manifest["layers"])
+        required = 2 * compressed + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
+        if (shutil.disk_usage(attempt).free < required
+                or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+            raise ImageTransportError("Insufficient disk budget for explicit retry cache, new tar and reserves")
+        last_check = 0.0
+        def budget_check():
+            nonlocal last_check
+            now = time.monotonic()
+            if now - last_check >= 1:
+                last_check = now
+                if (shutil.disk_usage(attempt).free < 20 * 1024 ** 3
+                        or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                    raise ImageTransportError("Explicit retry copy reached a disk reserve gate")
+        seed = seed_full_verified_archive_cache(manifest_record, source_archive_receipts,
+                    attempt / "private_layer_cache", budget_check=budget_check)
+        _save(attempt / "cache_seed_receipt.json", seed)
+        probe_crane(manifest_record, attempt / "probe")
+        downloaded = download_archive(manifest_record, attempt / "official_image.tar", attempt / "download",
+                                      cache_path=attempt / "private_layer_cache")
+        if downloaded.get("compressed_layers_verified") is not True or downloaded.get("uncompressed_layers_verified") is not True:
+            raise ImageTransportError("Explicit retry archive failed ordinary complete blob/diffID gates")
+        loaded = ensure_verified_image(client, manifest_record, workdir=attempt)
+        if loaded.get("loaded_image_verified") is not True:
+            raise ImageTransportError("Explicit retry image failed ordinary loaded-image identity gate")
+        for snapshot in snapshots:
+            source_path = Path(snapshot["path"])
+            with source_path.open("rb") as source:
+                digest, size = _sha(source)
+            if (digest != snapshot["sha256"] or size != snapshot["bytes"]
+                    or source_path.stat().st_mtime_ns != snapshot["mtime_ns"]):
+                raise ImageTransportError("Original failure evidence changed during explicit retry")
+        completed = {**request, "status": "SUCCEEDED", "elapsed_seconds": time.monotonic() - started,
+            "resolved_workdir": str(attempt.resolve()), "cache_seed_receipt_path": str((attempt / "cache_seed_receipt.json").resolve()),
+            "seeded_compressed_bytes": seed["seeded_compressed_bytes"], "expected_missing_blob_bytes": seed["missing_blob_bytes"],
+            "runtime_image_reference": loaded["runtime_image_reference"],
+            "loaded_identity_receipt_path": loaded["loaded_identity_receipt_path"],
+            "original_evidence_unchanged": True}
+        _save(path, completed)
+        return {**loaded, "transport_retry_receipt_path": str(path.resolve()), "original_partial_preserved": True}
+    except Exception as exc:
+        _save(path, {**request, "status": "FAILED", "elapsed_seconds": time.monotonic() - started,
+            "error_type": type(exc).__name__, "error_message": str(exc) if isinstance(exc, ImageTransportError)
+                else "Nontransport exception; private evidence preserved", "automatic_retry_authorized": False})
+        raise
+
+
 def ensure_verified_image(client, manifest_record, *, workdir):
     """Explicit fallback entry point, called serially by the qualification worker.
 
@@ -779,6 +968,17 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    retry_path = workdir / "transport_retry_1/transport_retry_receipt.json"
+    if retry_path.exists():
+        retry = json.loads(retry_path.read_text())
+        expected = workdir / "transport_retry_1"
+        if (retry.get("schema") != "repair50_explicit_transport_retry_v1" or retry.get("status") != "SUCCEEDED"
+                or retry.get("source_reference") != manifest_record["image_reference"]
+                or retry.get("source_manifest_digest") != manifest_record["digest"]
+                or retry.get("resolved_workdir") != str(expected.resolve()) or expected.is_symlink()):
+            raise ImageTransportError("Prior explicit transport retry failed or belongs to another source; stop")
+        loaded = ensure_verified_image(client, manifest_record, workdir=expected)
+        return {**loaded, "transport_retry_receipt_path": str(retry_path.resolve()), "original_partial_preserved": True}
     recovery_path = workdir / "recovery_attempt_1/recovery_receipt.json"
     if recovery_path.exists():
         recovery = json.loads(recovery_path.read_text())

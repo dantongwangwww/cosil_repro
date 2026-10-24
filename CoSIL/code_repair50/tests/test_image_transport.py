@@ -19,6 +19,7 @@ from code_repair50.image_transport import (
     seed_verified_partial_cache, recover_verified_partial_image,
     CraneDownloadError, classify_crane_download_failure, automatic_eof_recovery_eligibility,
     persist_crane_download_failure,
+    seed_full_verified_archive_cache, explicit_verified_transport_retry,
 )
 
 
@@ -600,6 +601,143 @@ class ImageTransportTests(unittest.TestCase):
             case["recover"].assert_not_called()
             decision = json.loads((case["workdir"] / "automatic_eof_recovery_eligibility.json").read_text())
             self.assertEqual(decision["reason"], "PARTIAL_CHANGED_AFTER_ORIGINAL_FAILURE")
+
+    def full_archive_source(self):
+        archive = self.archive()
+        receipt = verify_docker_archive(archive, self.record)
+        path = self.root / "full_archive_receipt.json"
+        path.write_text(json.dumps(receipt))
+        return archive, path
+
+    def test_full_archive_cache_rehashes_target_layers_and_preserves_source(self):
+        archive, receipt_path = self.full_archive_source()
+        before = archive.read_bytes()
+        # Historical tar/receipts were 0664, protected by the owned 0700 scope.
+        archive.chmod(0o664)
+        result = seed_full_verified_archive_cache(self.record, [receipt_path], self.root / "new-cache")
+        self.assertEqual(result["missing_blob_bytes"], 0)
+        self.assertEqual(result["seeded_compressed_bytes"], sum(map(len, self.layers)))
+        self.assertEqual(archive.read_bytes(), before)
+        for descriptor, body in zip(self.manifest["layers"], self.layers):
+            self.assertEqual((self.root / "new-cache" / descriptor["digest"]).read_bytes(), body)
+        self.assertFalse(result["cache_trusted_by_filename_only"])
+
+    def test_changed_full_archive_cannot_seed_cache(self):
+        archive, receipt_path = self.full_archive_source()
+        with archive.open("ab") as output:
+            output.write(b"changed")
+        with self.assertRaisesRegex(ImageTransportError, "differs from its prior"):
+            seed_full_verified_archive_cache(self.record, [receipt_path], self.root / "new-cache")
+        self.assertEqual(list((self.root / "new-cache").iterdir()), [])
+
+    def test_receipt_without_prior_full_diffid_verification_is_rejected(self):
+        _, receipt_path = self.full_archive_source()
+        receipt = json.loads(receipt_path.read_text())
+        receipt["uncompressed_layers_verified"] = False
+        receipt_path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(ImageTransportError, "complete earlier"):
+            seed_full_verified_archive_cache(self.record, [receipt_path], self.root / "new-cache")
+
+    def test_shared_blob_is_rehashed_even_if_entire_archive_receipt_is_forged(self):
+        _, receipt_path = self.full_archive_source()
+        archive = self.archive(corrupt_layer=True)
+        receipt = json.loads(receipt_path.read_text())
+        raw = archive.read_bytes()
+        receipt.update(archive_sha256="sha256:" + hashlib.sha256(raw).hexdigest(), archive_bytes=len(raw))
+        receipt_path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(ImageTransportError, "header differs|target digest/size"):
+            seed_full_verified_archive_cache(self.record, [receipt_path], self.root / "new-cache")
+        bad = self.root / "new-cache" / self.manifest["layers"][0]["digest"]
+        self.assertFalse(bad.exists())
+
+    def explicit_retry_workdir(self):
+        workdir = self.root / self.record["digest"].split(":")[1]
+        partial = self.partial_archive(workdir)
+        workdir.chmod(0o700)
+        (workdir / "download").mkdir()
+        (workdir / "download/crane_pull.log").write_text("Original stalled CLI terminated\n")
+        return workdir, partial
+
+    def test_explicit_retry_writes_true_route_only_after_all_gates(self):
+        archive, source = self.full_archive_source()
+        complete = archive.read_bytes()
+        workdir, partial = self.explicit_retry_workdir()
+        original = partial.read_bytes()
+        def download(record, target, output, *, cache_path):
+            self.assertEqual(record["image_reference"], self.record["image_reference"])
+            self.assertEqual((cache_path / self.manifest["layers"][0]["digest"]).read_bytes(), self.layers[0])
+            target.write_bytes(complete)
+            output.mkdir()
+            receipt = verify_docker_archive(target, record)
+            (output / "archive_receipt.json").write_text(json.dumps(receipt))
+            return receipt
+        def load(client, record, *, workdir):
+            receipt = verify_docker_archive(workdir / "official_image.tar", record)
+            path = workdir / "loaded_identity_receipt_v2.json"
+            path.write_text(json.dumps(receipt))
+            return {"loaded_image_verified": True, "runtime_image_reference": self.config_digest,
+                    "loaded_identity_receipt_path": str(path), "loaded_by_this_run": True}
+        with patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=2 ** 50)), \
+             patch("code_repair50.image_transport.probe_crane"), \
+             patch("code_repair50.image_transport.download_archive", side_effect=download) as pull, \
+             patch("code_repair50.image_transport.ensure_verified_image", side_effect=load):
+            result = explicit_verified_transport_retry(Mock(), self.record, workdir=workdir, source_archive_receipts=[source])
+        self.assertEqual(pull.call_count, 1)
+        self.assertEqual(partial.read_bytes(), original)
+        route = json.loads(Path(result["transport_retry_receipt_path"]).read_text())
+        self.assertEqual(route["status"], "SUCCEEDED")
+        self.assertEqual(route["source_manifest_digest"], self.record["digest"])
+        client = Mock()
+        client.images.get.return_value.attrs = {"Id": self.config_digest,
+            "RootFS": {"Type": "layers", "Layers": self.diff_ids}, "Os": "linux", "Architecture": "amd64"}
+        with patch("code_repair50.image_transport.download_archive") as later:
+            resolved = ensure_verified_image(client, self.record, workdir=workdir)
+        later.assert_not_called()
+        self.assertEqual(resolved["runtime_image_reference"], self.config_digest)
+
+    def test_explicit_retry_failure_is_persistent_and_never_auto_repeated(self):
+        _, source = self.full_archive_source()
+        workdir, partial = self.explicit_retry_workdir()
+        original = partial.read_bytes()
+        with patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=2 ** 50)), \
+             patch("code_repair50.image_transport.probe_crane"), \
+             patch("code_repair50.image_transport.download_archive", side_effect=TimeoutError("stalled")) as pull:
+            with self.assertRaises(TimeoutError):
+                explicit_verified_transport_retry(Mock(), self.record, workdir=workdir, source_archive_receipts=[source])
+        self.assertEqual(pull.call_count, 1)
+        self.assertEqual(partial.read_bytes(), original)
+        route = json.loads((workdir / "transport_retry_1/transport_retry_receipt.json").read_text())
+        self.assertEqual(route["status"], "FAILED")
+        with patch("code_repair50.image_transport.download_archive") as later:
+            with self.assertRaisesRegex(ImageTransportError, "Prior explicit"):
+                ensure_verified_image(Mock(), self.record, workdir=workdir)
+            with self.assertRaises(FileExistsError):
+                explicit_verified_transport_retry(Mock(), self.record, workdir=workdir, source_archive_receipts=[source])
+        later.assert_not_called()
+
+    def test_explicit_retry_disk_gate_stops_before_network(self):
+        _, source = self.full_archive_source()
+        workdir, _ = self.explicit_retry_workdir()
+        with patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=0)), \
+             patch("code_repair50.image_transport.probe_crane") as probe, \
+             patch("code_repair50.image_transport.download_archive") as pull:
+            with self.assertRaisesRegex(ImageTransportError, "Insufficient disk"):
+                explicit_verified_transport_retry(Mock(), self.record, workdir=workdir, source_archive_receipts=[source])
+        probe.assert_not_called()
+        pull.assert_not_called()
+
+    def test_explicit_retry_route_bound_to_exact_source(self):
+        workdir, _ = self.explicit_retry_workdir()
+        retry = workdir / "transport_retry_1"
+        retry.mkdir()
+        marker = {"schema": "repair50_explicit_transport_retry_v1", "status": "SUCCEEDED",
+            "source_reference": "swerebench/other@" + self.record["digest"],
+            "source_manifest_digest": self.record["digest"], "resolved_workdir": str(retry.resolve())}
+        (retry / "transport_retry_receipt.json").write_text(json.dumps(marker))
+        with patch("code_repair50.image_transport.download_archive") as pull:
+            with self.assertRaisesRegex(ImageTransportError, "another source"):
+                ensure_verified_image(Mock(), self.record, workdir=workdir)
+        pull.assert_not_called()
 
 
 if __name__ == "__main__":
