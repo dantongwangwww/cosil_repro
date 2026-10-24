@@ -43,6 +43,7 @@ WORKER_WALL_TIMEOUT = 3 * 1800 + 900  # download + load + tests + identity-verif
 LABEL = 'cosil.repair50.20261024'
 CHECKPOINT = '8ddd2ae3700c660f7832c600b1ca1b71813fbf45'
 ENGINEERING_FIX_CHECKPOINT = '50c40d43bc8c5147c623cca816bc3c8a27a57925'
+INTEGRITY_FIX_CHECKPOINT = '6ac31aa324994b5b689932d1543f49e445408f96'
 
 def utc(): return dt.datetime.now(dt.timezone.utc).isoformat()
 def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -126,6 +127,54 @@ def make_spec(row,image_reference,mods):
 def valid_image_reference(reference):
     return bool(re.fullmatch(r'swerebench/[a-z0-9_.-]+@sha256:[0-9a-f]{64}',reference))
 
+def diff_target_paths(patch):
+    """Read both Git diff identities without reading hunk bodies or guessing paths.
+
+    Quoted paths are Git C-escaped UTF-8 bytes, including three-digit octals.
+    The exported model patch always has diff --git headers; unknown formats fail
+    closed rather than bypassing scoring-file protection.
+    """
+    from .editing import validate_relative_path
+    paths=set();headers=0
+    token=re.compile(r'"(?:\\[0-7]{3}|\\.|[^"\\])*"|[^\s"]+')
+    escapes={'a':7,'b':8,'f':12,'n':10,'r':13,'t':9,'v':11,'\\':92,'"':34}
+    def decode(value):
+        if not value.startswith('"'):return value
+        raw=bytearray();text=value[1:-1];position=0
+        while position<len(text):
+            character=text[position]
+            if character!='\\':
+                raw.extend(character.encode('utf-8'));position+=1;continue
+            position+=1
+            octal=text[position:position+3]
+            if len(octal)==3 and all(x in '01234567' for x in octal):
+                raw.append(int(octal,8));position+=3
+            elif position<len(text) and text[position] in escapes:
+                raw.append(escapes[text[position]]);position+=1
+            else:raise ValueError('Unknown Git path escape')
+        return raw.decode('utf-8',errors='strict')
+    for line in patch.splitlines():
+        if not line.startswith('diff --git '):continue
+        header=line[len('diff --git '):];matches=list(token.finditer(header))
+        if len(matches)!=2 or header[:matches[0].start()].strip() or header[matches[0].end():matches[1].start()].strip() or header[matches[1].end():].strip():
+            raise ValueError('Unrecognized diff path header')
+        headers+=1
+        for prefix,match in zip(('a/','b/'),matches):
+            name=decode(match.group())
+            if not name.startswith(prefix):raise ValueError('Noncanonical diff path prefix')
+            paths.add(validate_relative_path(name[2:]))
+    if patch.strip() and not headers:raise ValueError('Nonempty diff lacks explicit Git path identities')
+    return paths
+
+def scoring_test_guard(arm,patch,test_patch):
+    """Evaluator-private final check. No scoring path is returned to the model."""
+    if arm not in ('A','B'):return {'passed':True,'rule':'QUALIFICATION_EXEMPT'}
+    protected=diff_target_paths(test_patch)
+    touched=diff_target_paths(patch)
+    blocked=touched & protected
+    return {'passed':not blocked,'rule':'NO_SCORING_TEST_PATCH_PATH_MODIFICATION',
+            'blocked_path_count':len(blocked)}
+
 def safe_remove_reference(client,reference,baseline_ids,pulled_here):
     record={'reference':reference,'removed':False}
     if not pulled_here:return {**record,'reason':'NOT_PULLED_BY_THIS_RUN'}
@@ -197,13 +246,26 @@ def evaluate_in_worker(task,arm,patch_path,directory):
         'official_verdict':False,'official_result':None,'error_type':None,
         'prechange_github_checkpoint':CHECKPOINT,'logpaths':{'directory':str(directory)}}
     record.update(engineering_fix_checkpoint=ENGINEERING_FIX_CHECKPOINT,
+                  integrity_fix_checkpoint=INTEGRITY_FIX_CHECKPOINT,
                   executor_source_sha256_at_start=digest(__file__),stage='IMAGE_IDENTITY_OR_TRANSPORT')
     try:
+        patch=Path(patch_path).read_text()
+        record['stage']='PRIVATE_SCORING_PATH_INTEGRITY_CHECK'
+        try:guard=scoring_test_guard(arm,patch,row['test_patch'])
+        except (ValueError,UnicodeError) as exc:
+            guard={'passed':False,'rule':'UNRECOGNIZED_PATCH_PATH_IDENTITY',
+                   'parser_error_type':type(exc).__name__}
+        record['scoring_path_integrity']=guard
+        if not guard['passed']:
+            record.update(status='INTEGRITY_REJECTED',error_type='SCORING_TEST_PATH_MODIFICATION_OR_UNPARSEABLE_IDENTITY',
+                          patch_applied=False,apply_ok=False,environment_error=False)
+            return record
+        record['stage']='IMAGE_IDENTITY_OR_TRANSPORT'
         image,pulled,pull=acquire_image(client,task,directory);save(directory/'image_receipt.json',pull)
         remember_lease(task['image_reference'],image,pulled)
         record['stage']='OFFICIAL_TEST_SPEC'
         spec=make_spec(row,task['image_reference'],mods)
-        patch=Path(patch_path).read_text();save(directory/'protocol.json',{
+        save(directory/'protocol.json',{
             'empty_business_patch':not bool(patch.strip()),'official_eval_script_sha256':hashlib.sha256(spec.eval_script.encode()).hexdigest(),
             'base_commit':row['base_commit'],'patch_sha256':digest(patch_path),
             'adapter':'Skip unused image build script generation; empty business diff application only is skipped; original eval script/parser/grader unchanged'})

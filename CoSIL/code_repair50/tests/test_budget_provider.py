@@ -153,6 +153,21 @@ class ProviderTests(unittest.TestCase):
             with self.assertRaises(ResponseContractError):p.ask([{'role':'user','content':'JSON'}],'repair',max_tokens=50)
             self.assertEqual(len(c.calls),1);self.assertEqual(l.summary()['settled_attempts'],1)
 
+    def test_malformed_success_choices_are_paid_terminal_contract_failures(self):
+        choices_cases=(None, [], 'unexpected', {'message':{}}, [None], ['unexpected'],
+                       [{'message':[]}], [{'message':'unexpected'}],
+                       [{'message':{'content':'{}'}},{'message':{'content':'{}'}}])
+        for choices in choices_cases:
+            with self.subTest(choices=choices), tempfile.TemporaryDirectory() as d:
+                body=good();body['choices']=choices;c=Client([Response(body)])
+                l,p=self.make(d,c)
+                with self.assertRaises(ResponseContractError):
+                    p.ask([{'role':'user','content':'JSON'}],'repair',max_tokens=50)
+                self.assertEqual(len(c.calls),1)
+                self.assertEqual(l.summary()['settled_attempts'],1)
+                receipt=Path(d)/'case/calls/repair/attempt_1_receipt.json'
+                self.assertGreater(json.loads(receipt.read_text())['cost_usd'],0)
+
     def test_identical_A_B_prompts_retries_have_separate_attempt_ids(self):
         with tempfile.TemporaryDirectory() as d:
             l=BudgetLedger(Path(d)/'ledger.json');slots=l.reserve_pair('both',200,200,50)

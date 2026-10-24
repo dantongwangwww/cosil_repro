@@ -161,13 +161,18 @@ class DeepSeekProvider:
                                                        'usage_cost':charge})
             else:self.ledger.unknown(rid,'No authoritative valid usage/cache split returned')
             if status==200 and isinstance(payload,dict):
-                choices=payload.get('choices') or []
-                choice=choices[0] if choices else {};message=choice.get('message') or {}
+                choices=payload.get('choices')
+                valid_choice=(isinstance(choices,list) and len(choices)==1
+                              and isinstance(choices[0],dict))
+                choice=choices[0] if valid_choice else {}
+                raw_message=choice.get('message')
+                message=raw_message if isinstance(raw_message,dict) else {}
                 receipt.update(finish_reason=choice.get('finish_reason'),reasoning_content_present=bool(message.get('reasoning_content')))
                 durable(folder/f'attempt_{attempt}_receipt.json',json_bytes(receipt))
                 if charge is None:raise UnknownBilling('Successful response missing billable usage; retained full upper reserve')
                 if self.ledger.summary()['bound_violation']:raise BudgetExceeded('Returned usage exceeded reserved bound; stopped')
-                if (message.get('reasoning_content') or not isinstance(message.get('content'),str)
+                if (not valid_choice or not isinstance(raw_message,dict)
+                        or message.get('reasoning_content') or not isinstance(message.get('content'),str)
                         or payload.get('model') not in ALIASES or error_type=='SECRET_REDACTED_FROM_RESPONSE'):
                     raise ResponseContractError('Nonthinking text response contract violated; no semantic retry')
                 attempt_receipts.append(dict(receipt))

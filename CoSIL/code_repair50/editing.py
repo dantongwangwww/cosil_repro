@@ -32,7 +32,9 @@ class EditProtocolError(ValueError):
 
 TEST_DIRECTORIES = frozenset({
     "test", "tests", "testing", "__tests__", "testdata", "test_data",
-    "testcases", "test_cases", "fixtures", "__snapshots__",
+    "testcases", "test_cases", "fixtures", "__snapshots__", "unittest",
+    "unittests", "unit_tests", "integration_tests", "functional_tests",
+    "smoke_tests", "regression_tests", "acceptance_tests",
 })
 TEST_CONFIGURATION_FILES = frozenset({
     "conftest.py", "pytest.ini", ".pytest.ini", "tox.ini", "noxfile.py",
@@ -43,7 +45,7 @@ TEST_CONFIGURATION_FILES = frozenset({
 PROTECTED_DIRECTORIES = frozenset({".github", ".gitlab", ".circleci", ".pytest_cache"})
 TEST_CONFIGURATION_NAMES = frozenset({
     "test", "tests", "testing", "pytest", "unittest", "unittest2", "tox",
-    "testenv", "coverage", "nox", "hypothesis", "nose", "nose2", "nosetests",
+    "testenv", "coverage", "nox", "hypothesis", "nose", "nose2", "nosetests", "pytest11",
 })
 MIXED_CONFIGURATION_FILES = frozenset({"pyproject.toml", "setup.cfg"})
 EDIT_PROTOCOL = {
@@ -63,6 +65,9 @@ EDIT_PROTOCOL = {
     "mixed_configuration_files": sorted(MIXED_CONFIGURATION_FILES),
     "configuration_policy": "allow business changes; parsed test-related sections and keys must retain identical semantics",
     "protected_configuration_names": sorted(TEST_CONFIGURATION_NAMES),
+    "protected_configuration_name_patterns": [r"pytest[0-9]+", r"testenv.*"],
+    "test_directory_patterns": [r"tests?_.+", r".+_tests?"],
+    "additional_test_file_names": ["test.py", "tests.py"],
     "configuration_parse_failure": "reject edit; never fall back to unchecked text",
 }
 
@@ -85,10 +90,11 @@ def protected_path(path: str) -> bool:
     """A general predeclared path policy; it does not inspect hidden tests."""
     validate_relative_path(path)
     parts = tuple(part.casefold() for part in path.split("/"))
-    if any(part in TEST_DIRECTORIES | PROTECTED_DIRECTORIES for part in parts[:-1]):
+    if any(part in TEST_DIRECTORIES | PROTECTED_DIRECTORIES
+           or re.fullmatch(r"tests?_.+|.+_tests?", part) for part in parts[:-1]):
         return True
     name = parts[-1]
-    if name in TEST_CONFIGURATION_FILES or name.startswith("test_"):
+    if name in TEST_CONFIGURATION_FILES or name in {"test.py", "tests.py"} or name.startswith(("test_", "tests_")):
         return True
     if name.endswith(("_test.py", ".test.py", ".spec.py", ".test.js", ".spec.js", ".test.ts", ".spec.ts")):
         return True
@@ -185,7 +191,8 @@ def _diff(path: str, before: str, after: str) -> str:
 def _test_related(name: str) -> bool:
     """Recognize predeclared framework/table names, not hidden test contents."""
     parts = re.split(r"[^a-z0-9]+", name.casefold())
-    return any(part in TEST_CONFIGURATION_NAMES or part.startswith("testenv") for part in parts)
+    return any(part in TEST_CONFIGURATION_NAMES or part.startswith("testenv")
+               or re.fullmatch(r"pytest[0-9]+", part) for part in parts)
 
 
 def _semantic(value):

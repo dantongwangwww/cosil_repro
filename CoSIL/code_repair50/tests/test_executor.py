@@ -48,6 +48,23 @@ class QualificationTests(unittest.TestCase):
         self.assertTrue(E.LIMITS['network_disabled']);self.assertEqual(E.LIMITS['cap_drop'],['ALL'])
         self.assertIn('no-new-privileges:true',E.LIMITS['security_opt'])
         self.assertNotIn('volumes',E.LIMITS);self.assertNotIn('device_requests',E.LIMITS)
+    def test_scoring_nonconventional_path_is_private_and_protected(self):
+        tests='diff --git a/pkg/checks.py b/pkg/checks.py\n--- a/pkg/checks.py\n+++ b/pkg/checks.py\n@@ -1 +1 @@\n-old\n+new\n'
+        guard=E.scoring_test_guard('A',tests,tests)
+        self.assertFalse(guard['passed']);self.assertEqual(guard['blocked_path_count'],1)
+        self.assertNotIn('pkg/checks.py',json.dumps(guard))
+        business='diff --git a/pkg/business.py b/pkg/business.py\n--- a/pkg/business.py\n+++ b/pkg/business.py\n@@ -1 +1 @@\n-old\n+new\n'
+        self.assertTrue(E.scoring_test_guard('B',business,tests)['passed'])
+        self.assertTrue(E.scoring_test_guard('QUAL_GOLD',tests,tests)['passed'])
+        self.assertTrue(E.scoring_test_guard('QUAL_EMPTY','',tests)['passed'])
+    def test_scoring_added_deleted_renamed_and_quoted_identities_checked(self):
+        tests='diff --git "a/pkg/checks odd.py" "b/pkg/checks odd.py"\n'
+        for header in ['diff --git "a/pkg/checks odd.py" b/pkg/renamed.py\n',
+                       'diff --git a/pkg/other.py "b/pkg/checks odd.py"\n']:
+            self.assertFalse(E.scoring_test_guard('A',header,tests)['passed'])
+        self.assertEqual(E.diff_target_paths('diff --git "a/caf\\303\\251.py" "b/caf\\303\\251.py"\n'),{'café.py'})
+        with self.assertRaises(ValueError):E.scoring_test_guard('A','--- a/x\n+++ b/x\n',tests)
+        self.assertTrue(E.scoring_test_guard('A','',tests)['passed'])
     def test_capacity_permission_pull_failure_is_a_system_stop(self):
         for error in ['SYSTEM_DISK_CAPACITY: no room','permission denied','SYSTEM_IMAGE_PULL: offline']:
             self.assertTrue(system_failure({'error':error}))

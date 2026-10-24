@@ -71,6 +71,45 @@ class EditingTests(unittest.TestCase):
         self.assertFalse(protected_path("pyproject.toml"))
         self.assertFalse(protected_path("setup.cfg"))
 
+    def test_common_test_names_are_protected_without_test_substring_overreach(self):
+        denied = ("pkg/tests.py", "pkg/test.py", "pkg/tests_helpers.py",
+                  "pkg/unittest/helpers.py", "pkg/unittests/cases.py",
+                  "pkg/unit_tests/cases.py", "pkg/tests_integration/check.py",
+                  "pkg/integration_tests/check.py", "pkg/test_helpers/runtime.py",
+                  "pkg/service_test/check.py", "pkg/service_tests/check.py")
+        for path in denied:
+            with self.subTest(path=path):
+                self.assertTrue(protected_path(path))
+                with self.assertRaises(EditProtocolError):
+                    parse_edits(json.dumps({"edits": [self.edit(path=path)]}))
+        for path in ("pkg/contest/logic.py", "pkg/testsupport/logic.py", "pkg/units/convert.py",
+                     "pkg/unit/logic.py", "pkg/specification/model.py", "pkg/pytest_plugin.py"):
+            with self.subTest(path=path):
+                self.assertFalse(protected_path(path))
+
+    def test_pytest_entrypoint_plugin_configuration_is_immutable(self):
+        cases = [
+            ("pyproject.toml", '[project.entry-points.pytest11]\nplugin = "checks.plugin"\n',
+             '[project.entry-points.pytest11]\nplugin = "checks.disabled"\n'),
+            ("setup.cfg", '[options.entry_points]\npytest11 =\n    plugin = checks.plugin\n',
+             '[options.entry_points]\npytest11 =\n    plugin = checks.disabled\n'),
+            ("pyproject.toml", '[project]\nname = "example"\n',
+             '[project]\nname = "example"\n[project.entry-points.pytest11]\nplugin = "checks.disabled"\n'),
+        ]
+        for path, before, after in cases:
+            with self.subTest(path=path):
+                (self.base / path).write_text(before)
+                with self.assertRaises(EditProtocolError):
+                    plan_edits(self.base, [self.edit(path=path, search=before, replace=after)])
+
+    def test_business_imports_class_attributes_and_added_functions_still_allowed(self):
+        before = "class Service:\n    size = 1\n    def read(self):\n        return self.size\n"
+        (self.base / "pkg/service.py").write_text(before)
+        after = "import math\n\nclass Service:\n    size = 2\n    def read(self):\n        return self.size\n\ndef helper(value):\n    return math.ceil(value)\n"
+        edits = [self.edit(path="pkg/service.py", search=before, replace=after)]
+        plan = plan_edits(self.base, edits)
+        self.assertEqual(plan["contents"]["pkg/service.py"], after)
+
     def test_mixed_toml_business_changes_are_allowed(self):
         before = '[project]\nname = "example"\nversion = "1.0"\n[tool.pytest.ini_options]\naddopts = "-ra"\n'
         (self.base / "pyproject.toml").write_text(before)
