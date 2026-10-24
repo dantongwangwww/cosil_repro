@@ -197,6 +197,12 @@ def generate_arm(task, case, arm, folder, provider, evaluate):
             raise ValueError("Persisted candidate identity mismatch")
         return record
     started = folder / "generation_started.json"
+    # A prior active segment can have completed generation/export/evaluation
+    # without sealing arm_record. Its wall clock cannot be reconstructed from
+    # this process's monotonic clock, even when its candidate is safely reused.
+    resuming = any(path.exists() for path in (started,
+        folder / "candidate_response.json", folder / "edit_artifacts",
+        folder / "evaluation_record.json", folder / "evaluation"))
     messages = case["pair_inputs"][arm]["messages"]
     request_key = {"messages_sha256": digest(messages), "max_tokens": OUTPUT_LIMIT, "temperature": 0}
     # Provider owns transport resume and its original response receipt. Reusing
@@ -220,8 +226,11 @@ def generate_arm(task, case, arm, folder, provider, evaluate):
         raise
     persist(folder / "candidate_response.json", response)
     receipt = response.get("receipt") or {}
+    generation_seconds = receipt.get("generation_seconds")
+    if generation_seconds is None and not resuming:
+        generation_seconds = time.perf_counter() - before
     record.update(patch_generated=True, usage=response.get("usage") or {},
-        cost_usd=receipt.get("cost_usd"), generation_seconds=receipt.get("generation_seconds", time.perf_counter() - before),
+        cost_usd=receipt.get("cost_usd"), generation_seconds=generation_seconds,
         request_model="deepseek-flash", returned_model=receipt.get("returned_model"),
         paths={"response": str(folder / "candidate_response.json"),
                "request": str(folder / "provider/calls/repair/request.json")},
@@ -270,8 +279,18 @@ def generate_arm(task, case, arm, folder, provider, evaluate):
                     raise ValueError("Official evaluator must explicitly report patch application")
                 record["paths"].update(evaluated.get("paths") or evaluated.get("logpaths") or {})
                 persist(folder / "evaluation_record.json", evaluated)
-    record["end_to_end_seconds"] = time.perf_counter() - before + case.get("localization_seconds", 0)
-    record["timing_scope"] = "arm active generation/export/test seconds plus recorded localization seconds; queue wait excluded"
+    active_seconds = time.perf_counter() - before
+    record["localization_seconds"] = case.get("localization_seconds")
+    if resuming:
+        record["end_to_end_seconds"] = None
+        record["resume_active_seconds"] = active_seconds
+        record["timing_scope"] = ("resumed arm: original complete wall time unavailable; "
+            "end_to_end_seconds unknown; resume_active_seconds covers only this active "
+            "generation-reuse/export/test segment, excluding localization and queue wait; "
+            "known generation/test/localization durations retained separately")
+    else:
+        record["end_to_end_seconds"] = active_seconds + (case.get("localization_seconds") or 0)
+        record["timing_scope"] = "arm active generation/export/test seconds plus recorded localization seconds; queue wait excluded"
     persist(record_path, record)
     return record
 

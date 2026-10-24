@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from code_repair50.input_rules import render_repair_messages
 from code_repair50.run import BudgetStop, arm_order, generate_arm, generation_attempt_summary, prepare_inputs, run_pairs
@@ -136,6 +137,30 @@ class RunTests(unittest.TestCase):
         record = generate_arm(*args, self.evaluate)
         self.assertTrue(record["official_verdict"])
         self.assertEqual(len(provider.calls), 1)
+
+    def test_resumed_candidate_keeps_known_durations_without_inventing_total_wall_time(self):
+        provider = FakeProvider()
+        self.case["localization_seconds"] = 12.5
+        folder = self.root / "resumed_arm"
+        args = (self.roster["tasks"][0], self.case, "A", folder, provider)
+        def interrupted(*args, **kwargs):
+            raise RuntimeError("evaluation interrupted after candidate export")
+        with patch("code_repair50.run.time.perf_counter", return_value=10.0):
+            with self.assertRaises(RuntimeError):
+                generate_arm(*args, interrupted)
+        self.assertTrue((folder / "candidate_response.json").exists())
+        self.assertTrue((folder / "edit_artifacts/patch.diff").exists())
+        self.assertFalse((folder / "arm_record.json").exists())
+        with patch("code_repair50.run.time.perf_counter", side_effect=(1000.0, 1002.0)):
+            record = generate_arm(*args, self.evaluate)
+        self.assertEqual(len(provider.calls), 1)
+        self.assertTrue(record["official_verdict"])
+        self.assertIsNone(record["end_to_end_seconds"])
+        self.assertEqual(record["resume_active_seconds"], 2.0)
+        self.assertEqual(record["generation_seconds"], 1)
+        self.assertEqual(record["test_seconds"], 1)
+        self.assertEqual(record["localization_seconds"], 12.5)
+        self.assertIn("original complete wall time unavailable", record["timing_scope"])
 
     def write_attempt(self, provider_out, number, *, receipt=True, cost=0.01):
         folder = Path(provider_out) / "calls/repair"; folder.mkdir(parents=True, exist_ok=True)
