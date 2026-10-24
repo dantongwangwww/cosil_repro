@@ -1,0 +1,415 @@
+"""Verify a public official image transported without changing the shared daemon.
+
+This module never pulls or loads an image on import.  An operator may choose a
+crane Docker archive only after the original daemon pull has actually failed.
+Docker archives do not promise to preserve registry RepoDigests: the separately
+verified original manifest binds the config and compressed layers, and the
+loaded immutable image ID plus ordered diff IDs establish local identity.
+"""
+from __future__ import annotations
+
+import hashlib
+import gzip
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tarfile
+import time
+
+CRANE_VERSION = "v0.22.1"
+CRANE_RELEASE = (
+    "https://github.com/google/go-containerregistry/releases/download/"
+    "v0.22.1/go-containerregistry_Linux_x86_64.tar.gz"
+)
+CRANE_ARCHIVE_SHA256 = "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0"
+CRANE_BINARY_SHA256 = "8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992"
+DEFAULT_CRANE = Path("/tmp/repair50_20261024/tools/crane-v0.22.1/crane")
+HASH = re.compile(r"sha256:[0-9a-f]{64}\Z")
+REFERENCE = re.compile(r"swerebench/[a-z0-9_.-]+@sha256:[0-9a-f]{64}\Z")
+
+
+class ImageTransportError(ValueError):
+    pass
+
+
+def _sha(stream):
+    result = hashlib.sha256()
+    total = 0
+    while block := stream.read(1024 * 1024):
+        result.update(block)
+        total += len(block)
+    return "sha256:" + result.hexdigest(), total
+
+
+def verify_manifest_record(record):
+    """Accept the exact public-manifest receipt produced by official_runtime."""
+    reference = record.get("image_reference", "")
+    if not REFERENCE.fullmatch(reference):
+        raise ImageTransportError("Image is not a digest-pinned official SWE-rebench image")
+    expected = reference.split("@", 1)[1]
+    manifest = record.get("manifest")
+    if not isinstance(manifest, dict):
+        raise ImageTransportError("Missing registry manifest")
+    # The registry receipt preserves JSON member order.  Fail closed if this
+    # compact form is not the exact digest-bound source; never silently rehash.
+    raw = json.dumps(manifest, separators=(",", ":"), ensure_ascii=False).encode()
+    actual = "sha256:" + hashlib.sha256(raw).hexdigest()
+    if actual != expected or record.get("digest") != expected:
+        raise ImageTransportError("Registry manifest digest mismatch")
+    if manifest.get("schemaVersion") != 2 or not isinstance(manifest.get("layers"), list):
+        raise ImageTransportError("Unsupported manifest schema")
+    config = manifest.get("config", {})
+    if not HASH.fullmatch(config.get("digest", "")):
+        raise ImageTransportError("Invalid registry config digest")
+    layers = manifest["layers"]
+    for layer in layers:
+        if not HASH.fullmatch(layer.get("digest", "")):
+            raise ImageTransportError("Invalid layer digest")
+        if layer.get("mediaType") != "application/vnd.docker.image.rootfs.diff.tar.gzip":
+            raise ImageTransportError("Only frozen gzip Docker layers are supported")
+        if type(layer.get("size")) is not int or layer["size"] < 1:
+            raise ImageTransportError("Invalid layer size")
+    return manifest
+
+
+def crane_pull_argv(binary, image_record, archive):
+    """Plan only; no network, subprocess, daemon mutation, or credential lookup."""
+    verify_manifest_record(image_record)
+    archive = Path(archive)
+    if archive.exists():
+        raise ImageTransportError("Refuse to overwrite an image archive")
+    if not archive.is_absolute():
+        raise ImageTransportError("Archive path must be absolute")
+    return [str(binary), "--platform", "linux/amd64", "pull",
+            image_record["image_reference"], str(archive), "--format", "tarball"]
+
+
+def verify_docker_archive(archive, image_record):
+    """Hash every compressed blob in place; never extract third-party paths."""
+    manifest = verify_manifest_record(image_record)
+    archive = Path(archive)
+    with tarfile.open(archive, "r:") as tar:
+        entries = tar.getmembers()
+        names = [entry.name for entry in entries]
+        if len(names) != len(set(names)) or any(not entry.isfile() for entry in entries):
+            raise ImageTransportError("Duplicate or nonregular archive entry")
+        if "manifest.json" not in names:
+            raise ImageTransportError("Docker archive manifest is missing")
+        descriptors = json.load(tar.extractfile("manifest.json"))
+        if not isinstance(descriptors, list) or len(descriptors) != 1:
+            raise ImageTransportError("Expected exactly one image in the archive")
+        descriptor = descriptors[0]
+        repo_tags = descriptor.get("RepoTags")
+        if repo_tags is None:
+            repo_tags = []
+        if not isinstance(repo_tags, list) or any(not isinstance(tag, str) or not tag for tag in repo_tags):
+            raise ImageTransportError("Invalid archive RepoTags")
+        config_name = descriptor.get("Config")
+        if config_name != manifest["config"]["digest"]:
+            raise ImageTransportError("Archive config identity mismatch")
+        expected_layers = [layer["digest"].split(":", 1)[1] + ".tar.gz"
+                           for layer in manifest["layers"]]
+        if descriptor.get("Layers") != expected_layers:
+            raise ImageTransportError("Archive layer order or identities differ")
+        if set(names) != {"manifest.json", config_name, *expected_layers}:
+            raise ImageTransportError("Unexpected archive entries")
+        config_bytes = tar.extractfile(config_name).read()
+        config_sha = "sha256:" + hashlib.sha256(config_bytes).hexdigest()
+        if config_sha != manifest["config"]["digest"] or len(config_bytes) != manifest["config"]["size"]:
+            raise ImageTransportError("Config content digest or size differs")
+        config = json.loads(config_bytes)
+        diff_ids = config.get("rootfs", {}).get("diff_ids")
+        if (config.get("os") != "linux" or config.get("architecture") != "amd64"
+                or config.get("rootfs", {}).get("type") != "layers"
+                or not isinstance(diff_ids, list) or len(diff_ids) != len(expected_layers)
+                or any(not HASH.fullmatch(value) for value in diff_ids)):
+            raise ImageTransportError("Unexpected architecture or rootfs identity")
+        uncompressed_sizes = []
+        for member_name, expected, expected_diff_id in zip(expected_layers, manifest["layers"], diff_ids):
+            actual, count = _sha(tar.extractfile(member_name))
+            if actual != expected["digest"] or count != expected["size"]:
+                raise ImageTransportError("Compressed layer digest or size differs")
+            try:
+                with gzip.GzipFile(fileobj=tar.extractfile(member_name), mode="rb") as unpacked:
+                    actual_diff_id, unpacked_count = _sha(unpacked)
+            except (OSError, EOFError) as exc:
+                raise ImageTransportError("Invalid gzip layer") from exc
+            if actual_diff_id != expected_diff_id:
+                raise ImageTransportError("Uncompressed layer diff ID differs")
+            uncompressed_sizes.append(unpacked_count)
+    with archive.open("rb") as source:
+        archive_sha, archive_size = _sha(source)
+    return {"schema": "repair50_official_offline_image_identity_v1",
+            "source_reference": image_record["image_reference"],
+            "source_manifest_digest": image_record["digest"],
+            "repo_tags": repo_tags,
+            "config_digest": config_sha, "diff_ids": diff_ids,
+            "archive_path": str(archive.resolve()), "archive_sha256": archive_sha,
+            "archive_bytes": archive_size, "compressed_layers_verified": True,
+            "uncompressed_layers_verified": True,
+            "uncompressed_layer_bytes": uncompressed_sizes,
+            "registry_repo_digest_preservation_claimed": False,
+            "loaded_image_verified": False}
+
+
+def verify_loaded_image(inspect, archive_receipt):
+    """Bind Docker's local immutable ID and rootfs to the original registry image."""
+    if (archive_receipt.get("schema") != "repair50_official_offline_image_identity_v1"
+            or archive_receipt.get("compressed_layers_verified") is not True
+            or archive_receipt.get("uncompressed_layers_verified") is not True):
+        raise ImageTransportError("Missing verified archive receipt")
+    expected = archive_receipt["config_digest"]
+    if (not HASH.fullmatch(expected) or inspect.get("Id") != expected
+            or inspect.get("RootFS", {}).get("Type") != "layers"
+            or inspect.get("RootFS", {}).get("Layers") != archive_receipt["diff_ids"]
+            or inspect.get("Os") != "linux" or inspect.get("Architecture") != "amd64"):
+        raise ImageTransportError("Loaded image ID, platform or diff IDs differ")
+    return {**archive_receipt, "loaded_image_verified": True,
+            "runtime_image_reference": expected,
+            "original_repo_digest_present": archive_receipt["source_reference"]
+                in (inspect.get("RepoDigests") or []),
+            "runtime_reference_policy": "Use verified immutable local image ID; never claim RepoDigests survived docker load"}
+
+
+def crane_environment(credentials_dir):
+    """Use approved proxy/CA settings, with an empty Docker keychain and no API keys.
+
+    NO_PROXY is deliberately absent only from this child: public registry and
+    redirected blob requests must use the existing approved proxy.  Shared
+    Docker configuration and shell environment are never changed.
+    """
+    credentials_dir = Path(credentials_dir)
+    credentials_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = credentials_dir / "config.json"
+    expected = b'{"auths":{}}\n'
+    if path.exists() and path.read_bytes() != expected:
+        raise ImageTransportError("Refuse a nonempty Docker credential configuration")
+    if not path.exists():
+        path.write_bytes(expected)
+        path.chmod(0o600)
+    names = {"PATH", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+             "http_proxy", "https_proxy", "all_proxy", "SSL_CERT_FILE",
+             "SSL_CERT_DIR", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE"}
+    env = {key: value for key, value in os.environ.items() if key in names}
+    env["DOCKER_CONFIG"] = str(credentials_dir.resolve())
+    return env
+
+
+def verified_binary(binary=DEFAULT_CRANE):
+    binary = Path(binary)
+    with binary.open("rb") as handle:
+        actual, _ = _sha(handle)
+    if actual != "sha256:" + CRANE_BINARY_SHA256:
+        raise ImageTransportError("Pinned crane executable digest differs")
+    return binary
+
+
+def probe_crane(image_record, output, binary=DEFAULT_CRANE):
+    """Small public manifest connectivity check, without fetching any image layers."""
+    verify_manifest_record(image_record)
+    binary = verified_binary(binary)
+    output = Path(output)
+    output.mkdir(mode=0o700, parents=True, exist_ok=True)
+    env = crane_environment(output / "anonymous-docker-config")
+    started = time.monotonic()
+    result = subprocess.run([str(binary), "--platform", "linux/amd64", "manifest",
+                             image_record["image_reference"]],
+                            env=env, capture_output=True, timeout=60, check=False)
+    if result.returncode:
+        (output / "manifest_error.log").write_bytes(result.stderr)
+        raise ImageTransportError("Pinned crane small-manifest probe failed; private error log preserved")
+    raw = result.stdout
+    expected = image_record["digest"]
+    # The crane CLI prints one trailing newline after raw manifest bytes.
+    candidates = [raw, raw[:-1]] if raw.endswith(b"\n") else [raw]
+    if not any("sha256:" + hashlib.sha256(value).hexdigest() == expected
+               for value in candidates):
+        raise ImageTransportError("Crane small-manifest response digest differs")
+    receipt = {"status": "MANIFEST_ONLY_VERIFIED", "source_reference": image_record["image_reference"],
+        "crane_version": CRANE_VERSION, "crane_binary_sha256": CRANE_BINARY_SHA256,
+        "elapsed_seconds": time.monotonic() - started, "image_layers_downloaded": 0,
+        "shared_daemon_configuration_modified": False}
+    (output / "manifest_probe_receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+    return receipt
+
+
+def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
+                     timeout=1800, reserve_bytes=20 * 1024 ** 3,
+                     shared_store=Path("/mnt/skygruop0/containerd"),
+                     shared_reserve_bytes=10 * 1024 ** 3):
+    """Explicit opt-in network transport; does not load images or start containers.
+
+    The caller is responsible for stopping the failed own daemon-pull attempt
+    first, and serializing downloads. Existing archives are never overwritten.
+    """
+    manifest = verify_manifest_record(image_record)
+    binary = verified_binary(binary)
+    archive = Path(archive)
+    output = Path(output)
+    output.mkdir(mode=0o700, parents=True, exist_ok=True)
+    archive.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    required = sum(item["size"] for item in manifest["layers"]) + reserve_bytes
+    if (shutil.disk_usage(archive.parent).free < required
+            or shutil.disk_usage(shared_store).free < shared_reserve_bytes):
+        raise ImageTransportError("Insufficient archive-disk space including fixed reserve")
+    command = crane_pull_argv(binary, image_record, archive)
+    env = crane_environment(output / "anonymous-docker-config")
+    started = time.monotonic()
+    log = output / "crane_pull.log"
+    with log.open("xb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        process = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL,
+                                   stdout=handle, stderr=subprocess.STDOUT)
+        while process.poll() is None:
+            if (time.monotonic() - started > timeout
+                    or shutil.disk_usage(archive.parent).free < reserve_bytes
+                    or shutil.disk_usage(shared_store).free < shared_reserve_bytes):
+                process.terminate()
+                try:
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=10)
+                raise ImageTransportError("Own crane download stopped at timeout or disk-reserve gate")
+            time.sleep(1)
+    if process.returncode:
+        raise ImageTransportError("Crane archive download failed; private raw transport log preserved")
+    receipt = verify_docker_archive(archive, image_record)
+    receipt.update(crane_version=CRANE_VERSION, crane_binary_sha256=CRANE_BINARY_SHA256,
+                   transport_elapsed_seconds=time.monotonic() - started,
+                   shared_daemon_configuration_modified=False, images_loaded=0)
+    (output / "archive_receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+    return receipt
+
+
+def _save(path, value):
+    path = Path(path)
+    data = (json.dumps(value, indent=2) + "\n").encode()
+    if path.exists():
+        if path.read_bytes() != data:
+            raise ImageTransportError("Refuse to overwrite an identity receipt")
+        return
+    with path.open("xb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(data)
+
+
+def guard_existing_tags(client, repo_tags, expected_config_digest):
+    """A load must never redirect a preexisting tag to a different image."""
+    if not HASH.fullmatch(expected_config_digest):
+        raise ImageTransportError("Invalid expected config identity")
+    checked = []
+    for tag in repo_tags:
+        try:
+            image = client.images.get(tag)
+        except Exception as exc:
+            if type(exc).__name__ not in {"ImageNotFound", "NotFound"}:
+                raise
+            checked.append({"tag": tag, "existing": False})
+        else:
+            if image.id != expected_config_digest:
+                raise ImageTransportError("Offline image load would overwrite a preexisting different tag")
+            checked.append({"tag": tag, "existing": True, "unchanged_image_id": image.id})
+    return checked
+
+
+def ensure_verified_image(client, manifest_record, *, workdir):
+    """Explicit fallback entry point, called serially by the qualification worker.
+
+    Only this run's immutable public image is loaded.  No container, host mount,
+    privileged operation, daemon configuration, tagging, pruning or deletion is
+    performed. The caller retains responsibility for experiment image leases.
+    """
+    manifest = verify_manifest_record(manifest_record)
+    workdir = Path(workdir)
+    workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    loaded_path = workdir / "loaded_identity_receipt.json"
+    load_directory = workdir
+    if loaded_path.exists():
+        previous = json.loads(loaded_path.read_text())
+        if (previous.get("source_reference") != manifest_record["image_reference"]
+                or previous.get("source_manifest_digest") != manifest_record["digest"]
+                or previous.get("config_digest") != manifest["config"]["digest"]):
+            raise ImageTransportError("Existing receipt belongs to another image")
+        try:
+            image = client.images.get(previous["config_digest"])
+        except Exception as exc:
+            if type(exc).__name__ not in {"ImageNotFound", "NotFound"}:
+                raise
+            # The experiment may have cleaned its own image after qualifying a
+            # task. Reuse the verified archive, preserving the first load log.
+            load_directory = workdir / ("reload-" + str(time.time_ns()))
+            load_directory.mkdir(mode=0o700)
+            loaded_path = load_directory / "loaded_identity_receipt.json"
+        else:
+            verified = verify_loaded_image(image.attrs, previous)
+            return {**verified, "registry_reference": verified["source_reference"],
+                    "loaded_identity_receipt_path": str(loaded_path.resolve()),
+                    "new_to_daemon": False, "cached": True}
+    existed_before = False
+    try:
+        client.images.get(manifest["config"]["digest"])
+        existed_before = True
+    except Exception as exc:
+        if type(exc).__name__ not in {"ImageNotFound", "NotFound"}:
+            raise
+    _save(workdir / "registry_manifest_receipt.json", manifest_record)
+    if not (workdir / "probe/manifest_probe_receipt.json").exists():
+        probe_crane(manifest_record, workdir / "probe")
+    archive = workdir / "official_image.tar"
+    receipt_path = workdir / "download/archive_receipt.json"
+    if receipt_path.exists():
+        receipt = json.loads(receipt_path.read_text())
+        current = verify_docker_archive(archive, manifest_record)
+        for key in ("config_digest", "diff_ids", "archive_sha256", "source_reference"):
+            if receipt.get(key) != current.get(key):
+                raise ImageTransportError("Previously downloaded image content differs")
+        # Older receipts may predate tag accounting; always use this fresh
+        # archive inspection rather than assume the absence of tags.
+        receipt["repo_tags"] = current["repo_tags"]
+    else:
+        receipt = download_archive(manifest_record, archive, workdir / "download")
+    shared_store = Path("/mnt/skygruop0/containerd")
+    if (shutil.disk_usage(shared_store).free < 10 * 1024 ** 3
+            or shutil.disk_usage("/tmp").free < 20 * 1024 ** 3):
+        raise ImageTransportError("Disk reserve gate stopped before offline image load")
+    tag_checks = guard_existing_tags(client, receipt["repo_tags"], receipt["config_digest"])
+    log = load_directory / "docker_load.log"
+    started = time.monotonic()
+    env = crane_environment(workdir / "load-anonymous-config")
+    with log.open("xb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        process = subprocess.Popen(["docker", "load", "--input", str(archive)], env=env,
+                                   stdin=subprocess.DEVNULL, stdout=handle, stderr=subprocess.STDOUT)
+        try:
+            while process.poll() is None:
+                if (time.monotonic() - started > 1800
+                        or shutil.disk_usage(shared_store).free < 10 * 1024 ** 3
+                        or shutil.disk_usage("/tmp").free < 20 * 1024 ** 3):
+                    process.terminate()
+                    raise ImageTransportError("Own image-load client stopped at runtime/disk reserve gate")
+                time.sleep(1)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=10)
+    if process.returncode:
+        raise ImageTransportError("Offline Docker image load failed; raw private load log preserved")
+    image = client.images.get(receipt["config_digest"])
+    loaded = verify_loaded_image(image.attrs, receipt)
+    loaded.update(registry_reference=loaded["source_reference"], new_to_daemon=not existed_before,
+                  archive_receipt_path=str(receipt_path.resolve()),
+                  registry_manifest_receipt_path=str((workdir / "registry_manifest_receipt.json").resolve()),
+                  docker_load_log_path=str(log.resolve()),
+                  loaded_identity_receipt_path=str(loaded_path.resolve()),
+                  preexisting_tag_checks=tag_checks,
+                  load_elapsed_seconds=time.monotonic() - started, cached=False)
+    _save(loaded_path, loaded)
+    return loaded

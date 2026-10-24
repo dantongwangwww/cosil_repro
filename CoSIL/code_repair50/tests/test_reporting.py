@@ -45,6 +45,13 @@ class ReportingTests(unittest.TestCase):
         self.assertEqual(result["paired_model_pipeline_sensitivity"]["paired_n"], 0)
         self.assertEqual(result["arms"]["A"]["environment_failure_n"], 1)
 
+    def test_unknown_environment_cause_does_not_enter_model_failure_sensitivity(self):
+        a = self.record(0, "A", None, status="NO_TEST_OBSERVATIONS", environment_error=None,
+                        official_verdict=False, test_completed=False, apply_ok=False)
+        result = analyze(self.roster(), [a, self.record(0, "B", True)], n_bootstrap=10)
+        self.assertEqual(result["paired_model_pipeline_sensitivity"]["paired_n"], 0)
+        self.assertEqual(result["arms"]["A"]["status_counts"]["ENVIRONMENT_CAUSE_UNDETERMINED"], 1)
+
     def test_parse_and_apply_failure_enter_only_pipeline_sensitivity(self):
         a = self.record(0, "A", None, status="PARSE_FAILED", parse_ok=False, apply_ok=None,
                         test_completed=False, official_verdict=False)

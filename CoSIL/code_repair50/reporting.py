@@ -18,8 +18,8 @@ from .statistics import BOOTSTRAP_REPLICATES, SEED, paired_statistics, proportio
 
 
 ARMS = ("A", "B")
-BOOL_OPTIONAL = ("resolved", "parse_ok", "apply_ok")
-BOOL_REQUIRED_IF_PRESENT = ("patch_generated", "test_completed", "official_verdict", "environment_error")
+BOOL_OPTIONAL = ("resolved", "parse_ok", "apply_ok", "environment_error")
+BOOL_REQUIRED_IF_PRESENT = ("patch_generated", "test_completed", "official_verdict")
 NUMERIC_FIELDS = ("cost_usd", "generation_seconds", "test_seconds", "end_to_end_seconds")
 TOKEN_FIELDS = ("prompt_tokens", "completion_tokens", "cache_hit_tokens")
 METRIC_FIELDS = ("A_file_hit1", "A_file_hit5", "A_function_hit1", "A_function_hit5",
@@ -76,7 +76,7 @@ def official_outcome(record: dict) -> bool | None:
 
 def model_pipeline_outcome(record: dict) -> bool | None:
     """Sensitivity only: add terminal generated-candidate format/apply failures."""
-    if record.get("environment_error") is True or record.get("patch_generated") is not True:
+    if record.get("environment_error") is not False or record.get("patch_generated") is not True:
         return None
     outcome = official_outcome(record)
     if outcome is not None:
@@ -98,6 +98,8 @@ def outcome_category(record: dict) -> str:
         return "OFFICIAL_RESOLVED"
     if official_outcome(record) is False:
         return "OFFICIAL_TEST_UNRESOLVED"
+    if record.get("environment_error") is None:
+        return "ENVIRONMENT_CAUSE_UNDETERMINED"
     if record.get("patch_generated") is True:
         if record.get("status") in TRUNCATED_STATUSES:
             return "MODEL_OUTPUT_TRUNCATED"
@@ -371,11 +373,13 @@ def _flat(row):
     for arm in ARMS:
         record = row[arm]
         for key in ("status", "resolved", "patch_generated", "parse_ok", "apply_ok", "test_completed",
-                    "official_verdict", "environment_error", "error_type", *NUMERIC_FIELDS):
+                    "official_verdict", "environment_error", "error_type", *NUMERIC_FIELDS,
+                    "known_generation_cost_usd", "unknown_generation_cost_attempts", "generation_attempt_count"):
             value[arm + "_" + key] = record.get(key)
         value[arm + "_category"] = outcome_category(record)
         for key in TOKEN_FIELDS:
             value[arm + "_" + key] = record.get("usage", {}).get(key)
+            value[arm + "_known_generation_" + key] = (record.get("known_generation_usage") or {}).get(key)
         for key in ("request", "response", "patch", "test_log", "report"):
             value[arm + "_" + key + "_path"] = (record.get("paths") or {}).get(key)
     return value
