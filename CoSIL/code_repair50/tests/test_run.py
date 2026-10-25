@@ -1,11 +1,13 @@
 import json
+import copy
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from code_repair50.input_rules import render_repair_messages
-from code_repair50.run import BudgetStop, arm_order, generate_arm, generation_attempt_summary, prepare_inputs, run_pairs
+from code_repair50.run import BudgetStop, arm_order, generate_arm, generation_attempt_summary, generation_identity, preparation_binding, prepare_inputs, run_pairs, validate_prepared
 
 
 class FakeProvider:
@@ -17,6 +19,13 @@ class FakeProvider:
 
     def ask(self, messages, stage, **parameters):
         self.calls.append((messages, stage, parameters))
+        return self.response
+
+    def restore_completed(self, messages, stage, **parameters):
+        if not self.calls:
+            raise ValueError("No canonical completed synthetic provider stage")
+        if self.calls[-1] != (messages, stage, parameters):
+            raise ValueError("Canonical synthetic request differs")
         return self.response
 
 
@@ -86,7 +95,7 @@ class RunTests(unittest.TestCase):
 
     def test_frozen_messages_cannot_change_before_model_calls(self):
         prepared, frozen = self.prepare()
-        self.case["pair_inputs"]["A"]["messages"][1]["content"] += " "
+        prepared[0][1]["pair_inputs"]["A"]["messages"][1]["content"] += " "
         with self.assertRaises(ValueError):
             run_pairs(self.roster, self.root / "run", prepared, frozen,
                 reserve_pair=lambda *a: self.fail("reserve after changed input"),
@@ -126,6 +135,132 @@ class RunTests(unittest.TestCase):
             lambda *a, **k: self.fail("truncated response must not be evaluated"))
         self.assertEqual(result["status"], "OUTPUT_TRUNCATED")
         self.assertEqual(len(provider.calls), 1)
+
+    def test_copied_prepared_cache_is_rejected_before_callback(self):
+        self.prepare()
+        cases = self.root / "run/cases"
+        shutil.copyfile(cases / "0/prepared.json", cases / "1/prepared.json")
+        with self.assertRaisesRegex(ValueError, "binding"):
+            prepare_inputs(self.roster, self.root / "run", lambda *a: self.fail("unknown cache must stop"),
+                           lambda m: 100, lambda m: 200)
+
+    def test_unbound_prepared_cache_is_not_silently_upgraded(self):
+        folder = self.root / "run/cases/0"; folder.mkdir(parents=True)
+        (folder / "prepared.json").write_text(json.dumps(self.case))
+        with self.assertRaisesRegex(ValueError, "binding"):
+            self.prepare()
+
+    def test_changed_frozen_task_metadata_rejects_prepared_cache(self):
+        self.prepare()
+        self.roster["tasks"][0]["base_commit"] = "b" * 40
+        with self.assertRaisesRegex(ValueError, "binding"):
+            self.prepare()
+
+    def test_changed_pair_and_source_root_reject_prepared_cache(self):
+        for change in ("pair", "base"):
+            with self.subTest(change=change):
+                prepared, frozen = self.prepare()
+                case = copy.deepcopy(prepared[0][1])
+                if change == "pair":
+                    case["pair_inputs"]["A"]["messages"] = render_repair_messages("other issue", "source", [])
+                    case["pair_inputs"]["B"]["messages"] = render_repair_messages("other issue", "source", [])
+                else:
+                    other = self.root / "other_base"; other.mkdir(exist_ok=True)
+                    case["base_root"] = str(other)
+                prepared[0] = (prepared[0][0], case)
+                with self.assertRaisesRegex(ValueError, "binding"):
+                    run_pairs(self.roster, self.root / "run", prepared, frozen,
+                        reserve_pair=lambda *a: self.fail("reserve after provenance mismatch"),
+                        provider_factory=lambda *a: self.fail("provider after mismatch"), evaluate=self.evaluate)
+
+    def test_production_prepared_binding_verifies_source_bytes_receipt_and_issue(self):
+        from code_repair50 import prepare as P, sources
+        task=copy.deepcopy(self.roster['tasks'][0]);case=copy.deepcopy(self.case)
+        job={**task,'problem_statement':'issue','snapshot':str(self.base),'paths':['a.py']}
+        for name,body in (('job',job),('gold',{}),('index',{})):
+            path=self.root/(name+'.json');path.write_text(json.dumps(body))
+            task.update({name+'_path':str(path),name+'_sha256':P.sha256(path)})
+        raw=(self.base/'a.py').read_bytes()
+        receipt={k:task[k] for k in ('instance_id','repo','base_commit')}
+        receipt['regular_files']={'a.py':{'sha256':P.sha256(self.base/'a.py'),'git_blob_sha1':sources.blob_sha(raw)}}
+        path=self.root/'source_receipt.json';path.write_text(json.dumps(receipt));case['source_receipt']=str(path)
+        case['preparation_binding']=preparation_binding(task,case)
+        validate_prepared(task,case)
+        (self.base/'a.py').write_text('def a():\n    return 7\n')
+        with self.assertRaisesRegex(ValueError,'Cached pristine blob changed'):
+            validate_prepared(task,case)
+        (self.base/'a.py').write_bytes(raw)
+        altered=copy.deepcopy(case)
+        for arm in ('A','B'):
+            altered['pair_inputs'][arm]['messages']=render_repair_messages('wrong issue','source',[])
+        with self.assertRaisesRegex(ValueError,'frozen job'):
+            preparation_binding(task,altered)
+        receipt['instance_id']='wrong';path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(ValueError,'Cached pristine identity'):
+            validate_prepared(task,case)
+
+    def test_frozen_production_task_cannot_drop_source_receipt_or_self_downgrade(self):
+        from code_repair50 import prepare as P
+        task=copy.deepcopy(self.roster['tasks'][0]);case=copy.deepcopy(self.case)
+        job={**task,'problem_statement':'issue','snapshot':str(self.base),'paths':['a.py']}
+        for name,body in (('job',job),('gold',{}),('index',{})):
+            path=self.root/(name+'.frozen.json');path.write_text(json.dumps(body))
+            task.update({name+'_path':str(path),name+'_sha256':P.sha256(path)})
+        # Even recomputing the cache's binding cannot waive the trusted task's
+        # required independent source proof.
+        with self.assertRaisesRegex(ValueError,'requires its pristine source receipt'):
+            preparation_binding(task,case)
+        case['preparation_binding']=preparation_binding(self.roster['tasks'][0],case)
+        with self.assertRaisesRegex(ValueError,'requires its pristine source receipt'):
+            validate_prepared(task,case)
+
+    def test_orphaned_candidate_never_calls_provider_or_evaluator(self):
+        folder = self.root / "orphan"; folder.mkdir()
+        provider = FakeProvider()
+        (folder / "candidate_response.json").write_text(json.dumps(provider.response))
+        with self.assertRaisesRegex(ValueError, "canonical"):
+            generate_arm(self.roster["tasks"][0], self.case, "A", folder, provider,
+                         lambda *a, **kw: self.fail("orphan evaluated"))
+        self.assertEqual(provider.calls, [])
+
+    def test_altered_candidate_rejects_canonical_response_without_new_call(self):
+        folder = self.root / "altered"; provider = FakeProvider()
+        def interrupted(*args, **kwargs):raise RuntimeError("evaluation interruption")
+        with self.assertRaises(RuntimeError):
+            generate_arm(self.roster["tasks"][0], self.case, "A", folder, provider, interrupted)
+        altered = copy.deepcopy(provider.response); altered["content"] = '{"edits":[]}'
+        (folder / "candidate_response.json").write_text(json.dumps(altered))
+        with self.assertRaisesRegex(ValueError, "canonical"):
+            generate_arm(self.roster["tasks"][0], self.case, "A", folder, provider, self.evaluate)
+        self.assertEqual(len(provider.calls), 1)
+
+    def test_both_sealed_records_are_bound_to_directory_arm_not_reported_arm(self):
+        prepared,frozen=self.prepare();task,case=prepared[0]
+        record={'instance_id':task['instance_id'],'arm':'A',
+                'generation_identity':generation_identity(task,case,'A')}
+        folder=self.root/'run/cases'/task['instance_id']
+        for arm in ('A','B'):
+            (folder/arm).mkdir()
+            (folder/arm/'arm_record.json').write_text(json.dumps(record))
+        with self.assertRaisesRegex(ValueError,'Sealed arm record provenance'):
+            run_pairs(self.roster,self.root/'run',prepared,frozen,
+                reserve_pair=lambda *a:self.fail('copied sealed arm reserved'),
+                provider_factory=lambda *a:self.fail('copied sealed arm requested API'),
+                evaluate=lambda *a,**k:self.fail('copied sealed arm evaluated'))
+
+    def test_single_sealed_record_requires_matching_top_level_iid_and_arm(self):
+        task=self.roster['tasks'][0];provider=FakeProvider();folder=self.root/'sealed'
+        for field,value in (('instance_id','other'),('arm','B')):
+            with self.subTest(field=field):
+                folder.mkdir(exist_ok=True)
+                record={'instance_id':task['instance_id'],'arm':'A',
+                        'generation_identity':generation_identity(task,self.case,'A')}
+                record[field]=value
+                (folder/'arm_record.json').write_text(json.dumps(record))
+                with self.assertRaisesRegex(ValueError,'Persisted candidate identity'):
+                    generate_arm(task,self.case,'A',folder,provider,
+                                 lambda *a,**k:self.fail('inconsistent sealed record evaluated'))
+                self.assertEqual(provider.calls,[])
 
     def test_evaluator_interruption_reuses_frozen_candidate_and_export(self):
         provider = FakeProvider()

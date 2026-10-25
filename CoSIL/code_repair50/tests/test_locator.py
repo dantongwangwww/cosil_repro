@@ -202,6 +202,27 @@ class LocatorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             L.wire_request([], 1, temperature=0)
 
+    def test_changed_issue_bytes_stop_before_clean_job_is_built(self):
+        path=self.root/'frozenjob.json';path.write_text(json.dumps(self.job))
+        candidate={k:self.job[k] for k in ('instance_id','repo','base_commit')}
+        candidate.update(job_path=str(path),job_sha256=P.sha256(path))
+        changed=copy.deepcopy(self.job);changed['problem_statement']='different issue with identical task identity'
+        path.write_text(json.dumps(changed))
+        with self.assertRaisesRegex(ValueError,'Frozen job artifact'):
+            L.make_clean_job(candidate,self.job['snapshot'],self.root/'clean')
+        self.assertFalse((self.root/'clean').exists())
+
+    def test_complete_artifact_preflight_only_hashes_gold_and_index(self):
+        candidate={}
+        for name in ('job','gold','index'):
+            path=self.root/(name+'.frozen');path.write_bytes(b'not JSON and must not be parsed')
+            candidate[name+'_path']=str(path);candidate[name+'_sha256']=P.sha256(path)
+        fingerprints=L.verify_frozen_task_artifacts(candidate,required=True)
+        self.assertEqual(set(fingerprints),{'job','gold','index'})
+        Path(candidate['gold_path']).write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError,'Frozen gold artifact'):
+            L.verify_frozen_task_artifacts(candidate,required=True)
+
 
 if __name__ == "__main__":
     unittest.main()

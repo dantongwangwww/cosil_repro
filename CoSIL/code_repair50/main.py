@@ -50,6 +50,7 @@ def audit_location(task,gold,result,pair):
 
 def preparation_callback(roster,ledger,history):
     def prepare_case(task,folder):
+        locator.verify_frozen_task_artifacts(task,required=True)
         start=time.monotonic();iid=task['instance_id']
         print(json.dumps({'event':'location_preparation_started','instance_id':iid}),flush=True)
         base=sources.ensure_base(task)
@@ -112,6 +113,11 @@ def execute(args):
     roster=load(ROSTER);run.validate_roster(roster)
     if any(t.get('qualification_passed') is not True for t in roster['tasks']):
         raise ValueError('Explicit official qualification success required')
+    if args.phase!='report':
+        # Validate every frozen byte source before the first paid locator, not
+        # only when a later task happens to be reached. Do not parse gold here.
+        for task in roster['tasks']:
+            locator.verify_frozen_task_artifacts(task,required=True)
     OUTPUT.mkdir(parents=True,exist_ok=True)
     ledger=BudgetLedger(LEDGER)
     if args.phase=='report':refresh_report(roster,OUTPUT,ledger);return

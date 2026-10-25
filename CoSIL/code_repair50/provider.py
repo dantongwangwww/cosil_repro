@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -82,6 +83,7 @@ class DeepSeekProvider:
         self.ledger,self.out,self.instance_id=ledger,Path(out),instance_id
         self.out.mkdir(parents=True,exist_ok=True)
         self.pre_reserved=pre_reserved
+        self._stage_reservations={}
         self.counter=counter or PromptCounter()
         self._client=client;self._key_loader=api_key_loader;self._sleep=sleeper;self._api_key=None
 
@@ -95,7 +97,7 @@ class DeepSeekProvider:
         return self._client.post(API,json=request,headers={'Authorization':'Bearer '+self._api_key,
                                                           'Content-Type':'application/json'})
 
-    def ask(self,messages,stage,*,max_tokens,json_mode=True,temperature=None):
+    def _stage_request(self,messages,stage,max_tokens,json_mode,temperature):
         if not re.fullmatch(r'[A-Za-z0-9_.-]+',stage):raise ValueError('Safe fixed stage identity required')
         if type(max_tokens) is not int or not 1<=max_tokens<=393216:raise ValueError('Invalid output limit')
         request={'model':MODEL,'messages':messages,'max_tokens':max_tokens,'thinking':{'type':'disabled'}}
@@ -104,19 +106,91 @@ class DeepSeekProvider:
         prompt=self.prompt_upper(messages);upper=self.budget_prompt_upper(messages)
         if prompt+max_tokens>MAX_CONTEXT:raise ValueError('Context overflow: no evidence may be silently truncated')
         reqsha=digest(request)
+        if stage not in self._stage_reservations:
+            self._stage_reservations[stage]=self.pre_reserved
+        context={'request':request,'sha256':reqsha,'instance_id':self.instance_id,'stage':stage,
+            'provider_scope':str(self.out.resolve()),'initial_reservation_id':self._stage_reservations[stage],
+            'prompt_token_upper':prompt,'budget_prompt_upper':upper,
+            'tokenizer_sha256':getattr(self.counter,'sha256','synthetic-test-counter')}
+        return request,reqsha,prompt,upper,context
+
+    def restore_completed(self,messages,stage,*,max_tokens,json_mode=True,temperature=None):
+        """Recover only a fully evidenced local stage; this never sends a request.
+
+        Equal message bytes are insufficient provenance: task, stage, absolute
+        provider scope and the arm's original pair reservation must also match.
+        Legacy/unbound or copied results stop here rather than buying a rescue.
+        """
+        request,reqsha,_,_,context=self._stage_request(messages,stage,max_tokens,json_mode,temperature)
+        folder=self.out/'calls'/stage
+        def read(name):
+            path=folder/name
+            if not path.is_file() or path.is_symlink():
+                raise ValueError('Canonical completed provider evidence is missing or linked')
+            return json.loads(path.read_text())
+        saved,result=read('request.json'),read('result.json')
+        if saved!=context:raise ValueError('Canonical request task/stage/scope/reservation differs')
+        final=result.get('receipt',{});number=final.get('attempt')
+        if type(number) is not int or not 1<=number<=MAX_ATTEMPTS:
+            raise ValueError('Canonical completed attempt identity differs')
+        attempts=[];payload=None
+        scope=digest(str(self.out.resolve()))[:20]
+        for attempt in range(1,number+1):
+            sent=read(f'attempt_{attempt}_sent.json');receipt=read(f'attempt_{attempt}_receipt.json')
+            expected=(context['initial_reservation_id'] if attempt==1 and context['initial_reservation_id']
+                      else f'{self.instance_id}:{scope}:{stage}:{reqsha}:attempt{attempt}')
+            if (sent.get('reservation_id')!=expected or sent.get('request_sha256')!=reqsha
+                    or receipt.get('reservation_id')!=expected or receipt.get('request_sha256')!=reqsha
+                    or receipt.get('attempt')!=attempt):
+                raise ValueError('Canonical attempt does not belong to this task/arm/scope')
+            row=self.ledger.reservation(expected)
+            response_path=folder/f'attempt_{attempt}_response.json'
+            payload=read(response_path.name) if response_path.exists() else None
+            actual_sha=digest(json.dumps(payload,sort_keys=True)) if payload is not None else None
+            if receipt.get('response_sha256')!=actual_sha:
+                raise ValueError('Canonical raw HTTP response hash differs')
+            charge=usage_charge(payload.get('usage'),payload.get('created')) if isinstance(payload,dict) else None
+            if charge is None:
+                if row.get('status')!='UNKNOWN_COST' or receipt.get('cost_usd') is not None:
+                    raise ValueError('Canonical unknown billing evidence differs')
+            elif (row.get('status')!='SETTLED' or row.get('charge_nano_usd')!=charge['nano_usd']
+                    or row.get('evidence',{}).get('request_sha256')!=reqsha
+                    or row['evidence'].get('response_path')!=str(response_path)
+                    or row['evidence'].get('usage_cost')!=charge
+                    or receipt.get('usage_cost')!=charge or receipt.get('cost_usd')!=charge['cost_usd']):
+                raise ValueError('Canonical result lacks its own settled response/usage evidence')
+            attempts.append(receipt)
+        last=attempts[-1]
+        choices=payload.get('choices') if isinstance(payload,dict) else None
+        choice=choices[0] if isinstance(choices,list) and len(choices)==1 and isinstance(choices[0],dict) else {}
+        message=choice.get('message')
+        if (last.get('http_status')!=200 or not isinstance(message,dict)
+                or message.get('reasoning_content') or not isinstance(message.get('content'),str)
+                or payload.get('model') not in ALIASES or last.get('thinking_mode')!='disabled'
+                or last.get('transport_error_type') is not None or last.get('cost_usd') is None
+                or last.get('finish_reason')!=choice.get('finish_reason')
+                or last.get('reasoning_content_present') is not False
+                or result.get('content')!=message['content'] or result.get('usage')!=payload.get('usage')):
+            raise ValueError('Canonical result differs from its normal nonthinking HTTP response')
+        seconds=final.get('generation_seconds')
+        if type(seconds) not in (int,float) or not math.isfinite(seconds) or seconds<0:
+            raise ValueError('Canonical generation duration unavailable')
+        known=sum(x['cost_usd'] for x in attempts if x['cost_usd'] is not None)
+        unknown=sum(x['cost_usd'] is None for x in attempts)
+        expected_final={**last,'cost_usd':None if unknown else known,'known_attempt_cost_usd':known,
+                        'unknown_cost_attempts':unknown,'attempts':attempts,'generation_seconds':seconds}
+        if final!=expected_final or set(result)!={'content','usage','receipt'}:
+            raise ValueError('Canonical aggregate receipt differs from original attempts')
+        return result
+
+    def ask(self,messages,stage,*,max_tokens,json_mode=True,temperature=None):
+        request,reqsha,prompt,upper,context=self._stage_request(messages,stage,max_tokens,json_mode,temperature)
         folder=self.out/'calls'/stage
         folder.mkdir(parents=True,exist_ok=True)
         request_path=folder/'request.json';result_path=folder/'result.json'
         if result_path.exists():
-            saved=json.loads(request_path.read_text());result=json.loads(result_path.read_text())
-            if saved['request']!=request or saved['sha256']!=reqsha:raise ValueError('Existing stage request differs')
-            rid=result['receipt']['reservation_id'];row=self.ledger.reservation(rid)
-            if row['status']!='SETTLED' or row['evidence'].get('request_sha256')!=reqsha:
-                raise UnknownBilling('Existing result has no matching settled incremental ledger entry')
-            return result
-        durable(request_path,json_bytes({'request':request,'sha256':reqsha,'instance_id':self.instance_id,
-            'stage':stage,'prompt_token_upper':prompt,'budget_prompt_upper':upper,
-            'tokenizer_sha256':getattr(self.counter,'sha256','synthetic-test-counter')}))
+            return self.restore_completed(messages,stage,max_tokens=max_tokens,json_mode=json_mode,temperature=temperature)
+        durable(request_path,json_bytes(context))
         existing=list(folder.glob('attempt_*_receipt.json'))+list(folder.glob('attempt_*_sent.json'))
         if existing:
             # A process crash after send is not permission to silently send another candidate.

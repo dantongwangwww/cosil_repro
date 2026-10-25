@@ -143,6 +143,55 @@ def validate_pair(pair):
         raise ValueError("Prepared context isolation/completeness guard failed")
 
 
+def preparation_binding(task, case):
+    """Bind a prepared pair to its frozen task and independently verified base."""
+    from . import locator, sources
+    # Only the trusted frozen task decides whether the production proof is
+    # mandatory. A cache must not downgrade itself by dropping its receipt.
+    production = any(name + suffix in task for name in ("job", "gold", "index")
+                     for suffix in ("_path", "_sha256"))
+    artifacts = locator.verify_frozen_task_artifacts(task, required=production)
+    source = None
+    if production:
+        if not isinstance(case.get("source_receipt"), str) or not case["source_receipt"]:
+            raise ValueError("Prepared production case requires its pristine source receipt")
+        receipt_path = Path(case["source_receipt"])
+        if not receipt_path.is_file() or receipt_path.is_symlink():
+            raise ValueError("Prepared pristine source receipt unavailable")
+        receipt = load(receipt_path)
+        sources.verify_cached_base(Path(case["base_root"]), receipt, task)
+        source = {"path": str(receipt_path.resolve()),
+                  "sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest()}
+    if "job" in artifacts:
+        job = load(task["job_path"])
+        if any(job.get(k) != task[k] for k in ("instance_id", "repo", "base_commit")):
+            raise ValueError("Prepared task disagrees with frozen job identity")
+        for arm in ("A", "B"):
+            if json.loads(case["pair_inputs"][arm]["messages"][1]["content"])["issue"] != job["problem_statement"]:
+                raise ValueError("Prepared issue disagrees with frozen job")
+    body = {key: value for key, value in case.items() if key != "preparation_binding"}
+    return {"schema": "repair50_preparation_identity_v1", "task_sha256": digest(task),
+            "instance_id": task["instance_id"], "repo": task["repo"], "base_commit": task["base_commit"],
+            "base_root": str(Path(case["base_root"]).resolve()), "frozen_artifacts": artifacts,
+            "source_receipt": source, "pair_inputs_sha256": digest(case["pair_inputs"]),
+            "case_sha256": digest(body)}
+
+
+def validate_prepared(task, case):
+    if not isinstance(case, dict) or not Path(case["base_root"]).is_dir():
+        raise ValueError("Pristine base root is unavailable")
+    validate_pair(case["pair_inputs"])
+    if case.get("preparation_binding") != preparation_binding(task, case):
+        raise ValueError("Prepared cache has no matching frozen task/base/source/pair binding")
+
+
+def generation_identity(task, case, arm):
+    return {"instance_id": task["instance_id"], "arm": arm, "task_sha256": digest(task),
+            "base_root": str(Path(case["base_root"]).resolve()),
+            "messages_sha256": digest(case["pair_inputs"][arm]["messages"]),
+            "max_tokens": OUTPUT_LIMIT, "temperature": 0}
+
+
 def prepare_inputs(roster, output, prepare_case, prompt_upper, budget_prompt_upper):
     """Prepare all 50 locations first; freeze one adequate common input cap.
 
@@ -156,10 +205,13 @@ def prepare_inputs(roster, output, prepare_case, prompt_upper, budget_prompt_upp
     for task in tasks:
         folder = output / "cases" / task["instance_id"]
         path = folder / "prepared.json"
-        case = load(path) if path.exists() else prepare_case(copy.deepcopy(task), folder)
-        if not isinstance(case, dict) or not Path(case["base_root"]).is_dir():
-            raise ValueError("Pristine base root is unavailable")
-        validate_pair(case["pair_inputs"])
+        if path.exists():
+            case = load(path)
+        else:
+            case = copy.deepcopy(prepare_case(copy.deepcopy(task), folder))
+            validate_pair(case["pair_inputs"])
+            case["preparation_binding"] = preparation_binding(task, case)
+        validate_prepared(task, case)
         persist(path, case)
         counts = {}
         for arm in ("A", "B"):
@@ -191,9 +243,11 @@ def generate_arm(task, case, arm, folder, provider, evaluate):
     """One normal candidate response; normal format/test failures never retry."""
     folder = Path(folder)
     record_path = folder / "arm_record.json"
+    request_key = generation_identity(task, case, arm)
     if record_path.exists():
         record = load(record_path)
-        if record["instance_id"] != task["instance_id"] or record["arm"] != arm:
+        if (record.get("instance_id") != task["instance_id"] or record.get("arm") != arm
+                or record.get("generation_identity") != request_key):
             raise ValueError("Persisted candidate identity mismatch")
         return record
     started = folder / "generation_started.json"
@@ -204,20 +258,27 @@ def generate_arm(task, case, arm, folder, provider, evaluate):
         folder / "candidate_response.json", folder / "edit_artifacts",
         folder / "evaluation_record.json", folder / "evaluation"))
     messages = case["pair_inputs"][arm]["messages"]
-    request_key = {"messages_sha256": digest(messages), "max_tokens": OUTPUT_LIMIT, "temperature": 0}
     # Provider owns transport resume and its original response receipt. Reusing
     # a started marker is safe only via that same persisted provider stage.
     persist(started, request_key)
     before = time.perf_counter()
     record = {"instance_id": task["instance_id"], "arm": arm, "status": "GENERATION_STARTED",
+        "generation_identity": request_key,
         "resolved": None, "patch_generated": False, "parse_ok": None, "apply_ok": None,
         "test_completed": False, "official_verdict": False, "environment_error": False,
         "error_type": None, "usage": {}, "cost_usd": None, "generation_seconds": None,
         "test_seconds": None, "end_to_end_seconds": None, "paths": {}}
     try:
         response_path = folder / "candidate_response.json"
-        response = (load(response_path) if response_path.exists() else
-                    provider.ask(messages, "repair", max_tokens=OUTPUT_LIMIT, json_mode=True, temperature=0))
+        if response_path.exists():
+            # This is a local-only recovery operation. An orphaned candidate
+            # must not cause a new API request or silently become an answer.
+            response = provider.restore_completed(messages, "repair", max_tokens=OUTPUT_LIMIT,
+                                                   json_mode=True, temperature=0)
+            if load(response_path) != response:
+                raise ValueError("Candidate differs from its canonical completed provider stage")
+        else:
+            response = provider.ask(messages, "repair", max_tokens=OUTPUT_LIMIT, json_mode=True, temperature=0)
     except Exception:
         # Do not seal an ambiguous failure as free or issue a second semantic
         # request. Root must reconcile the provider's durable ledger/response.
@@ -306,6 +367,9 @@ def run_pairs(roster, output, prepared, frozen, *, reserve_pair, provider_factor
     by_id = {row["instance_id"]: row for row in frozen["tasks"]}
     output, records = Path(output), []
     for number, (task, case) in enumerate(prepared):
+        validate_prepared(task, case)
+        if task != tasks[number]:
+            raise ValueError("Prepared task metadata differs from frozen roster")
         survey = by_id[task["instance_id"]]
         for arm in ("A", "B"):
             if survey[arm]["messages_sha256"] != digest(case["pair_inputs"][arm]["messages"]):
@@ -314,6 +378,10 @@ def run_pairs(roster, output, prepared, frozen, *, reserve_pair, provider_factor
         paths = {arm: folder / arm / "arm_record.json" for arm in ("A", "B")}
         if all(path.exists() for path in paths.values()):
             pair_records = [load(paths[arm]) for arm in arm_order(task)]
+            if any(row.get("instance_id") != task["instance_id"] or row.get("arm") != arm
+                   or row.get("generation_identity") != generation_identity(task, case, arm)
+                   for arm, row in zip(arm_order(task), pair_records)):
+                raise ValueError("Sealed arm record provenance differs")
         else:
             reservation_path = folder / "pair_reservation.json"
             if reservation_path.exists():
@@ -336,6 +404,7 @@ def run_pairs(roster, output, prepared, frozen, *, reserve_pair, provider_factor
                     # A may have exhausted retry funds after an ambiguously
                     # billed transport attempt. Preserve B's first reservation.
                     arm_record = {"instance_id": task["instance_id"], "arm": arm,
+                        "generation_identity": generation_identity(task, case, arm),
                         "status": "GENERATION_RETRY_BUDGET_EXHAUSTED" if isinstance(exc,budget_exceptions) else "GENERATION_PROVIDER_TERMINAL_FAILURE", "resolved": None,
                         "patch_generated": False, "parse_ok": None, "apply_ok": None,
                         "test_completed": False, "official_verdict": False,

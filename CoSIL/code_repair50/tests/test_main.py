@@ -1,4 +1,6 @@
 import tempfile
+import argparse
+import json
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -42,6 +44,35 @@ class MainGuardTests(unittest.TestCase):
             self.assertFalse(diagnosis['formal_frozen'])
             self.assertTrue((target/'修复失败逐题诊断.csv').exists())
             self.assertTrue((target/'修复失败分析_先分类再逐题.md').exists())
+
+    def test_last_task_artifact_drift_blocks_before_first_locator_or_budget(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);artifacts={}
+            for name in ('job','gold','index'):
+                path=root/(name+'.json');path.write_bytes(b'{}')
+                artifacts.update({name+'_path':str(path),name+'_sha256':main.prepare.sha256(path)})
+            tasks=[dict(artifacts,instance_id=str(i),repo='org/r'+str(i),base_commit='a'*40,
+                        qualification_passed=True) for i in range(50)]
+            tasks[-1]['gold_sha256']='0'*64
+            roster=root/'roster.json';roster.write_text(json.dumps({'frozen':True,'tasks':tasks}))
+            with mock.patch.object(main,'ROSTER',roster),mock.patch.object(main,'OUTPUT',root/'output'), \
+                 mock.patch.object(main,'BudgetLedger') as ledger,mock.patch.object(main,'DeepSeekProvider') as provider, \
+                 mock.patch.object(main.sources,'ensure_base') as source:
+                with self.assertRaisesRegex(ValueError,'Frozen gold artifact'):
+                    main.execute(argparse.Namespace(phase='run',wait_seconds=0))
+                ledger.assert_not_called();provider.assert_not_called();source.assert_not_called()
+
+    def test_callback_rechecks_gold_bytes_before_source_or_provider(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);task={'instance_id':'synthetic'}
+            for name in ('job','gold','index'):
+                path=root/(name+'.json');path.write_bytes(b'{}')
+                task.update({name+'_path':str(path),name+'_sha256':main.prepare.sha256(path)})
+            Path(task['index_path']).write_bytes(b'changed')
+            with mock.patch.object(main.sources,'ensure_base') as source,mock.patch.object(main,'DeepSeekProvider') as provider:
+                with self.assertRaisesRegex(ValueError,'Frozen index artifact'):
+                    main.preparation_callback({},None,{})(task,root/'case')
+                source.assert_not_called();provider.assert_not_called()
 
 
 if __name__=='__main__':unittest.main()

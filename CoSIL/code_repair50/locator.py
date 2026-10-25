@@ -123,6 +123,7 @@ def make_clean_job(candidate, pristine_base, out):
     workspaces. This helper validates every original materialized source byte,
     preserves the frozen AST/structure, and reconstructs the paper path policy.
     """
+    verify_frozen_task_artifacts(candidate)
     old = prepare.load(candidate["job_path"])
     for key in ("instance_id", "repo", "base_commit"):
         if old[key] != candidate[key]:
@@ -155,6 +156,28 @@ def make_clean_job(candidate, pristine_base, out):
                code_index=str(out / "code_index.json"), structure=str(out / "structure.json"))
     write_json(out / "job.json", job)
     return job
+
+
+def verify_frozen_task_artifacts(candidate, *, required=False):
+    """Check frozen bytes only; this must precede any paid localization.
+
+    Gold/index contents are deliberately not parsed here and never become a
+    localization input. Minimal injected fixtures may omit all three artifacts;
+    the production entrypoint requires the complete frozen triplet.
+    """
+    fingerprints = {}
+    for name in ("job", "gold", "index"):
+        path_key, sha_key = name + "_path", name + "_sha256"
+        if not required and path_key not in candidate and sha_key not in candidate:
+            continue
+        path = Path(candidate.get(path_key, ""))
+        expected = candidate.get(sha_key)
+        if (not isinstance(expected, str) or len(expected) != 64
+                or not path.is_file() or path.is_symlink()
+                or prepare.sha256(path) != expected):
+            raise ValueError("Frozen " + name + " artifact changed or lacks its byte SHA")
+        fingerprints[name] = {"path": str(path.resolve()), "sha256": expected}
+    return fingerprints
 
 
 class ExactHistoricalStages:

@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
@@ -191,6 +192,76 @@ class ProviderTests(unittest.TestCase):
             with self.assertRaises(UnknownBilling):p.ask(m,'repair',max_tokens=50)
             self.assertEqual(p._client.calls,[])
             self.assertEqual(l.summary()['active_reservations'],1)
+
+    def test_local_only_restore_missing_canonical_never_sends(self):
+        with tempfile.TemporaryDirectory() as d:
+            c=Client([]);_,p=self.make(d,c,key_loader=lambda:self.fail('credential access during restore'))
+            with self.assertRaisesRegex(ValueError,'evidence'):
+                p.restore_completed([{'role':'user','content':'JSON'}],'repair',max_tokens=50)
+            self.assertEqual(c.calls,[])
+
+    def test_cross_task_copy_with_identical_messages_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            c=Client([Response(good())]);ledger,p=self.make(d,c)
+            messages=[{'role':'user','content':'identical JSON'}]
+            p.ask(messages,'repair',max_tokens=50)
+            other=DeepSeekProvider(ledger,Path(d)/'other',roster(),'issue1',client=Client([]),counter=Counter(),
+                                  api_key_loader=lambda:self.fail('copied result must not send'))
+            shutil.copytree(p.out/'calls',other.out/'calls')
+            with self.assertRaisesRegex(ValueError,'task/stage/scope/reservation'):
+                other.ask(messages,'repair',max_tokens=50)
+
+    def test_cross_arm_copy_identical_messages_and_forged_scope_still_rejects_rid(self):
+        with tempfile.TemporaryDirectory() as d:
+            ledger=BudgetLedger(Path(d)/'ledger.json');slots=ledger.reserve_pair('issue0',200,200,50)
+            messages=[{'role':'user','content':'identical JSON'}]
+            p=DeepSeekProvider(ledger,Path(d)/'A/provider',roster(),'issue0',pre_reserved=slots['A'],
+                client=Client([Response(good())]),counter=Counter(),api_key_loader=lambda:'sk-synthetic-only')
+            p.ask(messages,'repair',max_tokens=50)
+            client=Client([])
+            b=DeepSeekProvider(ledger,Path(d)/'B/provider',roster(),'issue0',pre_reserved=slots['B'],
+                client=client,counter=Counter(),api_key_loader=lambda:self.fail('cross-arm restore sent'))
+            shutil.copytree(p.out/'calls',b.out/'calls')
+            with self.assertRaisesRegex(ValueError,'task/stage/scope/reservation'):
+                b.restore_completed(messages,'repair',max_tokens=50)
+            path=b.out/'calls/repair/request.json';saved=json.loads(path.read_text())
+            saved.update(provider_scope=str(b.out.resolve()),initial_reservation_id=slots['B'])
+            path.write_text(json.dumps(saved))
+            with self.assertRaisesRegex(ValueError,'task/arm/scope'):
+                b.restore_completed(messages,'repair',max_tokens=50)
+            self.assertEqual(client.calls,[])
+
+    def test_canonical_response_and_ledger_path_are_both_checked(self):
+        for target in ('raw','content','ledger_path'):
+            with self.subTest(target=target),tempfile.TemporaryDirectory() as d:
+                client=Client([Response(good())]);ledger,p=self.make(d,client)
+                m=[{'role':'user','content':'JSON'}];p.ask(m,'repair',max_tokens=50)
+                folder=p.out/'calls/repair'
+                if target=='ledger_path':
+                    state=json.loads(ledger.path.read_text());row=next(iter(state['reservations'].values()))
+                    row['evidence']['response_path']=str(Path(d)/'another/attempt_1_response.json')
+                    ledger.path.write_text(json.dumps(state))
+                else:
+                    path=folder/('attempt_1_response.json' if target=='raw' else 'result.json')
+                    value=json.loads(path.read_text())
+                    if target=='raw':value['choices'][0]['message']['content']='changed'
+                    else:value['content']='changed'
+                    path.write_text(json.dumps(value))
+                with self.assertRaises(ValueError):p.restore_completed(m,'repair',max_tokens=50)
+                self.assertEqual(len(client.calls),1)
+
+    def test_pair_retry_resume_preserves_unknown_fee_without_another_request(self):
+        with tempfile.TemporaryDirectory() as d:
+            ledger=BudgetLedger(Path(d)/'ledger.json');slots=ledger.reserve_pair('issue0',200,200,50)
+            client=Client([TimeoutError('synthetic'),Response(good())]);m=[{'role':'user','content':'JSON'}]
+            kwargs=dict(pre_reserved=slots['A'],counter=Counter(),api_key_loader=lambda:'sk-synthetic-only',sleeper=lambda _:None)
+            p=DeepSeekProvider(ledger,Path(d)/'A/provider',roster(),'issue0',client=client,**kwargs)
+            result=p.ask(m,'repair',max_tokens=50)
+            resumed=DeepSeekProvider(ledger,p.out,roster(),'issue0',client=Client([]),**kwargs)
+            self.assertEqual(resumed.restore_completed(m,'repair',max_tokens=50),result)
+            self.assertEqual(resumed.ask(m,'repair',max_tokens=50),result)
+            self.assertEqual(len(client.calls),2)
+            self.assertEqual(result['receipt']['unknown_cost_attempts'],1)
 
 
 if __name__=='__main__':unittest.main()
