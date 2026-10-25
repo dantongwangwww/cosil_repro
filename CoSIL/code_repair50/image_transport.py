@@ -1858,6 +1858,23 @@ def classify_domestic_native_reset(log_bytes, archive, returncode):
     return True
 
 
+def classify_domestic_native_protocol_error(log_bytes, archive, returncode):
+    """Only a natural final native HTTP/2 PROTOCOL_ERROR archive failure."""
+    if type(returncode) is not int or returncode != 1 or not log_bytes or len(log_bytes) > 1024 ** 2:
+        return False
+    try:
+        text = log_bytes.decode("utf-8", errors="strict")
+    except UnicodeError:
+        return False
+    lines = [line for line in text.splitlines() if line.strip()]
+    prefix = "Error: saving tarball " + str(archive) + ": "
+    if not lines or not lines[-1].startswith(prefix):
+        return False
+    match = re.fullmatch(r"stream error: stream ID ([1-9][0-9]{0,9}); PROTOCOL_ERROR; received from peer",
+                         lines[-1][len(prefix):])
+    return match is not None and int(match[1]) <= 2 ** 31 - 1
+
+
 def _domestic_http1_predecessor(manifest_record, workdir):
     attempt, _, failed = _domestic_route_metadata(manifest_record, workdir, _DOMESTIC_AUTO,
         status="FAILED", additional_exclusions=(_DOMESTIC_HTTP1["attempt"],))
@@ -1866,8 +1883,12 @@ def _domestic_http1_predecessor(manifest_record, workdir):
     _domestic_failed_download(manifest_record, attempt, workdir)
     log = _config_eof_private_path(attempt / "download/crane_pull.log", workdir)
     failure = json.loads((attempt / "download/download_failure_receipt.json").read_text())
-    if not classify_domestic_native_reset(log.read_bytes(), attempt / "official_image.tar", failure["process_returncode"]):
-        raise ImageTransportError("HTTP1_ONLY requires the unchanged final native TCP peer reset")
+    raw = log.read_bytes()
+    archive = attempt / "official_image.tar"
+    returncode = failure["process_returncode"]
+    if not (classify_domestic_native_reset(raw, archive, returncode)
+            or classify_domestic_native_protocol_error(raw, archive, returncode)):
+        raise ImageTransportError("HTTP1_ONLY requires the unchanged final native TCP peer reset or HTTP2 PROTOCOL_ERROR")
     donors = failed.get("source_archive_receipts")
     if not isinstance(donors, list) or any(not isinstance(item, str) for item in donors):
         raise ImageTransportError("HTTP1_ONLY predecessor donor list is invalid")
