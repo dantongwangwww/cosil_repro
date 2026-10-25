@@ -23,6 +23,7 @@ from code_repair50.image_transport import (
     discover_initial_cache_sources, first_download_with_private_cache, cleanup_new_initial_cache,
     classify_config_metadata_eof, recover_config_metadata_eof_image,
     explicit_domestic_mirror_transport, domestic_crane_environment, DOMESTIC_MIRROR,
+    explicit_domestic_http1_transport, classify_domestic_native_reset,
 )
 
 
@@ -1135,7 +1136,7 @@ class ImageTransportTests(unittest.TestCase):
                 self.assertEqual(command[:4], ["/pinned-crane", "--platform", "linux/amd64", "pull"])
                 self.assertEqual(command[4], DOMESTIC_MIRROR + "/" + self.record["image_reference"])
                 cache = Path(command[command.index("--cache_path") + 1])
-                self.assertEqual(cache, workdir / "domestic_mirror_attempt_1/private_layer_cache")
+                self.assertEqual(cache, Path(command[5]).parent / "private_layer_cache")
                 for layer, body in zip(self.manifest["layers"], self.layers):
                     self.assertEqual((cache / layer["digest"]).read_bytes(), body)
                 self.assertFalse(any("proxy" in key.lower() for key in kwargs["env"]))
@@ -1397,6 +1398,282 @@ class ImageTransportTests(unittest.TestCase):
                 with self.assertRaises(ImageTransportError):
                     ensure_verified_image(client, self.record, workdir=workdir)
             load.assert_not_called()
+
+    def native_reset_line(self, archive):
+        return ("Error: saving tarball " + str(archive) + ": read tcp 192.0.2.10:54321->198.51.100.20:443: read: connection reset by peer\n").encode()
+
+    @contextmanager
+    def http1_case(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            successful_pull = pull.side_effect
+            def auto_reset(command, **kwargs):
+                self.assertNotIn("GODEBUG", kwargs["env"])
+                Path(command[5]).write_bytes(b"old AUTO native-reset partial")
+                kwargs["stdout"].write(self.native_reset_line(Path(command[5])))
+                return Mock(returncode=1, poll=Mock(return_value=1))
+            pull.side_effect = auto_reset
+            with self.assertRaises(CraneDownloadError):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            self.assertNotIn("GODEBUG", probe.call_args.kwargs["env"])
+            probe.reset_mock(); pull.reset_mock()
+            def http1_pull(command, **kwargs):
+                self.assertEqual(kwargs["env"].get("GODEBUG"), "http2client=0")
+                self.assertEqual(Path(command[5]).parent, workdir / "domestic_http1_attempt_1")
+                return successful_pull(command, **kwargs)
+            pull.side_effect = http1_pull
+            yield workdir, client, probe, pull
+
+    def replace_auto_failure_log(self, workdir, raw):
+        directory = workdir / "domestic_mirror_attempt_1/download"
+        log = directory / "crane_pull.log"
+        log.write_bytes(raw)
+        path = directory / "download_failure_receipt.json"
+        receipt = json.loads(path.read_text())
+        receipt.update(private_log_sha256="sha256:" + hashlib.sha256(raw).hexdigest(), private_log_bytes=len(raw))
+        path.write_text(json.dumps(receipt))
+
+    def test_http1_environment_is_exact_and_never_changes_auto_or_parent_policy(self):
+        with patch.dict("os.environ", {"GODEBUG": "http2debug=2,http2client=1", "HTTP_PROXY": "private-proxy",
+                "All_PrOxY": "private-proxy", "DEEPSEEK_API_KEY": "private-key"}):
+            auto = domestic_crane_environment(self.root / "auto-auth")
+            h1 = domestic_crane_environment(self.root / "h1-auth", http1_only=True)
+            import os
+            self.assertEqual(os.environ["GODEBUG"], "http2debug=2,http2client=1")
+        self.assertNotIn("GODEBUG", auto)
+        self.assertEqual(h1["GODEBUG"], "http2client=0")
+        self.assertFalse(any("proxy" in key.lower() or "api_key" in key.lower() for key in h1))
+        with self.assertRaises(ImageTransportError):
+            domestic_crane_environment(self.root / "bad-auth", http1_only="custom-policy")
+        with patch("code_repair50.image_transport.subprocess.Popen") as process:
+            with self.assertRaises(ImageTransportError):
+                from code_repair50.image_transport import download_archive
+                download_archive(self.record, self.root / "bad.tar", self.root / "bad-download", _http1_only=True)
+        process.assert_not_called()
+
+    def test_http1_reset_classifier_requires_exact_final_native_archive_error(self):
+        archive = self.root / "official_image.tar"
+        valid = self.native_reset_line(archive)
+        self.assertTrue(classify_domestic_native_reset(valid, archive, 1))
+        self.assertTrue(classify_domestic_native_reset(b"earlier retry warning\n" + valid, archive, 1))
+        ipv6 = valid.replace(b"192.0.2.10:54321", b"[2001:db8::1]:54321").replace(b"198.51.100.20:443", b"[2001:db8::2]:443")
+        self.assertTrue(classify_domestic_native_reset(ipv6, archive, 1))
+        for raw in (valid + b"Error: unexpected EOF\n", valid + b"Error: stream ID 3; INTERNAL_ERROR; received from peer\n",
+                    b"retrying " + valid, self.config_eof_line(archive), valid.replace(b"read tcp ", b"write tcp "),
+                    valid.replace(b"198.51.100.20:443", b"attacker.example:443"),
+                    valid.replace(b":443", b":999999"), valid.replace(b"connection reset by peer", b"unexpected EOF")):
+            self.assertFalse(classify_domestic_native_reset(raw, archive, 1))
+        self.assertFalse(classify_domestic_native_reset(valid, self.root / "other.tar", 1))
+        self.assertFalse(classify_domestic_native_reset(valid, archive, -15))
+
+    def test_http1_success_uses_independent_one_shot_and_preserves_auto_all_evidence(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in workdir.rglob("*") if p.is_file()}
+            with patch("code_repair50.image_transport.seed_verified_partial_cache") as partial:
+                result = explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            partial.assert_not_called()
+            self.assertEqual(probe.call_count, 1); self.assertEqual(pull.call_count, 1)
+            self.assertEqual(probe.call_args.kwargs["env"]["GODEBUG"], "http2client=0")
+            route = json.loads(Path(result["domestic_http1_receipt_path"]).read_text())
+            self.assertEqual(route["schema"], "repair50_domestic_http1_transport_v1")
+            self.assertEqual(route["http_policy"], "HTTP1_ONLY")
+            self.assertEqual(route["go_debug"], "http2client=0")
+            self.assertEqual(route["timeout_seconds"], 1800)
+            self.assertEqual(route["max_domestic_attempts"], 1)
+            self.assertIsNone(route["network_bytes"])
+            evidence_paths = {row["path"] for row in route["original_evidence"]}
+            for name in ("route.json", "official_image.tar", "download/crane_pull.log", "cache_seed_receipt.json"):
+                self.assertIn(str(workdir / "domestic_mirror_attempt_1" / name), evidence_paths)
+            self.assertFalse(any("domestic_http1_attempt_1" in name for name in evidence_paths))
+            self.assertTrue(route["donor_evidence"])
+            for name, snapshot in before.items():
+                path = Path(name)
+                self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), snapshot)
+            self.assertEqual(json.loads((workdir / "domestic_mirror_attempt_1/route.json").read_text())["status"], "FAILED")
+            with self.assertRaises(FileExistsError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+
+    def test_http1_cached_cleanup_reload_cached_is_offline_and_preserves_frozen_receipts(self):
+        with self.http1_case() as (workdir, client, _, _):
+            explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in workdir.rglob("*") if p.is_file()}
+            with patch("code_repair50.image_transport.subprocess.run") as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen") as process, \
+                 patch("code_repair50.image_transport.download_archive") as network:
+                cached = ensure_verified_image(client, self.record, workdir=workdir)
+            probe.assert_not_called(); process.assert_not_called(); network.assert_not_called()
+            self.assertFalse(cached["loaded_by_this_run"])
+            load = self.fake_local_image_load(client, [False])
+            with patch("code_repair50.image_transport.subprocess.run") as probe, \
+                 patch("code_repair50.image_transport.download_archive") as network, \
+                 patch("code_repair50.image_transport.subprocess.Popen", side_effect=load) as process:
+                result = ensure_verified_image(client, {**self.record, "checked_at": "new same-source metadata"}, workdir=workdir)
+            probe.assert_not_called(); network.assert_not_called()
+            self.assertEqual(process.call_count, 1)
+            for flag in ("new_to_daemon", "loaded_by_this_run", "load_performed_in_this_call"):
+                self.assertTrue(result[flag])
+            with patch("code_repair50.image_transport.subprocess.Popen") as process:
+                cached = ensure_verified_image(client, self.record, workdir=workdir)
+            process.assert_not_called()
+            for flag in ("new_to_daemon", "loaded_by_this_run", "load_performed_in_this_call"):
+                self.assertFalse(cached[flag])
+            for name, snapshot in before.items():
+                path = Path(name)
+                self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), snapshot)
+
+    def test_http1_admission_does_not_accept_intermediate_reset_final_eof_or_h2(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            archive = workdir / "domestic_mirror_attempt_1/official_image.tar"
+            for final in (b"Error: unexpected EOF\n", b"Error: stream ID 3; INTERNAL_ERROR; received from peer\n"):
+                self.replace_auto_failure_log(workdir, self.native_reset_line(archive) + final)
+                with self.assertRaisesRegex(ImageTransportError, "final native"):
+                    explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+            self.assertFalse((workdir / "domestic_http1_attempt_1").exists())
+
+    def test_http1_admission_requires_auto_failed_and_natural_exit_one(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            route_path = workdir / "domestic_mirror_attempt_1/route.json"
+            original_route = route_path.read_bytes()
+            route = json.loads(original_route); route["status"] = "SUCCEEDED"; route_path.write_text(json.dumps(route))
+            with self.assertRaises(ImageTransportError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            route_path.write_bytes(original_route)
+            path = workdir / "domestic_mirror_attempt_1/download/download_failure_receipt.json"
+            failure = json.loads(path.read_text()); failure["process_returncode"] = -15; path.write_text(json.dumps(failure))
+            with self.assertRaises(ImageTransportError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+
+    def test_http1_admission_rejects_old_log_hash_and_archive_mtime_changes(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            directory = workdir / "domestic_mirror_attempt_1"
+            log = directory / "download/crane_pull.log"
+            raw = log.read_bytes(); log.write_bytes(raw + b"\n")
+            with self.assertRaises(ImageTransportError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            log.write_bytes(raw)
+            archive = directory / "official_image.tar"
+            import os
+            os.utime(archive, ns=(archive.stat().st_atime_ns, archive.stat().st_mtime_ns + 1))
+            with self.assertRaises(ImageTransportError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+
+    def test_http1_failed_or_incomplete_route_never_falls_back_to_auto(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            directory = workdir / "domestic_http1_attempt_1"
+            directory.mkdir()
+            with patch("code_repair50.image_transport._resolve_domestic_mirror_route") as auto:
+                with self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            auto.assert_not_called(); probe.assert_not_called(); pull.assert_not_called()
+
+    def test_http1_unknown_attempt_two_is_not_excluded_or_restarted(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            (workdir / "domestic_http1_attempt_2").mkdir()
+            with self.assertRaises((ImageTransportError, FileExistsError)):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            with patch("code_repair50.image_transport._resolve_domestic_mirror_route") as auto:
+                with self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            auto.assert_not_called(); probe.assert_not_called(); pull.assert_not_called()
+
+    def test_http1_new_failed_pull_stops_once_and_preserves_auto_and_new_partial(self):
+        with self.http1_case() as (workdir, client, _, pull):
+            old = workdir / "domestic_mirror_attempt_1/route.json"
+            old_bytes = old.read_bytes(); old_mtime = old.stat().st_mtime_ns
+            def fail(command, **kwargs):
+                self.assertEqual(kwargs["env"]["GODEBUG"], "http2client=0")
+                Path(command[5]).write_bytes(b"HTTP1 partial evidence")
+                kwargs["stdout"].write(self.native_reset_line(Path(command[5])))
+                return Mock(returncode=1, poll=Mock(return_value=1))
+            pull.side_effect = fail
+            with self.assertRaises(CraneDownloadError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            with self.assertRaises(FileExistsError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            self.assertEqual((old.read_bytes(), old.stat().st_mtime_ns), (old_bytes, old_mtime))
+            self.assertEqual((workdir / "domestic_http1_attempt_1/official_image.tar").read_bytes(), b"HTTP1 partial evidence")
+
+    def test_http1_source_and_policy_tampering_rejected_before_daemon_access(self):
+        with self.http1_case() as (workdir, client, _, _):
+            result = explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            path = Path(result["domestic_http1_receipt_path"])
+            raw = path.read_text()
+            for field, value in (("go_debug", "http2client=1"), ("http_policy", "AUTO"),
+                    ("original_domestic_failed_receipt_path", str(workdir / "wrong.json")),
+                    ("source_reference", "swerebench/other@" + self.record["digest"])):
+                record = json.loads(raw); record[field] = value; path.write_text(json.dumps(record))
+                with self.subTest(field=field), self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            path.write_text(raw)
+
+    def test_http1_old_auto_partial_cache_and_failed_receipt_remain_bound(self):
+        with self.http1_case() as (workdir, client, _, _):
+            explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            for relative in ("official_image.tar", "route.json", "private_layer_cache/" + self.manifest["layers"][0]["digest"]):
+                path = workdir / "domestic_mirror_attempt_1" / relative
+                raw = path.read_bytes(); mtime = path.stat().st_mtime_ns
+                path.write_bytes(raw + b"\n")
+                with self.subTest(relative=relative), self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+                path.write_bytes(raw)
+                import os
+                os.utime(path, ns=(path.stat().st_atime_ns, mtime))
+
+    def test_http1_new_tar_tamper_and_unknown_docker_error_are_failclosed(self):
+        with self.http1_case() as (workdir, client, _, _):
+            result = explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            error = RuntimeError("unknown daemon error")
+            client.images.get.side_effect = error
+            with patch("code_repair50.image_transport.subprocess.Popen") as load:
+                with self.assertRaises(RuntimeError) as raised:
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            self.assertIs(raised.exception, error); load.assert_not_called()
+            client.images.get.side_effect = None
+            with Path(result["archive_path"]).open("ab") as out:
+                out.write(b"bad new archive")
+            with patch("code_repair50.image_transport.subprocess.Popen") as load:
+                with self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            load.assert_not_called()
+
+    def test_http1_predecessor_intermediate_symlink_is_rejected_without_network(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            directory = workdir / "domestic_mirror_attempt_1/download"
+            moved = workdir / "domestic_mirror_attempt_1/preserved-download"
+            directory.rename(moved); directory.symlink_to(moved, target_is_directory=True)
+            with self.assertRaisesRegex(ImageTransportError, "symlink"):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+
+    def test_http1_disk_gate_stops_before_probe_and_pull(self):
+        with self.http1_case() as (workdir, client, probe, pull):
+            with patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=0)):
+                with self.assertRaisesRegex(ImageTransportError, "disk budget"):
+                    explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+            self.assertEqual(json.loads((workdir / "domestic_http1_attempt_1/route.json").read_text())["status"], "FAILED")
+
+    def test_http1_original_1800_second_timeout_stops_one_own_pull_and_never_retries(self):
+        with self.http1_case() as (workdir, client, _, _):
+            process = Mock(returncode=None, poll=Mock(return_value=None))
+            tick = iter(range(0, 100000, 1801))
+            with patch("code_repair50.image_transport.subprocess.Popen", return_value=process) as pull, \
+                 patch("code_repair50.image_transport.time.monotonic", side_effect=lambda: next(tick)):
+                with self.assertRaisesRegex(ImageTransportError, "timeout or disk-reserve"):
+                    explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            self.assertEqual(pull.call_args.kwargs["env"]["GODEBUG"], "http2client=0")
+            process.terminate.assert_called_once()
+            process.wait.assert_called_once_with(timeout=15)
+            self.assertEqual(json.loads((workdir / "domestic_http1_attempt_1/route.json").read_text())["status"], "FAILED")
+            with self.assertRaises(FileExistsError):
+                explicit_domestic_http1_transport(client, self.record, workdir=workdir)
 
     def initial_cache_fixture(self):
         archive, receipt_path = self.full_archive_source()
