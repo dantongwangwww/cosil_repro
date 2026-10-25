@@ -9,6 +9,7 @@ loaded immutable image ID plus ordered diff IDs establish local identity.
 from __future__ import annotations
 
 import hashlib
+import fcntl
 import gzip
 import ipaddress
 import json
@@ -21,6 +22,8 @@ import tarfile
 import time
 import urllib.parse
 
+from .prepare import OUTPUT as RUN_OUTPUT
+
 CRANE_VERSION = "v0.22.1"
 CRANE_RELEASE = (
     "https://github.com/google/go-containerregistry/releases/download/"
@@ -31,6 +34,10 @@ CRANE_BINARY_SHA256 = "8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25
 DEFAULT_CRANE = Path("/tmp/repair50_20261024/tools/crane-v0.22.1/crane")
 TRANSPORT_ROOT = Path("/tmp/repair50_20261024/image_transport")
 FRESH_POLICY_ROOT = Path("/tmp/repair50_20261024/transport_policy")
+DATA_TRANSPORT_ROOT = RUN_OUTPUT / "private_image_transport"
+STORAGE_POLICY_ROOT = RUN_OUTPUT / "image_storage_policy"
+SHARED_STORE = Path("/mnt/skygruop0/containerd")
+SYSTEM_DISK = Path("/tmp")
 DOMESTIC_MIRROR = "docker.1ms.run"
 _DOMESTIC_AUTO = {"attempt": "domestic_mirror_attempt_1", "prefix": "domestic_mirror_attempt_*",
     "schema": "repair50_domestic_mirror_transport_v1", "result_key": "domestic_mirror_receipt_path",
@@ -63,6 +70,271 @@ class CraneDownloadError(ImageTransportError):
         self.category = record["category"]
         self.receipt_path = Path(receipt_path)
         super().__init__("Crane download failed: " + self.category + "; private failure evidence preserved")
+
+
+def _transport_roots():
+    roots = (TRANSPORT_ROOT.absolute(), DATA_TRANSPORT_ROOT.absolute())
+    if roots[0] == roots[1] or any(a.is_relative_to(b) for a, b in (roots, roots[::-1])):
+        raise ImageTransportError("Image storage roots overlap")
+    return roots
+
+
+def _storage_private_directory(path, *, create=False):
+    path = Path(path).absolute()
+    if any(p.is_symlink() for p in (path, *path.parents)):
+        raise ImageTransportError("Image storage directory contains a symlink")
+    if create:
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if not path.is_dir() or path.stat().st_uid != os.getuid() or path.stat().st_mode & 0o077:
+        raise ImageTransportError("Image storage directory is not owned and private")
+    return path
+
+
+def _storage_policy_record():
+    return {"schema": "repair50_fresh_image_storage_policy_v1", "run_id": "repair50_20261024",
+        "legacy_root": str(TRANSPORT_ROOT.absolute()), "data_root": str(DATA_TRANSPORT_ROOT.absolute()),
+        "scope": "ABSENT_LEGACY_DIGEST_ONLY", "transport_policy": "UNCHANGED",
+        "prechange_github_checkpoint": "833430faae79539bf0a0fd237d7568634f2ea455"}
+
+
+def _storage_policy_bytes():
+    return (json.dumps(_storage_policy_record(), indent=2) + "\n").encode()
+
+
+def activate_run_data_disk_image_policy():
+    """Explicit run-only storage activation; never overwrites policy or data."""
+    _transport_roots()
+    directory = _storage_private_directory(STORAGE_POLICY_ROOT, create=True)
+    _storage_private_directory(DATA_TRANSPORT_ROOT, create=True)
+    path = directory / "fresh_data_disk.json"
+    with path.open("xb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(_storage_policy_bytes()); handle.flush(); os.fsync(handle.fileno())
+    return {"policy_path": str(path), "policy": _storage_policy_record(),
+            "policy_sha256": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()}
+
+
+def _read_storage_policy():
+    directory = STORAGE_POLICY_ROOT.absolute()
+    path = directory / "fresh_data_disk.json"
+    if any(p.is_symlink() for p in (path, *path.parents)):
+        raise ImageTransportError("Image storage policy contains a symlink")
+    if not path.exists():
+        return None
+    _storage_private_directory(directory)
+    _config_eof_private_path(path, directory)
+    if path.stat().st_mode & 0o777 != 0o600 or path.read_bytes() != _storage_policy_bytes():
+        raise ImageTransportError("Image storage policy settings or permissions differ")
+    return _config_eof_snapshot(path, directory)
+
+
+def _stable_transport_scope(path):
+    """Resolve an evidence/attempt path to one fixed root and its digest scope."""
+    path = Path(path).absolute()
+    for root in _transport_roots():
+        if path.is_relative_to(root):
+            relative = path.relative_to(root)
+            if relative.parts and re.fullmatch(r"[0-9a-f]{64}", relative.parts[0]):
+                return root, root / relative.parts[0]
+    return None, None
+
+
+def _placement_path(digest):
+    return STORAGE_POLICY_ROOT.absolute() / "placements" / (digest + ".json")
+
+
+def _read_placement(manifest_record):
+    digest = manifest_record["digest"].split(":", 1)[1]
+    path = _placement_path(digest)
+    if not path.exists() and not path.is_symlink():
+        return None
+    directory = _storage_private_directory(path.parent)
+    _storage_private_directory(STORAGE_POLICY_ROOT)
+    _config_eof_private_path(path, directory)
+    if path.stat().st_mode & 0o777 != 0o600:
+        raise ImageTransportError("Image placement receipt is not private")
+    record = json.loads(path.read_text())
+    keys = {"schema", "source_reference", "source_manifest_digest", "storage_root", "workdir", "policy", "policy_snapshot"}
+    root = Path(record.get("storage_root", ""))
+    if (set(record) != keys or record.get("schema") != "repair50_image_storage_placement_v1"
+            or record.get("source_reference") != manifest_record["image_reference"]
+            or record.get("source_manifest_digest") != manifest_record["digest"]
+            or root not in _transport_roots() or record.get("workdir") != str(root / digest)):
+        raise ImageTransportError("Image placement source or fixed path differs")
+    if root == DATA_TRANSPORT_ROOT.absolute():
+        snapshot = record.get("policy_snapshot")
+        if (record.get("policy") != _storage_policy_record() or not isinstance(snapshot, dict)
+                or set(snapshot) != {"path", "sha256", "bytes", "mtime_ns"}
+                or snapshot["path"] != str(STORAGE_POLICY_ROOT.absolute() / "fresh_data_disk.json")
+                or snapshot["sha256"] != "sha256:" + hashlib.sha256(_storage_policy_bytes()).hexdigest()
+                or snapshot["bytes"] != len(_storage_policy_bytes()) or type(snapshot["mtime_ns"]) is not int):
+            raise ImageTransportError("Frozen data-disk placement policy differs")
+    elif record.get("policy") is not None or record.get("policy_snapshot") is not None:
+        raise ImageTransportError("Legacy placement has an unexpected policy")
+    return record
+
+
+def _validate_storage_scope(manifest_record, workdir):
+    if (Path(workdir).absolute().is_relative_to(DATA_TRANSPORT_ROOT.absolute())
+            and (not Path(workdir).is_absolute() or ".." in Path(workdir).parts)):
+        raise ImageTransportError("Data-disk image path is not a canonical digest scope")
+    root, scope = _stable_transport_scope(workdir)
+    if root is None:
+        if Path(workdir).absolute().is_relative_to(DATA_TRANSPORT_ROOT.absolute()):
+            raise ImageTransportError("Data-disk image path is not a canonical digest scope")
+        return None  # Preserve the ordinary low-level injected helper interface.
+    digest = manifest_record["digest"].split(":", 1)[1]
+    if scope.name != digest:
+        raise ImageTransportError("Image storage digest scope differs")
+    candidates = [r / digest for r in _transport_roots()]
+    if sum(p.exists() or p.is_symlink() for p in candidates) > 1:
+        raise ImageTransportError("Duplicate image digest scopes across storage roots")
+    if any(p.is_symlink() for p in (Path(workdir), *Path(workdir).parents)):
+        raise ImageTransportError("Image storage scope contains a symlink")
+    placement = _read_placement(manifest_record)
+    if placement is not None:
+        if placement["workdir"] != str(scope):
+            raise ImageTransportError("Image scope contradicts its frozen placement")
+        # Every public helper must reject a lost selected scope, including a
+        # direct legacy ensure call which did not pass through the selector.
+        _storage_private_directory(scope)
+    if root == DATA_TRANSPORT_ROOT.absolute():
+        if placement is None:
+            raise ImageTransportError("Data-disk image scope lacks its frozen placement")
+        _storage_private_directory(root)
+        _storage_private_directory(scope)
+        proof = _config_eof_private_path(scope / "storage_placement.json", scope)
+        actual = _config_eof_snapshot(_placement_path(digest), STORAGE_POLICY_ROOT.absolute())
+        if json.loads(proof.read_text()) != actual:
+            raise ImageTransportError("Data-disk frozen placement receipt changed")
+    return root
+
+
+def select_image_workdir(manifest_record):
+    """Freeze one source scope before any transport; existing legacy wins."""
+    verify_manifest_record(manifest_record)
+    digest = manifest_record["digest"].split(":", 1)[1]
+    roots = _transport_roots()
+    candidates = [root / digest for root in roots]
+    if any(p.is_symlink() for root in roots for p in (root, *root.parents)):
+        raise ImageTransportError("Image storage root contains a symlink")
+    directory = _storage_private_directory(STORAGE_POLICY_ROOT, create=True)
+    placements = _storage_private_directory(directory / "placements", create=True)
+    lock = directory / "selection.lock"
+    if lock.is_symlink():
+        raise ImageTransportError("Image storage selection lock is linked")
+    fd = os.open(lock, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "a+") as handle:
+        if (not os.path.isfile(lock) or os.fstat(handle.fileno()).st_uid != os.getuid()
+                or os.fstat(handle.fileno()).st_mode & 0o077):
+            raise ImageTransportError("Image storage selection lock is not private and owned")
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        present = [p.exists() or p.is_symlink() for p in candidates]
+        if all(present):
+            raise ImageTransportError("Duplicate image digest scopes across storage roots")
+        placement = _read_placement(manifest_record)
+        existing_placement = placement is not None
+        if placement is not None:
+            chosen = Path(placement["workdir"])
+            if not chosen.exists() and not chosen.is_symlink():
+                raise ImageTransportError("Previously selected image scope is missing; preserve placement and stop")
+            if any(exists and p != chosen for p, exists in zip(candidates, present)):
+                raise ImageTransportError("Existing image scope contradicts frozen placement")
+        else:
+            if present[1]:
+                raise ImageTransportError("Unbound preexisting data-disk image scope")
+            policy = None if present[0] else _read_storage_policy()
+            chosen = candidates[1] if policy is not None else candidates[0]
+            placement = {"schema": "repair50_image_storage_placement_v1",
+                "source_reference": manifest_record["image_reference"], "source_manifest_digest": manifest_record["digest"],
+                "storage_root": str(chosen.parent), "workdir": str(chosen),
+                "policy": _storage_policy_record() if policy is not None else None, "policy_snapshot": policy}
+            if present[0]:
+                _storage_private_directory(chosen)
+            _save(placements / (digest + ".json"), placement)
+        if chosen.parent == DATA_TRANSPORT_ROOT.absolute():
+            _storage_private_directory(chosen.parent, create=True)
+        _storage_private_directory(chosen, create=True)
+        if chosen.parent == DATA_TRANSPORT_ROOT.absolute():
+            proof = chosen / "storage_placement.json"
+            if not proof.exists() and not proof.is_symlink():
+                if existing_placement:
+                    raise ImageTransportError("Previously selected data-disk placement proof is missing")
+                if any(chosen.iterdir()):
+                    raise ImageTransportError("Started data-disk scope lacks its original placement proof")
+                _save(proof, _config_eof_snapshot(_placement_path(digest), directory))
+        _validate_storage_scope(manifest_record, chosen)
+        return chosen
+
+
+def _storage_device(path):
+    return Path(path).stat().st_dev
+
+
+def _data_disk_capacity(directory, *, new_archive_bytes=0, load_receipt=None):
+    """Group allocations by actual device; this is planning plus live reserves.
+
+    Existing tar/cache bytes already reduce free_now. Docker planning permits
+    compressed content plus two actual unpacked copies (staging and snapshot),
+    never an asserted gzip/8C upper bound. Runtime reserve checks remain active.
+    """
+    root, scope = _stable_transport_scope(directory)
+    if root != DATA_TRANSPORT_ROOT.absolute():
+        return None
+    if type(new_archive_bytes) is not int or new_archive_bytes < 0:
+        raise ImageTransportError("Unknown future archive allocation")
+    allocations = {"archive": new_archive_bytes, "shared_store": 0, "system": 0}
+    actual_u = None
+    if load_receipt is not None:
+        sizes = load_receipt.get("uncompressed_layer_bytes")
+        manifest = load_receipt.get("registry_manifest", {})
+        if (load_receipt.get("compressed_layers_verified") is not True
+                or load_receipt.get("uncompressed_layers_verified") is not True
+                or not isinstance(sizes, list) or len(sizes) != len(manifest.get("layers", []))
+                or not sizes or any(type(n) is not int or n < 0 for n in sizes)):
+            raise ImageTransportError("Actual verified uncompressed layer sizes are required before load")
+        actual_u = sum(sizes)
+        allocations["shared_store"] = sum(x["size"] for x in manifest["layers"]) + 2 * actual_u + 1024 ** 2
+    groups = {}
+    for name, path, reserve in (("archive", Path(directory), 20 * 1024 ** 3),
+            ("shared_store", SHARED_STORE, 10 * 1024 ** 3), ("system", SYSTEM_DISK, 20 * 1024 ** 3)):
+        device = _storage_device(path)
+        free = shutil.disk_usage(path).free
+        group = groups.setdefault(device, {"device": device, "paths": [], "free_bytes": free,
+            "new_allocation_bytes": 0, "reserve_bytes": 0})
+        group["paths"].append({"purpose": name, "path": str(path)})
+        group["free_bytes"] = min(group["free_bytes"], free)
+        group["new_allocation_bytes"] += allocations[name]
+        group["reserve_bytes"] = max(group["reserve_bytes"], reserve)
+    for group in groups.values():
+        group["required_free_bytes"] = group["new_allocation_bytes"] + group["reserve_bytes"]
+    return {"schema": "repair50_data_disk_capacity_v1", "source_manifest_digest": "sha256:" + scope.name,
+        "phase": "OFFLINE_LOAD" if load_receipt is not None else "ARCHIVE_TRANSFER",
+        "actual_verified_uncompressed_bytes": actual_u,
+        "unpacked_copy_planning_factor": 2 if load_receipt is not None else None,
+        "existing_tar_and_cache_already_in_free_now": True, "planning_is_not_a_mathematical_upper_bound": True,
+        "filesystem_groups": list(groups.values()),
+        "allowed": all(g["free_bytes"] >= g["required_free_bytes"] for g in groups.values())}
+
+
+def _data_disk_capacity_ok(directory, *, new_archive_bytes=0):
+    record = _data_disk_capacity(directory, new_archive_bytes=new_archive_bytes)
+    return record is None or record["allowed"]
+
+
+def _save_load_capacity(receipt, directory):
+    record = _data_disk_capacity(directory, load_receipt=receipt)
+    if record is None:
+        return None
+    record.update(source_reference=receipt["source_reference"], archive_sha256=receipt["archive_sha256"],
+                  archive_bytes=receipt["archive_bytes"])
+    folder = _storage_private_directory(STORAGE_POLICY_ROOT.absolute() / "capacity" /
+        receipt["source_manifest_digest"].split(":", 1)[1], create=True)
+    path = folder / (str(time.time_ns()) + ".json")
+    _save(path, record)
+    if not record["allowed"]:
+        raise ImageTransportError("Combined data-disk archive and Docker load budget is insufficient")
+    return str(path)
 
 
 def classify_crane_download_failure(log_bytes, manifest_record, archive, returncode):
@@ -413,6 +685,7 @@ def verified_binary(binary=DEFAULT_CRANE):
 def probe_crane(image_record, output, binary=DEFAULT_CRANE):
     """Small public manifest connectivity check, without fetching any image layers."""
     verify_manifest_record(image_record)
+    _validate_storage_scope(image_record, Path(output).parent)
     binary = verified_binary(binary)
     output = Path(output)
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -441,7 +714,7 @@ def probe_crane(image_record, output, binary=DEFAULT_CRANE):
 
 def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
                      timeout=1800, reserve_bytes=20 * 1024 ** 3,
-                     shared_store=Path("/mnt/skygruop0/containerd"),
+                     shared_store=None,
                      shared_reserve_bytes=10 * 1024 ** 3, cache_path=None, _domestic_mirror=False,
                      _http1_only=False):
     """Explicit opt-in network transport; does not load images or start containers.
@@ -452,13 +725,16 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
     if type(_http1_only) is not bool or (_http1_only and not _domestic_mirror):
         raise ImageTransportError("HTTP1_ONLY is restricted to the fixed domestic transport")
     manifest = verify_manifest_record(image_record)
+    shared_store = SHARED_STORE if shared_store is None else Path(shared_store)
     binary = verified_binary(binary)
     archive = Path(archive)
+    _validate_storage_scope(image_record, archive.parent)
     output = Path(output)
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
     archive.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     required = sum(item["size"] for item in manifest["layers"]) + reserve_bytes
-    if (shutil.disk_usage(archive.parent).free < required
+    if (not _data_disk_capacity_ok(archive.parent, new_archive_bytes=required - reserve_bytes + manifest["config"]["size"] + 1024 ** 2)
+            or shutil.disk_usage(archive.parent).free < required
             or shutil.disk_usage(shared_store).free < shared_reserve_bytes):
         raise ImageTransportError("Insufficient archive-disk space including fixed reserve")
     command = crane_pull_argv(binary, image_record, archive, cache_path=cache_path,
@@ -472,7 +748,7 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
         process = subprocess.Popen(command, env=env, stdin=subprocess.DEVNULL,
                                    stdout=handle, stderr=subprocess.STDOUT, umask=0o077)
         while process.poll() is None:
-            if (time.monotonic() - started > timeout
+            if (time.monotonic() - started > timeout or not _data_disk_capacity_ok(archive.parent)
                     or shutil.disk_usage(archive.parent).free < reserve_bytes
                     or shutil.disk_usage(shared_store).free < shared_reserve_bytes):
                 process.terminate()
@@ -724,8 +1000,9 @@ def automatic_eof_recovery_eligibility(failure, manifest_record, workdir):
         return denied("FINAL_FAILURE_NO_LONGER_MATCHES_STRICT_EOF_RULE")
     compressed = sum(layer["size"] for layer in manifest_record["manifest"]["layers"])
     required = 2 * compressed + manifest_record["manifest"]["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
-    if (shutil.disk_usage(workdir).free < required
-            or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+    if (not _data_disk_capacity_ok(workdir, new_archive_bytes=required - 20 * 1024 ** 3)
+                or shutil.disk_usage(workdir).free < required
+            or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
         return denied("DISK_BUDGET_GATE")
     inspection = inspect_verified_partial_archive(archive, manifest_record)
     decision["readonly_partial_inspection"] = inspection
@@ -745,6 +1022,7 @@ def recover_verified_partial_image(client, manifest_record, *, workdir,
     if type(max_missing_blob_bytes) is not int or not 0 <= max_missing_blob_bytes <= 16 * 1024 ** 2:
         raise ImageTransportError("Recovery missing-blob limit must be between zero and the frozen 16MiB cap")
     workdir = Path(workdir)
+    _validate_storage_scope(manifest_record, workdir)
     partial = workdir / "official_image.tar"
     if not partial.is_file() or partial.is_symlink():
         raise ImageTransportError("No regular original partial archive to recover")
@@ -765,12 +1043,13 @@ def recover_verified_partial_image(client, manifest_record, *, workdir,
         # Both private cache and newly generated full tar coexist with the old
         # partial. Keep an additional metadata allowance and fixed 20GiB reserve.
         required_extra = 2 * compressed + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
-        if (shutil.disk_usage(attempt).free < required_extra
-                or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+        if (not _data_disk_capacity_ok(attempt, new_archive_bytes=required_extra - 20 * 1024 ** 3)
+                or shutil.disk_usage(attempt).free < required_extra
+                or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
             raise ImageTransportError("Insufficient disk budget for recovery cache, new tar and reserves")
         def budget_check():
-            if (shutil.disk_usage(attempt).free < 20 * 1024 ** 3
-                    or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+            if (not _data_disk_capacity_ok(attempt) or shutil.disk_usage(attempt).free < 20 * 1024 ** 3
+                    or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
                 raise ImageTransportError("Recovery cache copy reached a disk reserve gate")
         seed = seed_verified_partial_cache(partial, manifest_record, attempt / "private_layer_cache",
                                            budget_check=budget_check)
@@ -845,6 +1124,7 @@ def seed_full_verified_archive_cache(manifest_record, source_archive_receipts, c
                          "digest": receipt.get("source_manifest_digest"),
                          "manifest": receipt.get("registry_manifest")}
         source_manifest = verify_manifest_record(source_record)
+        _validate_storage_scope(source_record, receipt_path.parent.parent)
         if (receipt.get("compressed_layers_verified") is not True
                 or receipt.get("uncompressed_layers_verified") is not True
                 or receipt.get("config_digest") != source_manifest["config"]["digest"]):
@@ -921,6 +1201,7 @@ def explicit_verified_transport_retry(client, manifest_record, *, workdir, sourc
     if not source_archive_receipts:
         raise ImageTransportError("Explicit transport retry requires prior full-verified source receipts")
     workdir = Path(workdir)
+    _validate_storage_scope(manifest_record, workdir)
     if (workdir.name != manifest_record["digest"].split(":", 1)[1]
             or workdir.is_symlink() or not workdir.is_dir()
             or workdir.stat().st_uid != os.getuid() or workdir.stat().st_mode & 0o077):
@@ -948,8 +1229,9 @@ def explicit_verified_transport_retry(client, manifest_record, *, workdir, sourc
     try:
         compressed = sum(item["size"] for item in manifest["layers"])
         required = 2 * compressed + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
-        if (shutil.disk_usage(attempt).free < required
-                or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+        if (not _data_disk_capacity_ok(attempt, new_archive_bytes=required - 20 * 1024 ** 3)
+                or shutil.disk_usage(attempt).free < required
+                or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
             raise ImageTransportError("Insufficient disk budget for explicit retry cache, new tar and reserves")
         last_check = 0.0
         def budget_check():
@@ -957,8 +1239,8 @@ def explicit_verified_transport_retry(client, manifest_record, *, workdir, sourc
             now = time.monotonic()
             if now - last_check >= 1:
                 last_check = now
-                if (shutil.disk_usage(attempt).free < 20 * 1024 ** 3
-                        or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                if (not _data_disk_capacity_ok(attempt) or shutil.disk_usage(attempt).free < 20 * 1024 ** 3
+                        or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
                     raise ImageTransportError("Explicit retry copy reached a disk reserve gate")
         seed = seed_full_verified_archive_cache(manifest_record, source_archive_receipts,
                     attempt / "private_layer_cache", budget_check=budget_check)
@@ -1109,9 +1391,10 @@ def _config_eof_failure(manifest_record, attempt, scope):
 
 def _config_eof_source(manifest_record, workdir):
     verify_manifest_record(manifest_record)
-    if (workdir.parent != TRANSPORT_ROOT.absolute()
-            or workdir.name != manifest_record["digest"].split(":", 1)[1]):
+    _, scope = _stable_transport_scope(workdir)
+    if (scope != workdir or workdir.name != manifest_record["digest"].split(":", 1)[1]):
         raise ImageTransportError("Config EOF recovery requires this run's stable digest workdir")
+    _validate_storage_scope(manifest_record, workdir)
     _config_eof_private_path(workdir, workdir, directory=True)
     registry = _config_eof_private_path(workdir / "registry_manifest_receipt.json", workdir)
     archived = json.loads(registry.read_text())
@@ -1146,17 +1429,18 @@ def _config_eof_verify_donors(manifest_record, donors):
     snapshots = []
     for raw_path in donors:
         path = Path(raw_path)
-        scope = path.parent.parent
+        root, scope = _stable_transport_scope(path)
         # Original receipts are run-scoped ordinary or successfully recovered tars.
-        while scope.parent != TRANSPORT_ROOT.absolute() and scope != scope.parent:
-            scope = scope.parent
+        if root is None:
+            raise ImageTransportError("Config EOF donor is outside this run")
         _config_eof_private_path(path, scope)
-        if scope.parent != TRANSPORT_ROOT.absolute() or not re.fullmatch(r"[0-9a-f]{64}", scope.name):
+        if not re.fullmatch(r"[0-9a-f]{64}", scope.name):
             raise ImageTransportError("Config EOF donor is outside this run")
         receipt = json.loads(path.read_text())
         source = {"image_reference": receipt.get("source_reference"), "digest": receipt.get("source_manifest_digest"),
                   "manifest": receipt.get("registry_manifest")}
         verify_manifest_record(source)
+        _validate_storage_scope(source, scope)
         archive = path.parent.parent / "official_image.tar"
         if (source["digest"] != "sha256:" + scope.name or path.name != "archive_receipt.json"
                 or path.parent.name != "download" or receipt.get("archive_path") != str(archive)
@@ -1186,10 +1470,8 @@ def _config_eof_verify_donors(manifest_record, donors):
 
 def _config_eof_check_donor_evidence(snapshots):
     for snapshot in snapshots:
-        scope = Path(snapshot["path"]).parent
-        while scope.parent != TRANSPORT_ROOT.absolute() and scope != scope.parent:
-            scope = scope.parent
-        if scope.parent != TRANSPORT_ROOT.absolute():
+        root, scope = _stable_transport_scope(snapshot["path"])
+        if root is None:
             raise ImageTransportError("Config EOF donor evidence left this run")
         _config_eof_check_snapshots([snapshot], scope)
 
@@ -1247,12 +1529,13 @@ def recover_config_metadata_eof_image(client, manifest_record, *, workdir):
                 donor_evidence = _config_eof_verify_donors(manifest_record, donors)
                 manifest = manifest_record["manifest"]
                 required = 2 * sum(item["size"] for item in manifest["layers"]) + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
-                if (shutil.disk_usage(attempt).free < required
-                        or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                if (not _data_disk_capacity_ok(attempt, new_archive_bytes=required - 20 * 1024 ** 3)
+                or shutil.disk_usage(attempt).free < required
+                        or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
                     raise ImageTransportError("Insufficient disk budget for config EOF recovery and fixed reserves")
                 def budget_check():
-                    if (shutil.disk_usage(attempt).free < 20 * 1024 ** 3
-                            or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                    if (not _data_disk_capacity_ok(attempt) or shutil.disk_usage(attempt).free < 20 * 1024 ** 3
+                            or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
                         raise ImageTransportError("Config EOF cache copy reached a fixed disk reserve")
                 seed = seed_full_verified_archive_cache(manifest_record, donors, attempt / "private_layer_cache", budget_check=budget_check)
                 _save(attempt / "cache_seed_receipt.json", seed)
@@ -1403,9 +1686,10 @@ def _domestic_failed_download(manifest_record, directory, workdir):
 
 def _domestic_source(manifest_record, workdir):
     verify_manifest_record(manifest_record)
-    if (workdir.parent != TRANSPORT_ROOT.absolute()
-            or workdir.name != manifest_record["digest"].split(":", 1)[1]):
+    _, scope = _stable_transport_scope(workdir)
+    if (scope != workdir or workdir.name != manifest_record["digest"].split(":", 1)[1]):
         raise ImageTransportError("Domestic recovery requires this run's stable digest workdir")
+    _validate_storage_scope(manifest_record, workdir)
     _config_eof_private_path(workdir, workdir, directory=True)
     for name in ("config_eof_recovery", "recovery_attempt_1"):
         path = workdir / name
@@ -1439,12 +1723,15 @@ def _domestic_disk_gate(directory, manifest_record, *, seeding=False):
     manifest = manifest_record["manifest"]
     compressed = sum(item["size"] for item in manifest["layers"])
     required = ((2 * compressed + manifest["config"]["size"] + 1024 ** 2) if seeding else 0) + 20 * 1024 ** 3
-    if (shutil.disk_usage(directory).free < required
-            or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+    if (not _data_disk_capacity_ok(directory, new_archive_bytes=required - 20 * 1024 ** 3)
+                or shutil.disk_usage(directory).free < required
+            or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
         raise ImageTransportError("Domestic transport reached the fixed disk budget gate")
 
 
 def _probe_domestic_manifest(manifest_record, attempt, *, http1_only=False):
+    verify_manifest_record(manifest_record)
+    _validate_storage_scope(manifest_record, attempt)
     output = attempt / "probe"
     output.mkdir(mode=0o700)
     binary = verified_binary()
@@ -1730,15 +2017,26 @@ def discover_initial_cache_sources(manifest_record, workdir):
     result = {"schema": "repair50_initial_cache_discovery_v1",
         "source_reference": manifest_record["image_reference"],
         "source_manifest_digest": manifest_record["digest"],
-        "discovery_root": str(TRANSPORT_ROOT.absolute()), "candidates": [], "selected_receipts": []}
-    if (workdir.parent.absolute() != TRANSPORT_ROOT.absolute()
+        "discovery_root": str(TRANSPORT_ROOT.absolute()),
+        "discovery_roots": [str(root) for root in _transport_roots()], "candidates": [], "selected_receipts": []}
+    if (workdir.parent.absolute() not in _transport_roots()
             or workdir.name != manifest_record["digest"].split(":", 1)[1]
-            or workdir.is_symlink() or TRANSPORT_ROOT.is_symlink()
+            or workdir.is_symlink() or workdir.parent.is_symlink()
             or not workdir.is_dir() or workdir.stat().st_uid != os.getuid() or workdir.stat().st_mode & 0o077):
         return {**result, "reason": "OUTSIDE_THIS_RUN_STABLE_DIGEST_SCOPE"}
+    _validate_storage_scope(manifest_record, workdir)
     required = {item["digest"]: item["size"] for item in manifest["layers"]}
     candidates = []
-    for directory in sorted(TRANSPORT_ROOT.iterdir()):
+    directories = []
+    for root in _transport_roots():
+        if root.is_symlink():
+            raise ImageTransportError("Initial-cache donor root is linked")
+        if not root.exists():
+            continue
+        if root == DATA_TRANSPORT_ROOT.absolute():
+            _storage_private_directory(root)
+        directories.extend(root.iterdir())
+    for directory in sorted(directories):
         if (directory == workdir or not re.fullmatch(r"[0-9a-f]{64}", directory.name)
                 or directory.is_symlink() or not directory.is_dir()
                 or directory.stat().st_uid != os.getuid() or directory.stat().st_mode & 0o077):
@@ -1760,6 +2058,7 @@ def discover_initial_cache_sources(manifest_record, workdir):
             source = {"image_reference": receipt.get("source_reference"),
                       "digest": receipt.get("source_manifest_digest"), "manifest": receipt["registry_manifest"]}
             source_manifest = verify_manifest_record(source)
+            _validate_storage_scope(source, directory)
             archive = path.parent.parent / "official_image.tar"
             if (source["digest"] != "sha256:" + directory.name
                     or receipt.get("config_digest") != source_manifest["config"]["digest"]
@@ -1807,11 +2106,12 @@ def cleanup_new_initial_cache(cache, manifest_record):
     """Delete only this successful first download's fully rehashed plain blobs."""
     manifest = verify_manifest_record(manifest_record)
     cache = Path(cache)
-    if (cache.name != "initial_layer_cache" or cache.parent.parent.absolute() != TRANSPORT_ROOT.absolute()
+    if (cache.name != "initial_layer_cache" or cache.parent.parent.absolute() not in _transport_roots()
             or cache.parent.name != manifest_record["digest"].split(":", 1)[1]
             or cache.is_symlink() or not cache.is_dir()
             or cache.stat().st_uid != os.getuid() or cache.stat().st_mode & 0o077):
         raise ImageTransportError("Refuse cleanup outside this new private initial cache")
+    _validate_storage_scope(manifest_record, cache.parent)
     expected = {item["digest"]: item["size"] for item in manifest["layers"]}
     verified = []
     # Verify the entire set before deleting any entry. Unknown/temp/symlink
@@ -1955,6 +2255,7 @@ def first_download_with_private_cache(manifest_record, archive, output, *, workd
         raise ImageTransportError("Invalid fixed first-download transport selector")
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
+    _validate_storage_scope(manifest_record, workdir)
     selection = None
     if _fresh_domestic_http1:
         workdir = workdir.absolute()
@@ -1987,8 +2288,9 @@ def first_download_with_private_cache(manifest_record, archive, output, *, workd
             discovery = discover_initial_cache_sources(manifest_record, workdir)
         _save(state / "discovery_receipt.json", discovery)
         required = 2 * sum(item["size"] for item in manifest["layers"]) + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
-        if (shutil.disk_usage(workdir).free < required
-                or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+        if (not _data_disk_capacity_ok(workdir, new_archive_bytes=required - 20 * 1024 ** 3)
+                or shutil.disk_usage(workdir).free < required
+                or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
             raise ImageTransportError("Insufficient disk for first-download cache, tar and reserves")
         last_check = 0.0
         def budget_check():
@@ -1996,8 +2298,8 @@ def first_download_with_private_cache(manifest_record, archive, output, *, workd
             now = time.monotonic()
             if now - last_check >= 1:
                 last_check = now
-                if (shutil.disk_usage(workdir).free < 20 * 1024 ** 3
-                        or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                if (not _data_disk_capacity_ok(workdir) or shutil.disk_usage(workdir).free < 20 * 1024 ** 3
+                        or shutil.disk_usage(SHARED_STORE).free < 10 * 1024 ** 3):
                     raise ImageTransportError("First-download cache reached a disk reserve gate")
         if selection:
             donor_evidence = _config_eof_verify_donors(manifest_record, discovery["selected_receipts"])
@@ -2036,6 +2338,7 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     """
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
+    storage_root = _validate_storage_scope(manifest_record, workdir)
     workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
     http1_route = workdir / _DOMESTIC_HTTP1["attempt"]
     if list(workdir.glob(_DOMESTIC_HTTP1["prefix"])) or http1_route.is_symlink():
@@ -2076,6 +2379,24 @@ def ensure_verified_image(client, manifest_record, *, workdir):
         raise ImageTransportError("Incomplete prior first-download cache stage; preserve the scene and stop")
     if (workdir / "initial_cache/transport_request.json").exists() or (workdir / "initial_cache/transport_request.json").is_symlink():
         manifest_record = _validate_initial_http1_state(manifest_record, workdir.absolute())
+    if storage_root == DATA_TRANSPORT_ROOT.absolute():
+        registry = workdir / "registry_manifest_receipt.json"
+        if registry.exists() or registry.is_symlink():
+            stored = json.loads(_config_eof_private_path(registry, workdir).read_text())
+            verify_manifest_record(stored)
+            if any(stored.get(k) != manifest_record.get(k) for k in ("image_reference", "digest", "manifest")):
+                raise ImageTransportError("Data-disk canonical manifest belongs to another source")
+            manifest_record = stored
+        saved_archive = workdir / "download/archive_receipt.json"
+        if saved_archive.exists() or saved_archive.is_symlink():
+            current = verify_docker_archive(_config_eof_private_path(workdir / "official_image.tar", workdir), manifest_record)
+            for path in (saved_archive, workdir / "loaded_identity_receipt_v2.json"):
+                if not path.exists() and not path.is_symlink():
+                    continue
+                saved = json.loads(_config_eof_private_path(path, workdir).read_text())
+                if any(saved.get(k) != current[k] for k in ("source_reference", "source_manifest_digest", "archive_path",
+                        "archive_sha256", "archive_bytes", "config_digest", "diff_ids", "compressed_layers_verified", "uncompressed_layers_verified")):
+                    raise ImageTransportError("Data-disk archive or loaded receipt identity differs")
     loaded_path = workdir / "loaded_identity_receipt_v2.json"
     load_directory = workdir
     if loaded_path.is_symlink() or (workdir / "loaded_identity_receipt.json").is_symlink():
@@ -2165,9 +2486,10 @@ def ensure_verified_image(client, manifest_record, *, workdir):
             "recovered_after_legacy_config_id_lookup_failure": bool(own_logs)}
         _save(loaded_path, loaded)
         return loaded
-    shared_store = Path("/mnt/skygruop0/containerd")
+    shared_store = SHARED_STORE
+    capacity_path = _save_load_capacity(receipt, workdir)
     if (shutil.disk_usage(shared_store).free < 10 * 1024 ** 3
-            or shutil.disk_usage("/tmp").free < 20 * 1024 ** 3):
+            or shutil.disk_usage(SYSTEM_DISK).free < 20 * 1024 ** 3):
         raise ImageTransportError("Disk reserve gate stopped before offline image load")
     tag_checks = guard_existing_tags(client, receipt["repo_tags"], receipt)
     if (load_directory / "docker_load.log").exists():
@@ -2183,9 +2505,9 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                                    stdin=subprocess.DEVNULL, stdout=handle, stderr=subprocess.STDOUT)
         try:
             while process.poll() is None:
-                if (time.monotonic() - started > 1800
+                if (time.monotonic() - started > 1800 or not _data_disk_capacity_ok(workdir)
                         or shutil.disk_usage(shared_store).free < 10 * 1024 ** 3
-                        or shutil.disk_usage("/tmp").free < 20 * 1024 ** 3):
+                        or shutil.disk_usage(SYSTEM_DISK).free < 20 * 1024 ** 3):
                     process.terminate()
                     raise ImageTransportError("Own image-load client stopped at runtime/disk reserve gate")
                 time.sleep(1)
@@ -2210,5 +2532,7 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                   loaded_identity_receipt_path=str(loaded_path.resolve()),
                   preexisting_tag_checks=tag_checks,
                   load_elapsed_seconds=time.monotonic() - started, cached=False)
+    if capacity_path is not None:
+        loaded["storage_load_capacity_receipt_path"] = capacity_path
     _save(loaded_path, loaded)
     return loaded

@@ -3,6 +3,7 @@ import contextlib
 import csv
 import io
 import json
+import hashlib
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock,patch
@@ -172,5 +173,49 @@ class QualificationTests(unittest.TestCase):
             self.assertEqual(result['status'],'SYSTEM_BASE_IDENTITY_AUDIT_BLOCKED')
             self.assertFalse((live/'qualified50.json').exists())
             self.assertTrue((live/'base_identity_freeze_block.json').exists())
+
+class ImageStorageSelectionTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary=tempfile.TemporaryDirectory();self.addCleanup(self.temporary.cleanup)
+        self.root=Path(self.temporary.name)
+        from code_repair50 import image_transport as T
+        self.T=T
+        for name,part in [('TRANSPORT_ROOT','legacy'),('DATA_TRANSPORT_ROOT','data'),('STORAGE_POLICY_ROOT','storage_policy'),('FRESH_POLICY_ROOT','dom_policy')]:
+            p=self.root/part
+            if part=='legacy':p.mkdir(mode=0o700)
+            patched=patch.object(T,name,p);patched.start();self.addCleanup(patched.stop)
+        manifest={'schemaVersion':2,'mediaType':T.DOCKER_MANIFEST,'config':{'mediaType':T.DOCKER_CONFIG,'digest':'sha256:'+'a'*64,'size':50},
+                  'layers':[{'mediaType':T.DOCKER_GZIP_LAYER,'digest':'sha256:'+'b'*64,'size':10}]}
+        digest='sha256:'+hashlib.sha256(json.dumps(manifest,separators=(',',':')).encode()).hexdigest()
+        self.record={'manifest':manifest,'digest':digest,'image_reference':'swerebench/storage-test@'+digest}
+        self.manifest=self.root/'manifest.json';self.manifest.write_text(json.dumps(self.record))
+        self.task={'instance_id':'synthetic_storage','image_reference':self.record['image_reference'],'compressed_layer_bytes':10,'image_manifest_path':str(self.manifest)}
+
+    def test_acquire_freezes_data_placement_before_calling_transport(self):
+        T=self.T;T.activate_run_data_disk_image_policy();client=Mock();client.images.get.return_value.id='verified-runtime'
+        def verified(*args,workdir):
+            self.assertEqual(workdir.parent,T.DATA_TRANSPORT_ROOT)
+            self.assertTrue(T._placement_path(workdir.name).is_file());self.assertTrue((workdir/'storage_placement.json').is_file())
+            return {'runtime_image_reference':'verified-runtime','new_to_daemon':False,'loaded_by_this_run':False}
+        with patch.object(E.shutil,'disk_usage',return_value=Mock(free=2**50)),patch.object(E,'digest',return_value='stage-source'),patch.object(T,'ensure_verified_image',side_effect=verified) as transport:
+            _,owned,_=E.acquire_image(client,self.task,self.root/'receipt')
+        self.assertFalse(owned);transport.assert_called_once()
+
+    def test_acquire_keeps_existing_failed_legacy_scope_under_active_storage_policy(self):
+        T=self.T;T.activate_run_data_disk_image_policy();old=T.TRANSPORT_ROOT/self.record['digest'].split(':')[1];old.mkdir(mode=0o700)
+        (old/'initial_cache').mkdir();(old/'initial_cache/failure_receipt.json').write_text('{}')
+        def failed(*args,workdir):
+            self.assertEqual(workdir,old);raise ValueError('Preserved old failure')
+        with patch.object(E.shutil,'disk_usage',return_value=Mock(free=2**50)),patch.object(E,'digest',return_value='stage-source'),patch.object(T,'ensure_verified_image',side_effect=failed):
+            with self.assertRaisesRegex(ValueError,'old failure'):E.acquire_image(Mock(),self.task,self.root/'receipt')
+        self.assertFalse((T.DATA_TRANSPORT_ROOT/old.name).exists())
+
+    def test_acquire_duplicate_scopes_stops_before_transport(self):
+        T=self.T;T.activate_run_data_disk_image_policy();name=self.record['digest'].split(':')[1]
+        (T.TRANSPORT_ROOT/name).mkdir(mode=0o700);(T.DATA_TRANSPORT_ROOT/name).mkdir(mode=0o700)
+        with patch.object(E.shutil,'disk_usage',return_value=Mock(free=2**50)),patch.object(E,'digest',return_value='stage-source'),patch.object(T,'ensure_verified_image') as transport:
+            with self.assertRaisesRegex(ValueError,'Duplicate'):E.acquire_image(Mock(),self.task,self.root/'receipt')
+        transport.assert_not_called()
+
 
 if __name__=='__main__':unittest.main()

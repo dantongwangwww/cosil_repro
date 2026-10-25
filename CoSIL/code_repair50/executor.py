@@ -237,9 +237,9 @@ def acquire_image(client,task,directory):
     manifest_path=Path(task.get('image_manifest_path') or LIVE/'candidates'/task['instance_id']/'image_manifest.json')
     manifest=read(manifest_path)
     if manifest['image_reference']!=reference:raise RuntimeError('SYSTEM_IMAGE_DIGEST_MISMATCH')
-    from .image_transport import ensure_verified_image
+    from .image_transport import ensure_verified_image, select_image_workdir
     transport_source_sha=digest(ROOT/'code_repair50/image_transport.py')
-    receipt=ensure_verified_image(client,manifest,workdir=WORK/'image_transport'/manifest['digest'].split(':',1)[1])
+    receipt=ensure_verified_image(client,manifest,workdir=select_image_workdir(manifest))
     image=client.images.get(receipt['runtime_image_reference'])
     save(directory/'verified_image_transport.json',receipt)
     return image,bool(receipt.get('new_to_daemon') or receipt.get('loaded_by_this_run')),{

@@ -2,6 +2,7 @@ import hashlib
 import gzip
 import io
 import json
+import shutil
 from pathlib import Path
 import tarfile
 import tempfile
@@ -37,6 +38,16 @@ class ImageTransportTests(unittest.TestCase):
         policy_patch = patch("code_repair50.image_transport.FRESH_POLICY_ROOT", self.policy_root)
         policy_patch.start()
         self.addCleanup(policy_patch.stop)
+        self.storage_tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.storage_tmp.cleanup)
+        self.storage_root = Path(self.storage_tmp.name)
+        for constant, relative in (("DATA_TRANSPORT_ROOT", "data"), ("STORAGE_POLICY_ROOT", "storage_policy"),
+                ("SHARED_STORE", "store"), ("SYSTEM_DISK", "system")):
+            value = self.storage_root / relative
+            if relative in ("store", "system"):
+                value.mkdir(mode=0o700)
+            patched = patch("code_repair50.image_transport." + constant, value)
+            patched.start(); self.addCleanup(patched.stop)
         original_layers = [b"uncompressed-layer-one", b"uncompressed-layer-two"]
         self.layers = [gzip.compress(body, mtime=0) for body in original_layers]
         self.diff_ids = ["sha256:" + hashlib.sha256(body).hexdigest() for body in original_layers]
@@ -762,8 +773,10 @@ class ImageTransportTests(unittest.TestCase):
         raise persist_crane_download_failure(record, archive, log, 1)
 
     @contextmanager
-    def config_eof_case(self):
+    def config_eof_case(self, *, data_disk=False):
         _, source, workdir = self.initial_cache_fixture()
+        if data_disk:
+            workdir = self.select_empty_fixture_on_data(workdir)
         self.partial_archive(workdir)
         (workdir / "download").mkdir()
         (workdir / "download/crane_pull.log").write_bytes(b"original terminated own CLI\n")
@@ -1117,8 +1130,10 @@ class ImageTransportTests(unittest.TestCase):
             pull.assert_not_called()
 
     @contextmanager
-    def domestic_case(self):
+    def domestic_case(self, *, data_disk=False):
         _, source, workdir = self.initial_cache_fixture()
+        if data_disk:
+            workdir = self.select_empty_fixture_on_data(workdir)
         archive = self.partial_archive(workdir)
         (workdir / "download").mkdir()
         log = workdir / "download/crane_pull.log"
@@ -1408,8 +1423,8 @@ class ImageTransportTests(unittest.TestCase):
         return ("Error: saving tarball " + str(archive) + ": read tcp 192.0.2.10:54321->198.51.100.20:443: read: connection reset by peer\n").encode()
 
     @contextmanager
-    def http1_case(self):
-        with self.domestic_case() as (workdir, client, probe, pull):
+    def http1_case(self, *, data_disk=False):
+        with self.domestic_case(data_disk=data_disk) as (workdir, client, probe, pull):
             successful_pull = pull.side_effect
             def auto_reset(command, **kwargs):
                 self.assertNotIn("GODEBUG", kwargs["env"])
@@ -2097,6 +2112,319 @@ class ImageTransportTests(unittest.TestCase):
             with self.assertRaisesRegex(ImageTransportError, "Incomplete prior"):
                 ensure_verified_image(Mock(), self.record, workdir=target)
         pull.assert_not_called()
+
+    @contextmanager
+    def storage_case(self, *, activate=True):
+        from code_repair50 import image_transport as T
+        legacy = self.root / "legacy"
+        legacy.mkdir(mode=0o700)
+        with patch.object(T, "TRANSPORT_ROOT", legacy), patch.object(T.shutil, "disk_usage", return_value=Mock(free=2 ** 50)):
+            if activate:
+                T.activate_run_data_disk_image_policy()
+            yield T, legacy
+
+    def select_empty_fixture_on_data(self, empty):
+        from code_repair50 import image_transport as T
+        empty.rmdir()  # Only an empty synthetic fixture, before any task started.
+        with patch.object(T, "TRANSPORT_ROOT", self.root):
+            T.activate_run_data_disk_image_policy()
+            return T.select_image_workdir(self.record)
+
+    def completed_storage_scope(self, T):
+        target = T.select_image_workdir(self.record)
+        archive = target / "official_image.tar"
+        archive.write_bytes(self.archive().read_bytes())
+        T._save(target / "registry_manifest_receipt.json", self.record)
+        receipt = T.verify_docker_archive(archive, self.record)
+        (target / "download").mkdir(mode=0o700)
+        T._save(target / "download/archive_receipt.json", receipt)
+        client = Mock()
+        attrs = {"Id": self.config_digest, "RootFS": {"Type": "layers", "Layers": self.diff_ids},
+                 "Os": "linux", "Architecture": "amd64"}
+        client.images.get.return_value.attrs = attrs
+        loaded = T.verify_loaded_image(attrs, receipt)
+        loaded.update(new_to_daemon=True, loaded_by_this_run=True, load_performed_in_this_call=True)
+        T._save(target / "loaded_identity_receipt_v2.json", loaded)
+        return target, client, receipt
+
+    def test_storage_activation_is_fixed_private_and_cannot_overwrite(self):
+        with self.storage_case(activate=False) as (T, _):
+            result = T.activate_run_data_disk_image_policy(); path = Path(result["policy_path"])
+            before = path.read_bytes(), path.stat().st_mtime_ns
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(T.DATA_TRANSPORT_ROOT.stat().st_mode & 0o777, 0o700)
+            with self.assertRaises(FileExistsError):T.activate_run_data_disk_image_policy()
+            with self.assertRaises(TypeError):T.activate_run_data_disk_image_policy(data_root="/foreign")
+            self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), before)
+
+    def test_storage_absent_policy_freezes_legacy_and_later_activation_cannot_switch(self):
+        with self.storage_case(activate=False) as (T, legacy):
+            selected = T.select_image_workdir(self.record)
+            self.assertEqual(selected.parent, legacy)
+            T.activate_run_data_disk_image_policy()
+            self.assertEqual(T.select_image_workdir(self.record), selected)
+            self.assertFalse((T.DATA_TRANSPORT_ROOT / selected.name).exists())
+
+    def test_storage_data_selection_and_proof_exist_before_any_transport(self):
+        with self.storage_case() as (T, legacy), patch.object(T, "probe_crane") as probe, patch.object(T, "download_archive") as pull:
+            selected = T.select_image_workdir(self.record)
+            self.assertEqual(selected.parent, T.DATA_TRANSPORT_ROOT)
+            self.assertTrue((selected / "storage_placement.json").is_file())
+            self.assertTrue(T._placement_path(selected.name).is_file())
+            self.assertEqual(selected.stat().st_mode & 0o777, 0o700)
+            self.assertFalse((legacy / selected.name).exists());probe.assert_not_called();pull.assert_not_called()
+
+    def test_storage_any_existing_legacy_scope_stays_even_with_bad_current_policy(self):
+        with self.storage_case() as (T, legacy):
+            target = legacy / self.record["digest"].split(":")[1]; target.mkdir(mode=0o700)
+            (target / "initial_cache").mkdir();(target / "initial_cache/failure_receipt.json").write_text('{}')
+            (T.STORAGE_POLICY_ROOT / "fresh_data_disk.json").write_text('bad current policy')
+            before = (target / "initial_cache/failure_receipt.json").read_bytes()
+            self.assertEqual(T.select_image_workdir(self.record), target)
+            with self.assertRaisesRegex(ImageTransportError,"private-cache failure"):
+                T.ensure_verified_image(Mock(),self.record,workdir=target)
+            self.assertEqual((target / "initial_cache/failure_receipt.json").read_bytes(),before)
+
+    def test_storage_duplicate_scopes_and_broken_symlink_occupancy_are_rejected(self):
+        with self.storage_case() as (T, legacy):
+            target=T.select_image_workdir(self.record);other=legacy/target.name
+            other.symlink_to(legacy/'missing')
+            with self.assertRaisesRegex(ImageTransportError,"Duplicate"):T.select_image_workdir(self.record)
+            with self.assertRaisesRegex(ImageTransportError,"Duplicate"):T.ensure_verified_image(Mock(),self.record,workdir=target)
+
+    def test_storage_unbound_existing_data_scope_cannot_authorize_a_download(self):
+        with self.storage_case() as (T,_), patch.object(T,"download_archive") as pull:
+            target=T.DATA_TRANSPORT_ROOT/self.record['digest'].split(':')[1];target.mkdir(mode=0o700)
+            with self.assertRaisesRegex(ImageTransportError,"Unbound"):T.select_image_workdir(self.record)
+            with self.assertRaisesRegex(ImageTransportError,"lacks its frozen placement"):
+                T.ensure_verified_image(Mock(),self.record,workdir=target)
+            pull.assert_not_called()
+
+    def test_storage_lost_previously_selected_data_scope_never_rebuilds_or_retries(self):
+        with self.storage_case() as (T,_),patch.object(T,'probe_crane') as probe,patch.object(T,'download_archive') as pull:
+            target=T.select_image_workdir(self.record)
+            (target/'initial_cache').mkdir();(target/'initial_cache/failure_receipt.json').write_text('{}')
+            placement=T._placement_path(target.name);before=placement.read_bytes(),placement.stat().st_mtime_ns
+            shutil.rmtree(target)
+            with self.assertRaisesRegex(ImageTransportError,'selected image scope is missing'):T.select_image_workdir(self.record)
+            self.assertFalse(target.exists());probe.assert_not_called();pull.assert_not_called()
+            self.assertEqual((placement.read_bytes(),placement.stat().st_mtime_ns),before)
+
+    def test_storage_lost_previously_selected_legacy_scope_never_rebuilds(self):
+        with self.storage_case(activate=False) as (T,_):
+            target=T.select_image_workdir(self.record);(target/'FAILED').write_text('preserve failure')
+            shutil.rmtree(target);T.activate_run_data_disk_image_policy()
+            with self.assertRaisesRegex(ImageTransportError,'selected image scope is missing'):T.select_image_workdir(self.record)
+            self.assertFalse(target.exists());self.assertFalse((T.DATA_TRANSPORT_ROOT/target.name).exists())
+
+    def test_storage_direct_ensure_cannot_rebuild_a_lost_selected_legacy_scope(self):
+        with self.storage_case(activate=False) as (T,_),patch.object(T,'probe_crane') as probe,patch.object(T,'download_archive') as pull:
+            target=T.select_image_workdir(self.record);(target/'FAILED').write_text('old failed attempt')
+            shutil.rmtree(target)
+            with self.assertRaisesRegex(ImageTransportError,'not owned and private'):
+                T.ensure_verified_image(Mock(),self.record,workdir=target)
+            self.assertFalse(target.exists());probe.assert_not_called();pull.assert_not_called()
+
+    def test_storage_direct_manifest_probe_cannot_rebuild_a_lost_selected_scope(self):
+        with self.storage_case(activate=False) as (T,_):
+            target=T.select_image_workdir(self.record);shutil.rmtree(target)
+            with patch.object(T,'verified_binary') as binary,patch.object(T.subprocess,'run') as probe:
+                with self.assertRaisesRegex(ImageTransportError,'not owned and private'):
+                    T.probe_crane(self.record,target/'probe')
+            self.assertFalse(target.exists());binary.assert_not_called();probe.assert_not_called()
+
+    def test_storage_missing_frozen_local_proof_is_not_regenerated(self):
+        with self.storage_case() as (T,_):
+            target=T.select_image_workdir(self.record);proof=target/'storage_placement.json';proof.unlink()
+            with self.assertRaisesRegex(ImageTransportError,'placement proof is missing'):T.select_image_workdir(self.record)
+            self.assertFalse(proof.exists())
+
+    def test_storage_noncanonical_data_path_cannot_use_injected_helper_fallback(self):
+        with self.storage_case() as (T,_),patch.object(T,'probe_crane') as probe,patch.object(T,'download_archive') as pull:
+            target=T.DATA_TRANSPORT_ROOT/'not-a-digest'
+            with self.assertRaisesRegex(ImageTransportError,'canonical digest scope'):
+                T.ensure_verified_image(Mock(),self.record,workdir=target)
+            probe.assert_not_called();pull.assert_not_called();self.assertFalse(target.exists())
+
+    def test_storage_dotdot_alias_cannot_escape_its_frozen_data_scope(self):
+        with self.storage_case() as (T,_),patch.object(T,'probe_crane') as probe,patch.object(T,'download_archive') as pull:
+            target=T.select_image_workdir(self.record)
+            alias=target/'..'/'foreign'
+            with self.assertRaisesRegex(ImageTransportError,'canonical digest scope'):
+                T.ensure_verified_image(Mock(),self.record,workdir=alias)
+            probe.assert_not_called();pull.assert_not_called();self.assertFalse((T.DATA_TRANSPORT_ROOT/'foreign').exists())
+
+    def test_storage_invalid_policy_cannot_select_fresh_scope(self):
+        with self.storage_case() as (T,_):
+            path=T.STORAGE_POLICY_ROOT/'fresh_data_disk.json';raw=path.read_bytes()
+            path.write_bytes(raw+b' ')
+            with self.assertRaisesRegex(ImageTransportError,"settings"):T.select_image_workdir(self.record)
+            path.write_bytes(raw);path.chmod(0o644)
+            with self.assertRaisesRegex(ImageTransportError,"permissions"):T.select_image_workdir(self.record)
+
+    def test_storage_root_and_intermediate_symlinks_are_rejected(self):
+        with self.storage_case() as (T,_):
+            actual=T.DATA_TRANSPORT_ROOT; preserved=actual.with_name('preserved-data');actual.rename(preserved)
+            actual.symlink_to(preserved,target_is_directory=True)
+            with self.assertRaisesRegex(ImageTransportError,"symlink"):T.select_image_workdir(self.record)
+
+    def test_storage_placement_byte_or_source_tampering_is_rejected(self):
+        with self.storage_case() as (T,_):
+            target=T.select_image_workdir(self.record);path=T._placement_path(target.name);raw=path.read_bytes()
+            path.write_bytes(raw+b'\n')
+            with self.assertRaisesRegex(ImageTransportError,"placement receipt changed"):T.select_image_workdir(self.record)
+            path.write_bytes(raw);data=json.loads(raw);data['source_reference']='swerebench/other@'+self.record['digest'];path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ImageTransportError,"source or fixed path"):T.select_image_workdir(self.record)
+
+    def test_storage_cached_reload_cached_survives_policy_retirement_with_original_evidence(self):
+        with self.storage_case() as (T,_):
+            target,client,_=self.completed_storage_scope(T)
+            kept=[T._placement_path(target.name),target/'storage_placement.json',target/'registry_manifest_receipt.json',target/'download/archive_receipt.json',target/'loaded_identity_receipt_v2.json']
+            before={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in kept}
+            (T.STORAGE_POLICY_ROOT/'fresh_data_disk.json').unlink()
+            self.assertEqual(T.select_image_workdir(self.record),target)
+            with patch.object(T,'probe_crane') as probe,patch.object(T,'download_archive') as pull,patch.object(T.subprocess,'Popen') as load:
+                cached=T.ensure_verified_image(client,self.record,workdir=target)
+            self.assertFalse(cached['new_to_daemon']);self.assertFalse(cached['loaded_by_this_run']);self.assertFalse(cached['load_performed_in_this_call'])
+            probe.assert_not_called();pull.assert_not_called();load.assert_not_called()
+            fake=self.fake_local_image_load(client,[False])
+            with patch.object(T,'probe_crane') as probe,patch.object(T,'download_archive') as pull,patch.object(T.subprocess,'Popen',side_effect=fake) as load:
+                reloaded=T.ensure_verified_image(client,{**self.record,'checked_at':'new caller metadata'},workdir=target)
+                again=T.ensure_verified_image(client,self.record,workdir=target)
+            self.assertEqual(load.call_count,1);probe.assert_not_called();pull.assert_not_called()
+            self.assertTrue(reloaded['new_to_daemon']);self.assertTrue(reloaded['loaded_by_this_run']);self.assertTrue(reloaded['load_performed_in_this_call'])
+            self.assertFalse(again['loaded_by_this_run']);self.assertFalse(again['load_performed_in_this_call'])
+            self.assertEqual({str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in kept},before)
+
+    def test_storage_cached_bad_tar_and_unknown_daemon_error_never_reload_or_download(self):
+        with self.storage_case() as (T,_):
+            target,client,_=self.completed_storage_scope(T);error=RuntimeError('synthetic daemon failure')
+            client.images.get.side_effect=error
+            with patch.object(T.subprocess,'Popen') as load,patch.object(T,'download_archive') as pull:
+                with self.assertRaises(RuntimeError) as caught:T.ensure_verified_image(client,self.record,workdir=target)
+                self.assertIs(caught.exception,error)
+                client.images.get.side_effect=None
+                with (target/'official_image.tar').open('ab') as out:out.write(b'tampered')
+                with self.assertRaises(ImageTransportError):T.ensure_verified_image(client,self.record,workdir=target)
+            load.assert_not_called();pull.assert_not_called()
+
+    def test_storage_two_root_donor_is_rehashed_and_new_data_cache_is_cleaned(self):
+        from code_repair50 import image_transport as T
+        donor,source,empty=self.initial_cache_fixture();target=self.select_empty_fixture_on_data(empty)
+        complete=self.archive().read_bytes();old=(donor/'official_image.tar').read_bytes()
+        def download(record,archive,output,*,cache_path):
+            self.assertEqual((cache_path/self.manifest['layers'][0]['digest']).read_bytes(),self.layers[0])
+            archive.write_bytes(complete);output.mkdir(mode=0o700);receipt=T.verify_docker_archive(archive,record)
+            T._save(output/'archive_receipt.json',receipt);return receipt
+        with patch.object(T,'TRANSPORT_ROOT',self.root),patch.object(T.shutil,'disk_usage',return_value=Mock(free=2**50)),patch.object(T,'download_archive',side_effect=download):
+            discovered=T.discover_initial_cache_sources(self.record,target)
+            self.assertEqual(discovered['selected_receipts'],[str(source)])
+            result=T.first_download_with_private_cache(self.record,target/'official_image.tar',target/'download',workdir=target)
+            self.assertTrue(result['uncompressed_layers_verified']);self.assertFalse((target/'initial_layer_cache').exists())
+        self.assertEqual((donor/'official_image.tar').read_bytes(),old)
+
+    def test_storage_data_donor_is_discovered_from_a_legacy_target(self):
+        with self.storage_case() as (T,legacy):
+            target,_,_=self.completed_storage_scope(T)
+            self.config=json.dumps({**json.loads(self.config),'different_target':True}).encode();self.config_digest='sha256:'+hashlib.sha256(self.config).hexdigest()
+            self.manifest['config'].update(digest=self.config_digest,size=len(self.config));digest='sha256:'+hashlib.sha256(json.dumps(self.manifest,separators=(',',':')).encode()).hexdigest()
+            self.record={'manifest':self.manifest,'digest':digest,'image_reference':'swerebench/target@'+digest}
+            (T.STORAGE_POLICY_ROOT/'fresh_data_disk.json').unlink();other=T.select_image_workdir(self.record)
+            self.assertEqual(other.parent,legacy)
+            discovered=T.discover_initial_cache_sources(self.record,other)
+            self.assertEqual(discovered['selected_receipts'],[str(target/'download/archive_receipt.json')])
+            cache=other/'initial_layer_cache';seed=T.seed_full_verified_archive_cache(self.record,discovered['selected_receipts'],cache)
+            self.assertEqual(seed['missing_blob_bytes'],0)
+
+    def test_storage_config_eof_success_and_reload_work_on_data_root(self):
+        from code_repair50 import image_transport as T
+        with self.config_eof_case(data_disk=True) as (target,client,download),patch.object(T,'download_archive',side_effect=download):
+            result=T.recover_config_metadata_eof_image(client,self.record,workdir=target)
+            self.assertTrue(result['loaded_image_verified']);self.assertEqual(target.parent,T.DATA_TRANSPORT_ROOT)
+            (T.STORAGE_POLICY_ROOT/'fresh_data_disk.json').unlink()
+            cached=T.ensure_verified_image(client,self.record,workdir=target);self.assertFalse(cached['loaded_by_this_run'])
+            with patch.object(T.subprocess,'Popen',side_effect=self.fake_local_image_load(client,[False])) as load:
+                loaded=T.ensure_verified_image(client,self.record,workdir=target)
+            self.assertTrue(loaded['loaded_by_this_run']);self.assertEqual(load.call_count,1)
+
+    def test_storage_domestic_and_http1_routes_work_on_data_root(self):
+        from code_repair50 import image_transport as T
+        with self.http1_case(data_disk=True) as (target,client,_,_):
+            result=T.explicit_domestic_http1_transport(client,self.record,workdir=target)
+            self.assertTrue(result['loaded_image_verified']);self.assertEqual(target.parent,T.DATA_TRANSPORT_ROOT)
+            (T.STORAGE_POLICY_ROOT/'fresh_data_disk.json').unlink()
+            self.assertFalse(T.ensure_verified_image(client,self.record,workdir=target)['loaded_by_this_run'])
+
+    def test_storage_capacity_same_device_uses_one_free_pool_and_actual_u(self):
+        with self.storage_case() as (T,_):
+            target,_,receipt=self.completed_storage_scope(T)
+            with patch.object(T,'_storage_device',return_value=1),patch.object(T.shutil,'disk_usage',return_value=Mock(free=20*1024**3+100)):
+                record=T._data_disk_capacity(target,new_archive_bytes=200)
+                self.assertFalse(record['allowed']);self.assertEqual(len(record['filesystem_groups']),1)
+                load=T._data_disk_capacity(target,load_receipt=receipt)
+                self.assertEqual(load['actual_verified_uncompressed_bytes'],sum(receipt['uncompressed_layer_bytes']))
+                self.assertEqual(load['filesystem_groups'][0]['new_allocation_bytes'],sum(x['size'] for x in self.manifest['layers'])+2*sum(receipt['uncompressed_layer_bytes'])+1024**2)
+                self.assertFalse(load['allowed'])
+
+    def test_storage_capacity_separate_devices_do_not_add_unrelated_free(self):
+        with self.storage_case() as (T,_):
+            target=T.select_image_workdir(self.record)
+            def device(p):return 1 if Path(p)==target else 2 if Path(p)==T.SHARED_STORE else 3
+            def usage(p):return Mock(free=20*1024**3+99 if Path(p)==target else 2**50)
+            with patch.object(T,'_storage_device',side_effect=device),patch.object(T.shutil,'disk_usage',side_effect=usage):
+                record=T._data_disk_capacity(target,new_archive_bytes=100)
+            self.assertFalse(record['allowed']);self.assertEqual(len(record['filesystem_groups']),3)
+
+    def test_storage_load_missing_actual_u_or_low_combined_budget_stops_before_docker(self):
+        with self.storage_case() as (T,_):
+            target,client,receipt=self.completed_storage_scope(T)
+            invalid={**receipt,'uncompressed_layer_bytes':None}
+            with self.assertRaisesRegex(ImageTransportError,'Actual verified'):T._data_disk_capacity(target,load_receipt=invalid)
+            fake=self.fake_local_image_load(client,[False])
+            with patch.object(T,'_storage_device',return_value=1),patch.object(T.shutil,'disk_usage',return_value=Mock(free=20*1024**3+100)),patch.object(T.subprocess,'Popen',side_effect=fake) as load:
+                with self.assertRaisesRegex(ImageTransportError,'Combined data-disk'):T.ensure_verified_image(client,self.record,workdir=target)
+            load.assert_not_called()
+
+    def test_storage_download_disk_gate_precedes_crane_and_preserves_original_limits(self):
+        with self.storage_case() as (T,_):
+            target=T.select_image_workdir(self.record)
+            with patch.object(T,'verified_binary',return_value=Path('/pinned-crane')),patch.object(T,'_storage_device',return_value=1),patch.object(T.shutil,'disk_usage',return_value=Mock(free=20*1024**3+100)),patch.object(T.subprocess,'Popen') as pull:
+                with self.assertRaisesRegex(ImageTransportError,'Insufficient archive-disk'):
+                    T.download_archive(self.record,target/'official_image.tar',target/'download')
+            pull.assert_not_called();self.assertEqual(T.download_archive.__kwdefaults__['timeout'],1800)
+
+    def test_storage_data_small_partial_recovery_is_one_shot_and_preserves_original(self):
+        with self.storage_case() as (T,_):
+            target=T.select_image_workdir(self.record);partial=self.partial_archive(target);before=partial.read_bytes(),partial.stat().st_mtime_ns
+            complete=self.archive().read_bytes();client=Mock();client.images.get.return_value.attrs={
+                'Id':self.config_digest,'RootFS':{'Type':'layers','Layers':self.diff_ids},'Os':'linux','Architecture':'amd64'}
+            def download(record,archive,output,*,cache_path):
+                self.assertEqual((cache_path/self.manifest['layers'][0]['digest']).read_bytes(),self.layers[0])
+                archive.write_bytes(complete);output.mkdir(mode=0o700);receipt=T.verify_docker_archive(archive,record)
+                T._save(output/'archive_receipt.json',receipt);return receipt
+            with patch.object(T,'probe_crane') as probe,patch.object(T,'download_archive',side_effect=download) as pull:
+                result=T.recover_verified_partial_image(client,self.record,workdir=target)
+                with self.assertRaises(FileExistsError):T.recover_verified_partial_image(client,self.record,workdir=target)
+            self.assertEqual(pull.call_count,1);self.assertEqual(probe.call_count,1)
+            route=json.loads(Path(result['recovery_receipt_path']).read_text())
+            self.assertEqual(route['max_missing_blob_bytes'],16*1024**2)
+            self.assertEqual((partial.read_bytes(),partial.stat().st_mtime_ns),before)
+            self.assertTrue(T.ensure_verified_image(client,self.record,workdir=target)['loaded_image_verified'])
+
+    def test_storage_system_disk_twenty_gib_reserve_is_independent_of_data_free(self):
+        with self.storage_case() as (T,_):
+            target=T.select_image_workdir(self.record)
+            with patch.object(T,'_storage_device',side_effect=lambda p:3 if Path(p)==T.SYSTEM_DISK else 1), \
+                 patch.object(T.shutil,'disk_usage',side_effect=lambda p:Mock(free=19*1024**3 if Path(p)==T.SYSTEM_DISK else 2**50)):
+                self.assertFalse(T._data_disk_capacity(target,new_archive_bytes=1)['allowed'])
+
+    def test_storage_test_fixtures_isolate_an_already_active_other_policy(self):
+        with self.storage_case() as (T,_):
+            path=T.STORAGE_POLICY_ROOT/'fresh_data_disk.json';before=path.read_bytes(),path.stat().st_mtime_ns
+            result=unittest.TestResult()
+            ImageTransportTests('test_storage_absent_policy_freezes_legacy_and_later_activation_cannot_switch').run(result)
+            self.assertEqual(result.errors,[]);self.assertEqual(result.failures,[])
+            self.assertEqual((path.read_bytes(),path.stat().st_mtime_ns),before)
 
 
 if __name__ == "__main__":
