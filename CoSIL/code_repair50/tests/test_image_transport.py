@@ -24,6 +24,7 @@ from code_repair50.image_transport import (
     classify_config_metadata_eof, recover_config_metadata_eof_image,
     explicit_domestic_mirror_transport, domestic_crane_environment, DOMESTIC_MIRROR,
     explicit_domestic_http1_transport, classify_domestic_native_reset,
+    activate_run_fresh_http1_policy,
 )
 
 
@@ -32,6 +33,10 @@ class ImageTransportTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        self.policy_root = self.root / "isolated_run_policy"
+        policy_patch = patch("code_repair50.image_transport.FRESH_POLICY_ROOT", self.policy_root)
+        policy_patch.start()
+        self.addCleanup(policy_patch.stop)
         original_layers = [b"uncompressed-layer-one", b"uncompressed-layer-two"]
         self.layers = [gzip.compress(body, mtime=0) for body in original_layers]
         self.diff_ids = ["sha256:" + hashlib.sha256(body).hexdigest() for body in original_layers]
@@ -1674,6 +1679,273 @@ class ImageTransportTests(unittest.TestCase):
             self.assertEqual(json.loads((workdir / "domestic_http1_attempt_1/route.json").read_text())["status"], "FAILED")
             with self.assertRaises(FileExistsError):
                 explicit_domestic_http1_transport(client, self.record, workdir=workdir)
+
+    @contextmanager
+    def fresh_policy_case(self, *, donor=True, activate=True):
+        if donor:
+            _, _, target = self.initial_cache_fixture()
+        else:
+            target = self.root / self.record["digest"].split(":", 1)[1]
+            target.mkdir(mode=0o700)
+        complete = self.archive().read_bytes()
+        client = Mock()
+        client.images.get.return_value.attrs = {"Id": self.config_digest,
+            "RootFS": {"Type": "layers", "Layers": self.diff_ids}, "Os": "linux", "Architecture": "amd64"}
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root), \
+             patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=2 ** 50)), \
+             patch("code_repair50.image_transport.verified_binary", return_value=Path("/pinned-crane")), \
+             patch("code_repair50.image_transport.probe_crane") as official_probe:
+            if activate:
+                activate_run_fresh_http1_policy()
+            raw = json.dumps(self.manifest, separators=(",", ":")).encode()
+            def mirror_probe(*args, **kwargs):
+                self.assertTrue((target / "initial_cache/transport_request.json").is_file())
+                request = json.loads((target / "initial_cache/transport_request.json").read_text())
+                self.assertEqual(request["source_reference"], self.record["image_reference"])
+                self.assertEqual(request["policy"]["http_policy"], "HTTP1_ONLY")
+                self.assertEqual(kwargs["env"]["GODEBUG"], "http2client=0")
+                self.assertEqual(args[0][-1], DOMESTIC_MIRROR + "/" + self.record["image_reference"])
+                return probe.return_value
+            def pull(command, **kwargs):
+                self.assertEqual(command[:4], ["/pinned-crane", "--platform", "linux/amd64", "pull"])
+                self.assertEqual(command[4], (DOMESTIC_MIRROR + "/" if activate else "") + self.record["image_reference"])
+                if activate:
+                    self.assertEqual(kwargs["env"]["GODEBUG"], "http2client=0")
+                    self.assertFalse(any("proxy" in key.lower() for key in kwargs["env"]))
+                    cache = Path(command[command.index("--cache_path") + 1])
+                    self.assertEqual(cache, target / "initial_layer_cache")
+                    for layer, body in zip(self.manifest["layers"], self.layers):
+                        if donor:
+                            self.assertEqual((cache / layer["digest"]).read_bytes(), body)
+                        else:
+                            self.assertFalse((cache / layer["digest"]).exists())
+                        (cache / layer["digest"]).write_bytes(body)
+                else:
+                    self.assertNotIn("GODEBUG", kwargs["env"])
+                Path(command[5]).write_bytes(complete)
+                return Mock(returncode=0, poll=Mock(return_value=0))
+            with patch("code_repair50.image_transport.subprocess.run", side_effect=mirror_probe,
+                       return_value=Mock(returncode=0, stdout=raw + b"\n", stderr=b"")) as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen", side_effect=pull) as download:
+                yield target, client, official_probe, probe, download
+
+    def test_fresh_policy_activation_is_explicit_private_and_never_overwritten(self):
+        self.assertFalse(self.policy_root.exists())
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root):
+            result = activate_run_fresh_http1_policy()
+            path = Path(result["policy_path"])
+            original = path.read_bytes(), path.stat().st_mtime_ns
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(result["policy"]["transport_root"], str(self.root))
+            self.assertEqual(result["policy"]["mirror_host"], DOMESTIC_MIRROR)
+            with self.assertRaises(FileExistsError):
+                activate_run_fresh_http1_policy()
+            self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), original)
+            with self.assertRaises(TypeError):
+                activate_run_fresh_http1_policy(mirror_host="attacker.example")
+
+    def test_absent_fresh_policy_keeps_original_official_transport(self):
+        with self.fresh_policy_case(donor=False, activate=False) as (target, client, official, mirror, pull):
+            result = ensure_verified_image(client, self.record, workdir=target)
+            self.assertTrue(result["loaded_image_verified"])
+            official.assert_called_once()
+            mirror.assert_not_called()
+            self.assertEqual(pull.call_count, 1)
+            self.assertFalse((target / "initial_cache").exists())
+
+    def test_fresh_http1_with_donors_persists_request_before_probe_and_cleans_only_new_cache(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            donor = next(path for path in self.root.iterdir() if path.is_dir() and path != target and path != self.policy_root)
+            old = (donor / "official_image.tar").read_bytes()
+            result = ensure_verified_image(client, self.record, workdir=target)
+            official.assert_not_called()
+            self.assertEqual(mirror.call_count, 1); self.assertEqual(pull.call_count, 1)
+            self.assertTrue(result["loaded_image_verified"])
+            request = json.loads((target / "initial_cache/transport_request.json").read_text())
+            seed = json.loads((target / "initial_cache/cache_seed_receipt.json").read_text())
+            self.assertEqual(request["source_manifest_digest"], self.record["digest"])
+            self.assertEqual(seed["seeded_compressed_bytes"], sum(map(len, self.layers)))
+            self.assertTrue(json.loads((target / "initial_cache/donor_evidence.json").read_text())["evidence"])
+            self.assertFalse((target / "initial_layer_cache").exists())
+            self.assertEqual((donor / "official_image.tar").read_bytes(), old)
+
+    def test_fresh_http1_without_donors_uses_empty_new_cache_and_full_ordinary_verification(self):
+        with self.fresh_policy_case(donor=False) as (target, client, official, mirror, pull):
+            result = ensure_verified_image(client, self.record, workdir=target)
+            self.assertTrue(result["compressed_layers_verified"])
+            self.assertTrue(result["uncompressed_layers_verified"])
+            self.assertEqual(json.loads((target / "initial_cache/discovery_receipt.json").read_text())["selected_receipts"], [])
+            self.assertEqual(json.loads((target / "initial_cache/donor_evidence.json").read_text())["evidence"], [])
+            official.assert_not_called(); self.assertEqual(mirror.call_count, 1); self.assertEqual(pull.call_count, 1)
+
+    def test_fresh_http1_same_source_existing_registry_receipt_is_preserved(self):
+        with self.fresh_policy_case() as (target, client, official, _, _):
+            path = target / "registry_manifest_receipt.json"
+            stored = {**self.record, "checked_at": "original canonical pin"}
+            from code_repair50.image_transport import _save
+            _save(path, stored)
+            before = path.read_bytes(), path.stat().st_mtime_ns
+            ensure_verified_image(client, {**self.record, "checked_at": "later metadata"}, workdir=target)
+            self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), before)
+            official.assert_not_called()
+
+    def test_fresh_http1_wrong_registry_source_is_rejected_before_network(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            stored = {**self.record, "image_reference": "swerebench/other@" + self.record["digest"]}
+            (target / "registry_manifest_receipt.json").write_text(json.dumps(stored))
+            with self.assertRaisesRegex(ImageTransportError, "another source"):
+                ensure_verified_image(client, self.record, workdir=target)
+            official.assert_not_called(); mirror.assert_not_called(); pull.assert_not_called()
+
+    def test_fresh_policy_invalid_settings_or_permissions_fail_closed(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            policy = self.policy_root / "fresh_domestic_http1.json"
+            original = policy.read_bytes()
+            for field, value in (("mirror_host", "attacker.example"), ("transport_root", "/tmp/other-run"),
+                                 ("go_debug", "http2debug=2"), ("source_reference", "unapproved")):
+                record = json.loads(original); record[field] = value; policy.write_text(json.dumps(record))
+                with self.subTest(field=field), self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=target)
+            policy.write_bytes(original); policy.chmod(0o644)
+            with self.assertRaisesRegex(ImageTransportError, "0600"):
+                ensure_verified_image(client, self.record, workdir=target)
+            official.assert_not_called(); mirror.assert_not_called(); pull.assert_not_called()
+
+    def test_fresh_policy_symlink_or_nonprivate_directory_is_rejected(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            policy = self.policy_root / "fresh_domestic_http1.json"
+            preserved = self.policy_root / "preserved.json"
+            policy.rename(preserved); policy.symlink_to(preserved)
+            with self.assertRaisesRegex(ImageTransportError, "symlink"):
+                ensure_verified_image(client, self.record, workdir=target)
+            policy.unlink(); preserved.rename(policy)
+            self.policy_root.chmod(0o755)
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=target)
+            official.assert_not_called(); mirror.assert_not_called(); pull.assert_not_called()
+
+    def test_fresh_policy_nonfresh_entries_cannot_select_new_domestic_mode(self):
+        with self.fresh_policy_case() as (target, _, official, mirror, pull):
+            for name in ("official_image.tar", "probe", "download", "initial_layer_cache", "unknown"):
+                path = target / name; path.touch()
+                with self.subTest(entry=name), self.assertRaisesRegex(ImageTransportError, "truly fresh"):
+                    first_download_with_private_cache(self.record, target / "official_image.tar", target / "download",
+                                                     workdir=target, _fresh_domestic_http1=True)
+                path.unlink()
+            official.assert_not_called(); mirror.assert_not_called(); pull.assert_not_called()
+
+    def test_fresh_http1_probe_failure_cannot_retry_or_switch_after_policy_removed(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            mirror.return_value.stdout = b"wrong manifest"
+            with patch("code_repair50.image_transport.automatic_eof_recovery_eligibility") as gate, \
+                 patch("code_repair50.image_transport.recover_verified_partial_image") as recover:
+                with self.assertRaisesRegex(ImageTransportError, "original source digest"):
+                    ensure_verified_image(client, self.record, workdir=target)
+                self.assertTrue((target / "initial_cache/failure_receipt.json").is_file())
+                (self.policy_root / "fresh_domestic_http1.json").unlink()
+                with self.assertRaisesRegex(ImageTransportError, "private-cache failure"):
+                    ensure_verified_image(client, self.record, workdir=target)
+            official.assert_not_called(); pull.assert_not_called(); gate.assert_not_called(); recover.assert_not_called()
+            self.assertEqual(mirror.call_count, 1)
+
+    def test_fresh_http1_probe_interruption_leaves_blocked_stage_before_any_network_retry(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            mirror.side_effect = KeyboardInterrupt()
+            with self.assertRaises(KeyboardInterrupt):
+                ensure_verified_image(client, self.record, workdir=target)
+            self.assertTrue((target / "initial_cache/transport_request.json").is_file())
+            with self.assertRaisesRegex(ImageTransportError, "Incomplete prior"):
+                ensure_verified_image(client, self.record, workdir=target)
+            official.assert_not_called(); pull.assert_not_called(); self.assertEqual(mirror.call_count, 1)
+
+    def test_fresh_http1_native_download_failure_never_enters_official_16mib_handler(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            def eof(command, **kwargs):
+                archive = Path(command[5]); archive.write_bytes(b"short failed payload")
+                kwargs["stdout"].write(('Error: saving tarball ' + str(archive) + ': Get "https://registry-1.docker.io/v2/'
+                    + self.record['image_reference'].split('@')[0] + '/blobs/' + self.config_digest + '": EOF\n').encode())
+                return Mock(returncode=1, poll=Mock(return_value=1))
+            pull.side_effect = eof
+            with patch("code_repair50.image_transport.automatic_eof_recovery_eligibility") as gate, \
+                 patch("code_repair50.image_transport.recover_verified_partial_image") as recover:
+                with self.assertRaises(CraneDownloadError):
+                    ensure_verified_image(client, self.record, workdir=target)
+            gate.assert_not_called(); recover.assert_not_called(); official.assert_not_called()
+            self.assertEqual(mirror.call_count, 1); self.assertEqual(pull.call_count, 1)
+
+    def test_fresh_http1_cached_and_offline_reload_use_frozen_policy_after_global_deletion(self):
+        with self.fresh_policy_case() as (target, client, _, _, _):
+            ensure_verified_image(client, self.record, workdir=target)
+            request = target / "initial_cache/transport_request.json"
+            before = request.read_bytes(), request.stat().st_mtime_ns
+            (self.policy_root / "fresh_domestic_http1.json").unlink()
+            with patch("code_repair50.image_transport.subprocess.run") as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen") as process:
+                cached = ensure_verified_image(client, self.record, workdir=target)
+            probe.assert_not_called(); process.assert_not_called()
+            self.assertFalse(cached["loaded_by_this_run"])
+            load = self.fake_local_image_load(client, [False])
+            with patch("code_repair50.image_transport.subprocess.run") as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen", side_effect=load) as process:
+                result = ensure_verified_image(client, {**self.record, "checked_at": "later metadata"}, workdir=target)
+            probe.assert_not_called(); self.assertEqual(process.call_count, 1)
+            self.assertTrue(result["new_to_daemon"])
+            self.assertEqual((request.read_bytes(), request.stat().st_mtime_ns), before)
+
+    def test_fresh_http1_frozen_request_and_complete_tar_tampering_rejected(self):
+        with self.fresh_policy_case() as (target, client, _, _, _):
+            ensure_verified_image(client, self.record, workdir=target)
+            request = target / "initial_cache/transport_request.json"
+            raw = request.read_bytes(); request.write_bytes(raw + b"\n")
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=target)
+            request.write_bytes(raw)
+            with (target / "official_image.tar").open("ab") as out:
+                out.write(b"changed completed tar")
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=target)
+
+    def test_bad_global_policy_does_not_override_existing_verified_archive(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            complete = self.archive().read_bytes()
+            archive = target / "official_image.tar"; archive.write_bytes(complete)
+            (target / "download").mkdir()
+            receipt = verify_docker_archive(archive, self.record)
+            (target / "download/archive_receipt.json").write_text(json.dumps(receipt))
+            (self.policy_root / "fresh_domestic_http1.json").write_text("invalid policy")
+            result = ensure_verified_image(client, self.record, workdir=target)
+            self.assertTrue(result["loaded_image_verified"])
+            official.assert_not_called(); mirror.assert_not_called(); pull.assert_not_called()
+
+    def test_fresh_http1_broken_loaded_receipt_symlink_is_rejected_before_reload(self):
+        with self.fresh_policy_case() as (target, client, _, _, _):
+            ensure_verified_image(client, self.record, workdir=target)
+            loaded = target / "loaded_identity_receipt_v2.json"
+            loaded.unlink(); loaded.symlink_to(target / "missing-receipt.json")
+            self.fake_local_image_load(client, [False])
+            with patch("code_repair50.image_transport.subprocess.Popen") as load:
+                with self.assertRaisesRegex(ImageTransportError, "symlink"):
+                    ensure_verified_image(client, self.record, workdir=target)
+            load.assert_not_called()
+
+    def test_unknown_broken_loaded_receipt_cannot_fall_back_to_official_probe(self):
+        with self.fresh_policy_case() as (target, client, official, mirror, pull):
+            (target / "loaded_identity_receipt_v2.json").symlink_to(target / "missing-receipt.json")
+            with self.assertRaisesRegex(ImageTransportError, "symlink"):
+                ensure_verified_image(client, self.record, workdir=target)
+            official.assert_not_called(); mirror.assert_not_called(); pull.assert_not_called()
+
+    def test_all_transport_test_fixtures_isolate_an_existing_default_policy(self):
+        fake_production = self.root / "simulated_production_policy"
+        with patch("code_repair50.image_transport.FRESH_POLICY_ROOT", fake_production), \
+             patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root):
+            activation = activate_run_fresh_http1_policy()
+            path = Path(activation["policy_path"]); before = path.read_bytes(), path.stat().st_mtime_ns
+            result = unittest.TestResult()
+            ImageTransportTests("test_initial_ensure_uses_same_digest_and_removes_only_new_cache").run(result)
+            self.assertEqual(result.errors, []); self.assertEqual(result.failures, [])
+            self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), before)
 
     def initial_cache_fixture(self):
         archive, receipt_path = self.full_archive_source()

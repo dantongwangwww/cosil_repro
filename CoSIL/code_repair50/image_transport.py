@@ -30,6 +30,7 @@ CRANE_ARCHIVE_SHA256 = "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b
 CRANE_BINARY_SHA256 = "8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992"
 DEFAULT_CRANE = Path("/tmp/repair50_20261024/tools/crane-v0.22.1/crane")
 TRANSPORT_ROOT = Path("/tmp/repair50_20261024/image_transport")
+FRESH_POLICY_ROOT = Path("/tmp/repair50_20261024/transport_policy")
 DOMESTIC_MIRROR = "docker.1ms.run"
 _DOMESTIC_AUTO = {"attempt": "domestic_mirror_attempt_1", "prefix": "domestic_mirror_attempt_*",
     "schema": "repair50_domestic_mirror_transport_v1", "result_key": "domestic_mirror_receipt_path",
@@ -1833,20 +1834,158 @@ def cleanup_new_initial_cache(cache, manifest_record):
         "only_new_initial_cache_removed": True, "prior_archives_and_caches_modified": False}
 
 
-def first_download_with_private_cache(manifest_record, archive, output, *, workdir):
+def _fresh_policy_record():
+    return {"schema": "repair50_run_fresh_transport_policy_v1", "run_id": "repair50_20261024",
+        "transport_root": str(TRANSPORT_ROOT.absolute()), "scope": "TRULY_FRESH_ONLY",
+        "mirror_host": DOMESTIC_MIRROR, "http_policy": "HTTP1_ONLY", "go_debug": "http2client=0",
+        "proxy_mode": "DISABLED", "max_transport_attempts": 1, "timeout_seconds": 1800,
+        "prechange_github_checkpoint": "9421a2ffb2d1aac421a24d1bc1fe9e3e11a3c067",
+        "model_requests": 0, "qualifications_started": 0}
+
+
+def _fresh_policy_bytes():
+    return (json.dumps(_fresh_policy_record(), indent=2) + "\n").encode()
+
+
+def activate_run_fresh_http1_policy():
+    """Explicit operator action only; never called by imports or workers.
+
+    The fixed private run policy has no host/path/timeout parameters. Existing
+    activation evidence, even identical evidence, is never overwritten.
+    """
+    directory = FRESH_POLICY_ROOT.absolute()
+    if any(path.is_symlink() for path in (directory, *directory.parents)):
+        raise ImageTransportError("Fresh transport policy directory contains a symlink")
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _config_eof_private_path(directory, directory, directory=True)
+    path = directory / "fresh_domestic_http1.json"
+    with path.open("xb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(_fresh_policy_bytes())
+    return {"policy_path": str(path), "policy": _fresh_policy_record(),
+            "policy_sha256": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()}
+
+
+def _read_run_fresh_policy():
+    directory = FRESH_POLICY_ROOT.absolute()
+    path = directory / "fresh_domestic_http1.json"
+    if directory.is_symlink() or path.is_symlink():
+        raise ImageTransportError("Fresh transport policy symlink is rejected")
+    if not path.exists():
+        return None
+    _config_eof_private_path(path, directory)
+    if path.stat().st_mode & 0o777 != 0o600:
+        raise ImageTransportError("Fresh transport policy must have private 0600 permissions")
+    snapshot = _config_eof_snapshot(path, directory)
+    if path.read_bytes() != _fresh_policy_bytes():
+        raise ImageTransportError("Fresh transport policy has an unknown source, scope or setting")
+    _config_eof_check_snapshots([snapshot], directory)
+    return snapshot
+
+
+def _fresh_http1_case(manifest_record, workdir):
+    workdir = Path(workdir).absolute()
+    if workdir.parent != TRANSPORT_ROOT.absolute():
+        return None
+    # Existing archive/log/cache/probe/attempts, including empty files and
+    # symlinks, never acquire a new transport policy after work has started.
+    if any(path.name != "registry_manifest_receipt.json" for path in workdir.iterdir()):
+        return None
+    policy = _read_run_fresh_policy()
+    if policy is None:
+        return None
+    if workdir.name != manifest_record["digest"].split(":", 1)[1]:
+        raise ImageTransportError("Fresh transport policy requires the stable source digest directory")
+    _config_eof_private_path(workdir, workdir, directory=True)
+    registry = workdir / "registry_manifest_receipt.json"
+    original = manifest_record
+    if registry.exists() or registry.is_symlink():
+        _config_eof_private_path(registry, workdir)
+        original = json.loads(registry.read_text())
+        verify_manifest_record(original)
+        if any(original.get(key) != manifest_record.get(key) for key in ("image_reference", "digest", "manifest")):
+            raise ImageTransportError("Fresh transport registry receipt belongs to another source")
+    return {"policy_snapshot": policy, "canonical_manifest": original}
+
+
+def _validate_initial_http1_state(manifest_record, workdir):
+    """Read frozen per-image evidence without consulting the current policy."""
+    state = workdir / "initial_cache"
+    path = _config_eof_private_path(state / "transport_request.json", workdir)
+    raw = path.read_bytes(); request = json.loads(raw)
+    required = {"schema", "source_reference", "source_manifest_digest", "transport_reference", "policy",
+                "policy_snapshot", "registry_manifest_snapshot"}
+    snapshot = request.get("policy_snapshot", {})
+    if (set(request) != required or request.get("schema") != "repair50_initial_domestic_http1_request_v1"
+            or request.get("source_reference") != manifest_record["image_reference"]
+            or request.get("source_manifest_digest") != manifest_record["digest"]
+            or request.get("transport_reference") != DOMESTIC_MIRROR + "/" + manifest_record["image_reference"]
+            or request.get("policy") != _fresh_policy_record()
+            or snapshot.get("path") != str(FRESH_POLICY_ROOT.absolute() / "fresh_domestic_http1.json")
+            or snapshot.get("sha256") != "sha256:" + hashlib.sha256(_fresh_policy_bytes()).hexdigest()
+            or snapshot.get("bytes") != len(_fresh_policy_bytes()) or type(snapshot.get("mtime_ns")) is not int):
+        raise ImageTransportError("Frozen first-download transport policy or source binding differs")
+    registry = workdir / "registry_manifest_receipt.json"
+    if request.get("registry_manifest_snapshot", {}).get("path") != str(registry):
+        raise ImageTransportError("Frozen first-download manifest path differs")
+    _config_eof_check_snapshots([request["registry_manifest_snapshot"]], workdir)
+    canonical = json.loads(registry.read_text()); verify_manifest_record(canonical)
+    if any(canonical.get(key) != manifest_record.get(key) for key in ("image_reference", "digest", "manifest")):
+        raise ImageTransportError("Frozen first-download manifest belongs to another source")
+    cleanup = json.loads(_config_eof_private_path(state / "cleanup_receipt.json", workdir).read_text())
+    request_sha = "sha256:" + hashlib.sha256(raw).hexdigest()
+    if cleanup.get("transport_request_sha256") != request_sha:
+        raise ImageTransportError("Frozen first-download request no longer matches its completion")
+    _domestic_probe_binding(canonical, workdir, workdir, http1_only=True)
+    current = verify_docker_archive(_config_eof_private_path(workdir / "official_image.tar", workdir), canonical)
+    for path in (workdir / "download/archive_receipt.json", workdir / "loaded_identity_receipt_v2.json"):
+        if not path.exists() and not path.is_symlink() and path.name == "loaded_identity_receipt_v2.json":
+            continue  # Archive completed before the first daemon load.
+        receipt = json.loads(_config_eof_private_path(path, workdir).read_text())
+        for key in ("source_reference", "source_manifest_digest", "config_digest", "diff_ids", "archive_sha256",
+                    "archive_bytes", "compressed_layers_verified", "uncompressed_layers_verified"):
+            if receipt.get(key) != current[key]:
+                raise ImageTransportError("Frozen first-download archive identity differs")
+    return canonical
+
+
+def first_download_with_private_cache(manifest_record, archive, output, *, workdir, _fresh_domestic_http1=False):
     """A first download only; failures keep its cache/evidence and propagate."""
+    if type(_fresh_domestic_http1) is not bool:
+        raise ImageTransportError("Invalid fixed first-download transport selector")
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
+    selection = None
+    if _fresh_domestic_http1:
+        workdir = workdir.absolute()
+        selection = _fresh_http1_case(manifest_record, workdir)
+        if selection is None:
+            raise ImageTransportError("First domestic HTTP1 transport requires an active policy and a truly fresh source")
+        manifest_record = selection["canonical_manifest"]
+        if Path(archive) != workdir / "official_image.tar" or Path(output) != workdir / "download":
+            raise ImageTransportError("First domestic transport paths are outside the stable source scope")
+        _save(workdir / "registry_manifest_receipt.json", manifest_record)
     # This public helper derives its own scope/selection. A future caller
     # cannot inject an unchecked discovery dict or foreign donor list.
-    discovery = discover_initial_cache_sources(manifest_record, workdir)
-    if not discovery["selected_receipts"]:
+    discovery = None if selection else discover_initial_cache_sources(manifest_record, workdir)
+    if discovery is not None and not discovery["selected_receipts"]:
         raise ImageTransportError("No trusted run-scoped source for initial private cache")
     state = workdir / "initial_cache"
     state.mkdir(mode=0o700, exist_ok=False)
-    _save(state / "discovery_receipt.json", discovery)
     cache = workdir / "initial_layer_cache"
     try:
+        request_sha = None
+        donor_evidence = []
+        if selection:
+            request = {"schema": "repair50_initial_domestic_http1_request_v1",
+                "source_reference": manifest_record["image_reference"], "source_manifest_digest": manifest_record["digest"],
+                "transport_reference": DOMESTIC_MIRROR + "/" + manifest_record["image_reference"],
+                "policy": _fresh_policy_record(), "policy_snapshot": selection["policy_snapshot"],
+                "registry_manifest_snapshot": _config_eof_snapshot(workdir / "registry_manifest_receipt.json", workdir)}
+            _save(state / "transport_request.json", request)
+            request_sha = "sha256:" + hashlib.sha256((state / "transport_request.json").read_bytes()).hexdigest()
+            discovery = discover_initial_cache_sources(manifest_record, workdir)
+        _save(state / "discovery_receipt.json", discovery)
         required = 2 * sum(item["size"] for item in manifest["layers"]) + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
         if (shutil.disk_usage(workdir).free < required
                 or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
@@ -1860,13 +1999,24 @@ def first_download_with_private_cache(manifest_record, archive, output, *, workd
                 if (shutil.disk_usage(workdir).free < 20 * 1024 ** 3
                         or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
                     raise ImageTransportError("First-download cache reached a disk reserve gate")
+        if selection:
+            donor_evidence = _config_eof_verify_donors(manifest_record, discovery["selected_receipts"])
+            _save(state / "donor_evidence.json", {"source_archive_receipts": discovery["selected_receipts"], "evidence": donor_evidence})
         seed = seed_full_verified_archive_cache(manifest_record, discovery["selected_receipts"], cache,
                                                 budget_check=budget_check)
         _save(state / "cache_seed_receipt.json", seed)
-        receipt = download_archive(manifest_record, archive, output, cache_path=cache)
+        if selection:
+            _probe_domestic_manifest(manifest_record, workdir, http1_only=True)
+            receipt = download_archive(manifest_record, archive, output, cache_path=cache, _domestic_mirror=True, _http1_only=True)
+            _config_eof_check_snapshots([selection["policy_snapshot"]], FRESH_POLICY_ROOT.absolute())
+            _config_eof_check_donor_evidence(donor_evidence)
+        else:
+            receipt = download_archive(manifest_record, archive, output, cache_path=cache)
         if receipt.get("compressed_layers_verified") is not True or receipt.get("uncompressed_layers_verified") is not True:
             raise ImageTransportError("First-download archive failed complete ordinary blob/diffID gates")
         cleanup = cleanup_new_initial_cache(cache, manifest_record)
+        if selection:
+            cleanup["transport_request_sha256"] = request_sha
         _save(state / "cleanup_receipt.json", cleanup)
         return {**receipt, "initial_cache_seed_receipt_path": str((state / "cache_seed_receipt.json").resolve()),
                 "initial_cache_cleanup_receipt_path": str((state / "cleanup_receipt.json").resolve())}
@@ -1924,8 +2074,12 @@ def ensure_verified_image(client, manifest_record, *, workdir):
         raise ImageTransportError("Prior first-download private-cache failure; preserve the scene and stop")
     if (workdir / "initial_cache").exists() and not (workdir / "initial_cache/cleanup_receipt.json").exists():
         raise ImageTransportError("Incomplete prior first-download cache stage; preserve the scene and stop")
+    if (workdir / "initial_cache/transport_request.json").exists() or (workdir / "initial_cache/transport_request.json").is_symlink():
+        manifest_record = _validate_initial_http1_state(manifest_record, workdir.absolute())
     loaded_path = workdir / "loaded_identity_receipt_v2.json"
     load_directory = workdir
+    if loaded_path.is_symlink() or (workdir / "loaded_identity_receipt.json").is_symlink():
+        raise ImageTransportError("Existing loaded identity receipt symlink is rejected")
     previous_path = loaded_path if loaded_path.exists() else workdir / "loaded_identity_receipt.json"
     if previous_path.exists():
         previous = json.loads(previous_path.read_text())
@@ -1949,8 +2103,11 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                     "loaded_identity_receipt_path": str(previous_path.resolve()),
                     "new_to_daemon": False, "loaded_by_this_run": False,
                     "load_performed_in_this_call": False, "cached": True}
+    fresh_http1 = _fresh_http1_case(manifest_record, workdir.absolute())
+    if fresh_http1:
+        manifest_record = fresh_http1["canonical_manifest"]
     _save(workdir / "registry_manifest_receipt.json", manifest_record)
-    if (not (workdir / "probe/manifest_probe_receipt.json").exists()
+    if (not fresh_http1 and not (workdir / "probe/manifest_probe_receipt.json").exists()
             and not (workdir / "download/archive_receipt.json").exists()):
         probe_crane(manifest_record, workdir / "probe")
     archive = workdir / "official_image.tar"
@@ -1967,15 +2124,22 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     else:
         try:
             discovery = None
-            if (not archive.exists() and not (workdir / "download/crane_pull.log").exists()
+            if fresh_http1:
+                receipt = first_download_with_private_cache(manifest_record, archive, workdir / "download",
+                                                           workdir=workdir, _fresh_domestic_http1=True)
+            elif (not archive.exists() and not (workdir / "download/crane_pull.log").exists()
                     and not (workdir / "initial_cache").exists()):
                 discovery = discover_initial_cache_sources(manifest_record, workdir)
-            if discovery and discovery["selected_receipts"]:
+            if fresh_http1:
+                pass
+            elif discovery and discovery["selected_receipts"]:
                 receipt = first_download_with_private_cache(manifest_record, archive, workdir / "download",
                                                            workdir=workdir)
             else:
                 receipt = download_archive(manifest_record, archive, workdir / "download")
         except CraneDownloadError as failure:
+            if fresh_http1:
+                raise  # Its persisted first-download FAILED state forbids retries or a switch to official.
             eligibility = automatic_eof_recovery_eligibility(failure, manifest_record, workdir)
             eligibility_path = workdir / "automatic_eof_recovery_eligibility.json"
             _save(eligibility_path, eligibility)
