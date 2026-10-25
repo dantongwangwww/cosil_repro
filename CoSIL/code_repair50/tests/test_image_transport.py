@@ -26,6 +26,7 @@ from code_repair50.image_transport import (
     explicit_domestic_mirror_transport, domestic_crane_environment, DOMESTIC_MIRROR,
     explicit_domestic_http1_transport, classify_domestic_native_reset,
     classify_domestic_native_protocol_error,
+    classify_domestic_native_unexpected_eof,
     activate_run_fresh_http1_policy,
 )
 
@@ -1427,14 +1428,17 @@ class ImageTransportTests(unittest.TestCase):
         return ("Error: saving tarball " + str(archive) + ": stream error: stream ID " + str(stream_id)
                 + "; PROTOCOL_ERROR; received from peer\n").encode()
 
+    def native_unexpected_eof_line(self, archive):
+        return ("Error: saving tarball " + str(archive) + ": unexpected EOF\n").encode()
+
     @contextmanager
-    def http1_case(self, *, data_disk=False, protocol_error=False):
+    def http1_case(self, *, data_disk=False, protocol_error=False, native_eof=False):
         with self.domestic_case(data_disk=data_disk) as (workdir, client, probe, pull):
             successful_pull = pull.side_effect
             def auto_reset(command, **kwargs):
                 self.assertNotIn("GODEBUG", kwargs["env"])
                 Path(command[5]).write_bytes(b"old AUTO native-reset partial")
-                error_line = self.native_protocol_error_line if protocol_error else self.native_reset_line
+                error_line = self.native_unexpected_eof_line if native_eof else self.native_protocol_error_line if protocol_error else self.native_reset_line
                 kwargs["stdout"].write(error_line(Path(command[5])))
                 return Mock(returncode=1, poll=Mock(return_value=1))
             pull.side_effect = auto_reset
@@ -1571,6 +1575,109 @@ class ImageTransportTests(unittest.TestCase):
     def test_protocol_error_predecessor_changed_log_still_stops_before_new_network(self):
         with self.http1_case(protocol_error=True) as (workdir,client,probe,pull):
             path=workdir/'domestic_mirror_attempt_1/download/crane_pull.log';path.write_bytes(path.read_bytes()+b'\n')
+            with self.assertRaises(ImageTransportError):explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            probe.assert_not_called();pull.assert_not_called();self.assertFalse((workdir/'domestic_http1_attempt_1').exists())
+
+    def test_native_unexpected_eof_classifier_requires_exact_final_archive_error(self):
+        archive=self.root/'official_image.tar';valid=self.native_unexpected_eof_line(archive)
+        self.assertTrue(classify_domestic_native_unexpected_eof(valid,archive,1))
+        self.assertTrue(classify_domestic_native_unexpected_eof(b'earlier retry warning\n'+valid+b'\n \t\n',archive,1))
+        self.assertFalse(classify_domestic_native_reset(valid,archive,1))
+        self.assertFalse(classify_domestic_native_protocol_error(valid,archive,1))
+        self.assertFalse(classify_domestic_native_unexpected_eof(valid,self.root/'other.tar',1))
+        for raw in (b'retrying '+valid,b'  '+valid,valid.rstrip()+b' \n',
+                valid+b'Error: timeout\n',valid+b'HTTP 429\n',valid+b'TLS EOF\n',
+                valid+b'Error: unexpected EOF\n',self.native_reset_line(archive),self.native_protocol_error_line(archive),
+                valid.replace(b': unexpected EOF',b': EOF'),valid.replace(b': unexpected EOF',b': read tcp: unexpected EOF'),
+                valid.replace(b': unexpected EOF',b': context deadline exceeded'),self.config_eof_line(archive),
+                ('Error: saving tarball '+str(archive)+': Get "https://registry-1.docker.io/v2/swerebench/example/blobs/'+self.config_digest+'": EOF\n').encode()):
+            with self.subTest(raw=raw[:80]):self.assertFalse(classify_domestic_native_unexpected_eof(raw,archive,1))
+
+    def test_native_unexpected_eof_classifier_requires_rc1_and_bounded_utf8(self):
+        archive=self.root/'official_image.tar';valid=self.native_unexpected_eof_line(archive)
+        for code in (0,-15,-9,2,None,True,1.0,'1'):
+            self.assertFalse(classify_domestic_native_unexpected_eof(valid,archive,code))
+        self.assertFalse(classify_domestic_native_unexpected_eof(b'',archive,1))
+        self.assertFalse(classify_domestic_native_unexpected_eof(b'\xff\n'+valid,archive,1))
+        exact=b'x'*(1024**2-len(valid)-1)+b'\n'+valid
+        self.assertEqual(len(exact),1024**2)
+        self.assertTrue(classify_domestic_native_unexpected_eof(exact,archive,1))
+        self.assertFalse(classify_domestic_native_unexpected_eof(exact+b'\n',archive,1))
+
+    def test_native_unexpected_eof_never_automatically_starts_h1_or_small_tail_recovery(self):
+        with self.http1_case(native_eof=True) as (workdir,client,probe,pull), \
+             patch('code_repair50.image_transport.explicit_domestic_http1_transport') as h1, \
+             patch('code_repair50.image_transport.recover_verified_partial_image') as tail:
+            with self.assertRaises(ImageTransportError):ensure_verified_image(client,self.record,workdir=workdir)
+            h1.assert_not_called();tail.assert_not_called();probe.assert_not_called();pull.assert_not_called()
+            self.assertFalse((workdir/'domestic_http1_attempt_1').exists())
+
+    def test_native_unexpected_eof_data_h1_success_preserves_all_existing_evidence_and_schema(self):
+        from code_repair50 import image_transport as T
+        with self.http1_case(data_disk=True,native_eof=True) as (workdir,client,probe,pull):
+            before={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in workdir.rglob('*') if p.is_file()}
+            placement=T._placement_path(workdir.name);placement_before=placement.read_bytes(),placement.stat().st_mtime_ns
+            source=workdir/'domestic_mirror_attempt_1';raw=(source/'download/crane_pull.log').read_bytes()
+            self.assertTrue(classify_domestic_native_unexpected_eof(raw,source/'official_image.tar',1))
+            result=explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            route=json.loads(Path(result['domestic_http1_receipt_path']).read_text())
+            self.assertEqual(route['schema'],'repair50_domestic_http1_transport_v1')
+            self.assertEqual(route['prechange_github_checkpoint'],'7adba03700fc7c4cb3571aa91a14f901724be9dc')
+            self.assertEqual(route['timeout_seconds'],1800);self.assertEqual(route['max_domestic_attempts'],1)
+            self.assertNotIn('predecessor_error_class',route)
+            self.assertTrue(result['compressed_layers_verified']);self.assertTrue(result['uncompressed_layers_verified']);self.assertTrue(result['loaded_image_verified'])
+            self.assertEqual(probe.call_count,1);self.assertEqual(pull.call_count,1)
+            for path,snapshot in before.items():
+                p=Path(path);self.assertEqual((p.read_bytes(),p.stat().st_mtime_ns),snapshot)
+            self.assertEqual((placement.read_bytes(),placement.stat().st_mtime_ns),placement_before)
+            with self.assertRaises(FileExistsError):explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            self.assertEqual(pull.call_count,1)
+
+    def test_native_unexpected_eof_data_h1_cached_reload_cached_is_offline(self):
+        with self.http1_case(data_disk=True,native_eof=True) as (workdir,client,_,_):
+            explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            before={str(p):(p.read_bytes(),p.stat().st_mtime_ns) for p in workdir.rglob('*') if p.is_file()}
+            with patch('code_repair50.image_transport.subprocess.run') as probe,patch('code_repair50.image_transport.download_archive') as network,patch('code_repair50.image_transport.subprocess.Popen') as load:
+                cached=ensure_verified_image(client,self.record,workdir=workdir)
+            for flag in ('new_to_daemon','loaded_by_this_run','load_performed_in_this_call'):self.assertFalse(cached[flag])
+            probe.assert_not_called();network.assert_not_called();load.assert_not_called()
+            with patch('code_repair50.image_transport.subprocess.run') as probe,patch('code_repair50.image_transport.download_archive') as network,patch('code_repair50.image_transport.subprocess.Popen',side_effect=self.fake_local_image_load(client,[False])) as load:
+                reloaded=ensure_verified_image(client,self.record,workdir=workdir)
+                cached=ensure_verified_image(client,self.record,workdir=workdir)
+            self.assertEqual(load.call_count,1)
+            for flag in ('new_to_daemon','loaded_by_this_run','load_performed_in_this_call'):
+                self.assertTrue(reloaded[flag]);self.assertFalse(cached[flag])
+            probe.assert_not_called();network.assert_not_called()
+            for path,snapshot in before.items():
+                p=Path(path);self.assertEqual((p.read_bytes(),p.stat().st_mtime_ns),snapshot)
+
+    def test_native_unexpected_eof_predecessor_h1_failure_is_one_shot_without_fallback(self):
+        with self.http1_case(native_eof=True) as (workdir,client,_,pull):
+            source=workdir/'domestic_mirror_attempt_1/route.json';before=source.read_bytes(),source.stat().st_mtime_ns
+            def fail(command,**kwargs):
+                Path(command[5]).write_bytes(b'new independent H1 failed payload')
+                kwargs['stdout'].write(self.native_unexpected_eof_line(Path(command[5])))
+                return Mock(returncode=1,poll=Mock(return_value=1))
+            pull.side_effect=fail
+            with self.assertRaises(CraneDownloadError):explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            with self.assertRaises(FileExistsError):explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            with self.assertRaises(ImageTransportError):ensure_verified_image(client,self.record,workdir=workdir)
+            self.assertEqual(pull.call_count,1);self.assertEqual((source.read_bytes(),source.stat().st_mtime_ns),before)
+            self.assertEqual(json.loads((workdir/'domestic_http1_attempt_1/route.json').read_text())['status'],'FAILED')
+
+    def test_native_unexpected_eof_predecessor_changed_log_is_not_accepted(self):
+        with self.http1_case(native_eof=True) as (workdir,client,probe,pull):
+            path=workdir/'domestic_mirror_attempt_1/download/crane_pull.log';path.write_bytes(path.read_bytes()+b'\n')
+            with self.assertRaises(ImageTransportError):explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            probe.assert_not_called();pull.assert_not_called();self.assertFalse((workdir/'domestic_http1_attempt_1').exists())
+
+    def test_native_unexpected_eof_classifier_cannot_bypass_failed_route_and_probe_binding(self):
+        with self.http1_case(native_eof=True) as (workdir,client,probe,pull):
+            route_path=workdir/'domestic_mirror_attempt_1/route.json';old=route_path.read_bytes();changed=json.loads(old)
+            changed['status']='INCOMPLETE';route_path.write_text(json.dumps(changed))
+            with self.assertRaises(ImageTransportError):explicit_domestic_http1_transport(client,self.record,workdir=workdir)
+            route_path.write_bytes(old)
+            (workdir/'domestic_mirror_attempt_1/probe/manifest.raw').write_bytes(b'changed original probe')
             with self.assertRaises(ImageTransportError):explicit_domestic_http1_transport(client,self.record,workdir=workdir)
             probe.assert_not_called();pull.assert_not_called();self.assertFalse((workdir/'domestic_http1_attempt_1').exists())
 

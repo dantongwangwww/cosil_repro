@@ -1875,6 +1875,22 @@ def classify_domestic_native_protocol_error(log_bytes, archive, returncode):
     return match is not None and int(match[1]) <= 2 ** 31 - 1
 
 
+def classify_domestic_native_unexpected_eof(log_bytes, archive, returncode):
+    """Recognize only the natural final native archive unexpected EOF.
+
+    This enables an explicit different-protocol feasibility attempt, not a
+    diagnosis of HTTP/2 causality or permission for automatic tail recovery.
+    """
+    if type(returncode) is not int or returncode != 1 or not log_bytes or len(log_bytes) > 1024 ** 2:
+        return False
+    try:
+        text = log_bytes.decode("utf-8", errors="strict")
+    except UnicodeError:
+        return False
+    lines = [line for line in text.splitlines() if line.strip()]
+    return bool(lines) and lines[-1] == "Error: saving tarball " + str(archive) + ": unexpected EOF"
+
+
 def _domestic_http1_predecessor(manifest_record, workdir):
     attempt, _, failed = _domestic_route_metadata(manifest_record, workdir, _DOMESTIC_AUTO,
         status="FAILED", additional_exclusions=(_DOMESTIC_HTTP1["attempt"],))
@@ -1887,8 +1903,9 @@ def _domestic_http1_predecessor(manifest_record, workdir):
     archive = attempt / "official_image.tar"
     returncode = failure["process_returncode"]
     if not (classify_domestic_native_reset(raw, archive, returncode)
-            or classify_domestic_native_protocol_error(raw, archive, returncode)):
-        raise ImageTransportError("HTTP1_ONLY requires the unchanged final native TCP peer reset or HTTP2 PROTOCOL_ERROR")
+            or classify_domestic_native_protocol_error(raw, archive, returncode)
+            or classify_domestic_native_unexpected_eof(raw, archive, returncode)):
+        raise ImageTransportError("HTTP1_ONLY requires an unchanged final native TCP peer reset, HTTP2 PROTOCOL_ERROR or archive unexpected EOF")
     donors = failed.get("source_archive_receipts")
     if not isinstance(donors, list) or any(not isinstance(item, str) for item in donors):
         raise ImageTransportError("HTTP1_ONLY predecessor donor list is invalid")
@@ -1911,7 +1928,7 @@ def explicit_domestic_mirror_transport(client, original_manifest, *, workdir):
 
 
 def explicit_domestic_http1_transport(client, original_manifest, *, workdir):
-    """One separate HTTP1_ONLY diagnostic after the exact native AUTO reset.
+    """One separate HTTP1_ONLY attempt after a tightly classified AUTO failure.
 
     This is an alternative transport condition, not proof of an HTTP/2 cause.
     It never reopens the previous AUTO attempt or changes its failure records.
