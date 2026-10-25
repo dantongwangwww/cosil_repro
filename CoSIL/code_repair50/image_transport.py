@@ -29,6 +29,7 @@ CRANE_ARCHIVE_SHA256 = "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b
 CRANE_BINARY_SHA256 = "8e75c326adb43b053cfd78b9b987663f8f4fe4557f4d3915905643f25c730992"
 DEFAULT_CRANE = Path("/tmp/repair50_20261024/tools/crane-v0.22.1/crane")
 TRANSPORT_ROOT = Path("/tmp/repair50_20261024/image_transport")
+DOMESTIC_MIRROR = "docker.1ms.run"
 HASH = re.compile(r"sha256:[0-9a-f]{64}\Z")
 REFERENCE = re.compile(r"swerebench/[a-z0-9_.-]+@sha256:[0-9a-f]{64}\Z")
 DOCKER_MANIFEST = "application/vnd.docker.distribution.manifest.v2+json"
@@ -159,16 +160,20 @@ def verify_manifest_record(record):
     return manifest
 
 
-def crane_pull_argv(binary, image_record, archive, *, cache_path=None):
+def crane_pull_argv(binary, image_record, archive, *, cache_path=None, _domestic_mirror=False):
     """Plan only; no network, subprocess, daemon mutation, or credential lookup."""
     verify_manifest_record(image_record)
+    if type(_domestic_mirror) is not bool:
+        raise ImageTransportError("Invalid domestic transport selector")
     archive = Path(archive)
     if archive.exists():
         raise ImageTransportError("Refuse to overwrite an image archive")
     if not archive.is_absolute():
         raise ImageTransportError("Archive path must be absolute")
-    command = [str(binary), "--platform", "linux/amd64", "pull",
-               image_record["image_reference"], str(archive)]
+    reference = image_record["image_reference"]
+    if _domestic_mirror:
+        reference = DOMESTIC_MIRROR + "/" + reference
+    command = [str(binary), "--platform", "linux/amd64", "pull", reference, str(archive)]
     if cache_path is not None:
         cache_path = Path(cache_path)
         if not cache_path.is_absolute() or cache_path.is_symlink():
@@ -377,6 +382,12 @@ def crane_environment(credentials_dir):
     return env
 
 
+def domestic_crane_environment(credentials_dir):
+    """Anonymous direct transport; no inherited proxy spelling is permitted."""
+    env = crane_environment(credentials_dir)
+    return {key: value for key, value in env.items() if "proxy" not in key.lower()}
+
+
 def verified_binary(binary=DEFAULT_CRANE):
     binary = Path(binary)
     with binary.open("rb") as handle:
@@ -418,7 +429,7 @@ def probe_crane(image_record, output, binary=DEFAULT_CRANE):
 def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
                      timeout=1800, reserve_bytes=20 * 1024 ** 3,
                      shared_store=Path("/mnt/skygruop0/containerd"),
-                     shared_reserve_bytes=10 * 1024 ** 3, cache_path=None):
+                     shared_reserve_bytes=10 * 1024 ** 3, cache_path=None, _domestic_mirror=False):
     """Explicit opt-in network transport; does not load images or start containers.
 
     The caller is responsible for stopping the failed own daemon-pull attempt
@@ -434,8 +445,10 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
     if (shutil.disk_usage(archive.parent).free < required
             or shutil.disk_usage(shared_store).free < shared_reserve_bytes):
         raise ImageTransportError("Insufficient archive-disk space including fixed reserve")
-    command = crane_pull_argv(binary, image_record, archive, cache_path=cache_path)
-    env = crane_environment(output / "anonymous-docker-config")
+    command = crane_pull_argv(binary, image_record, archive, cache_path=cache_path,
+                              _domestic_mirror=_domestic_mirror)
+    environment = domestic_crane_environment if _domestic_mirror else crane_environment
+    env = environment(output / "anonymous-docker-config")
     started = time.monotonic()
     log = output / "crane_pull.log"
     with log.open("xb") as handle:
@@ -461,6 +474,9 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
                    transport_elapsed_seconds=time.monotonic() - started,
                    private_layer_cache_path=str(cache_path) if cache_path is not None else None,
                    shared_daemon_configuration_modified=False, images_loaded=0)
+    if _domestic_mirror:
+        receipt.update(transport_reference=DOMESTIC_MIRROR + "/" + image_record["image_reference"],
+                       transport_proxy_mode="DISABLED", network_bytes=None)
     (output / "archive_receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     return receipt
 
@@ -1336,6 +1352,258 @@ def _resolve_config_metadata_eof_route(client, manifest_record, workdir):
     return {**loaded, "config_metadata_eof_recovery_receipt_path": str(path), "original_partial_preserved": True}
 
 
+def _domestic_old_snapshots(workdir):
+    snapshots = []
+    for path in sorted(workdir.rglob("*")):
+        if path.is_relative_to(workdir / "domestic_mirror_attempt_1"):
+            continue
+        if path.is_dir():
+            _config_eof_private_path(path, workdir, directory=True)
+        else:
+            snapshots.append(_config_eof_snapshot(path, workdir))
+    return snapshots
+
+
+def _domestic_failed_download(manifest_record, directory, workdir):
+    archive = _config_eof_private_path(directory / "official_image.tar", workdir)
+    log = _config_eof_private_path(directory / "download/crane_pull.log", workdir)
+    path = _config_eof_private_path(directory / "download/download_failure_receipt.json", workdir)
+    failure = json.loads(path.read_text())
+    log_snapshot = _config_eof_snapshot(log, workdir)
+    info = archive.stat()
+    if (failure.get("schema") != "repair50_crane_download_failure_v1"
+            or failure.get("phase") != "crane_download" or failure.get("process_returncode") != 1
+            or failure.get("source_reference") != manifest_record["image_reference"]
+            or failure.get("source_manifest_digest") != manifest_record["digest"]
+            or failure.get("archive_path") != str(archive) or failure.get("private_log_path") != str(log)
+            or failure.get("partial_archive_bytes") != info.st_size
+            or failure.get("partial_archive_mtime_ns") != info.st_mtime_ns
+            or failure.get("private_log_sha256") != log_snapshot["sha256"]
+            or failure.get("private_log_bytes") != log_snapshot["bytes"]):
+        raise ImageTransportError("Domestic recovery old download failure evidence differs")
+
+
+def _domestic_source(manifest_record, workdir):
+    verify_manifest_record(manifest_record)
+    if (workdir.parent != TRANSPORT_ROOT.absolute()
+            or workdir.name != manifest_record["digest"].split(":", 1)[1]):
+        raise ImageTransportError("Domestic recovery requires this run's stable digest workdir")
+    _config_eof_private_path(workdir, workdir, directory=True)
+    for name in ("config_eof_recovery", "recovery_attempt_1"):
+        path = workdir / name
+        if path.exists() or path.is_symlink():
+            raise ImageTransportError("Domestic recovery refuses a competing recovery route")
+    registry = _config_eof_private_path(workdir / "registry_manifest_receipt.json", workdir)
+    archived = json.loads(registry.read_text())
+    verify_manifest_record(archived)
+    if any(archived.get(key) != manifest_record.get(key) for key in ("image_reference", "digest", "manifest")):
+        raise ImageTransportError("Domestic recovery original manifest belongs to another source")
+    attempt = _config_eof_private_path(workdir / "transport_retry_1", workdir, directory=True)
+    request = json.loads(_config_eof_private_path(attempt / "transport_retry_request.json", workdir).read_text())
+    failed = json.loads(_config_eof_private_path(attempt / "transport_retry_receipt.json", workdir).read_text())
+    if (request.get("schema") != "repair50_explicit_transport_retry_v1"
+            or request.get("source_reference") != manifest_record["image_reference"]
+            or request.get("source_manifest_digest") != manifest_record["digest"]
+            or request.get("max_explicit_transport_retries") != 1
+            or failed.get("status") != "FAILED" or failed.get("error_type") != "CraneDownloadError"
+            or any(failed.get(key) != value for key, value in request.items())):
+        raise ImageTransportError("Domestic recovery requires the matching old FAILED explicit retry")
+    original = request.get("original_evidence", [])
+    if [item.get("path") for item in original] != [str(workdir / "official_image.tar"), str(workdir / "download/crane_pull.log")]:
+        raise ImageTransportError("Domestic recovery original failure paths differ")
+    _config_eof_check_snapshots(original, workdir)
+    for directory in (workdir, attempt):
+        _domestic_failed_download(manifest_record, directory, workdir)
+    return archived
+
+
+def _domestic_disk_gate(directory, manifest_record, *, seeding=False):
+    manifest = manifest_record["manifest"]
+    compressed = sum(item["size"] for item in manifest["layers"])
+    required = ((2 * compressed + manifest["config"]["size"] + 1024 ** 2) if seeding else 0) + 20 * 1024 ** 3
+    if (shutil.disk_usage(directory).free < required
+            or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+        raise ImageTransportError("Domestic transport reached the fixed disk budget gate")
+
+
+def _probe_domestic_manifest(manifest_record, attempt):
+    output = attempt / "probe"
+    output.mkdir(mode=0o700)
+    binary = verified_binary()
+    env = domestic_crane_environment(output / "anonymous-docker-config")
+    reference = DOMESTIC_MIRROR + "/" + manifest_record["image_reference"]
+    result = subprocess.run([str(binary), "--platform", "linux/amd64", "manifest", reference],
+                            env=env, capture_output=True, timeout=60, check=False)
+    if result.returncode:
+        with (output / "manifest_error.log").open("xb") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(result.stderr)
+        raise ImageTransportError("Domestic mirror manifest probe failed; private evidence preserved")
+    candidates = [result.stdout]
+    if result.stdout.endswith(b"\n"):
+        candidates.append(result.stdout[:-1])
+    raw = next((value for value in candidates if "sha256:" + hashlib.sha256(value).hexdigest() == manifest_record["digest"]), None)
+    if raw is None:
+        raise ImageTransportError("Domestic mirror manifest differs from the original source digest")
+    with (output / "manifest.raw").open("xb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(raw)
+    _save(output / "manifest_probe_receipt.json", {"schema": "repair50_domestic_manifest_probe_v1",
+        "source_reference": manifest_record["image_reference"], "source_manifest_digest": manifest_record["digest"],
+        "transport_reference": reference, "proxy_mode": "DISABLED", "crane_version": CRANE_VERSION,
+        "crane_binary_sha256": CRANE_BINARY_SHA256, "manifest_bytes": len(raw), "network_bytes": None})
+
+
+def _domestic_success_evidence(manifest_record, attempt, workdir):
+    paths = [attempt / name for name in ("request.json", "registry_manifest_receipt.json", "donor_discovery.json",
+        "cache_seed_receipt.json", "probe/manifest.raw", "probe/manifest_probe_receipt.json",
+        "official_image.tar", "download/crane_pull.log", "download/archive_receipt.json", "loaded_identity_receipt_v2.json")]
+    raw = _config_eof_private_path(attempt / "probe/manifest.raw", workdir).read_bytes()
+    probe = json.loads(_config_eof_private_path(attempt / "probe/manifest_probe_receipt.json", workdir).read_text())
+    expected = {"schema": "repair50_domestic_manifest_probe_v1", "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"], "transport_reference": DOMESTIC_MIRROR + "/" + manifest_record["image_reference"],
+        "proxy_mode": "DISABLED", "crane_version": CRANE_VERSION, "crane_binary_sha256": CRANE_BINARY_SHA256,
+        "manifest_bytes": len(raw), "network_bytes": None}
+    if probe != expected or "sha256:" + hashlib.sha256(raw).hexdigest() != manifest_record["digest"]:
+        raise ImageTransportError("Domestic probe no longer binds the original manifest")
+    return [_config_eof_snapshot(path, workdir) for path in paths]
+
+
+def _domestic_cache_binding(manifest_record, attempt, donors, donor_evidence):
+    discovery = json.loads((attempt / "donor_discovery.json").read_text())
+    seed = json.loads((attempt / "cache_seed_receipt.json").read_text())
+    if (discovery.get("source_reference") != manifest_record["image_reference"]
+            or discovery.get("source_manifest_digest") != manifest_record["digest"]
+            or discovery.get("selected_receipts") != donors
+            or seed.get("schema") != "repair50_verified_cross_archive_cache_seed_v1"
+            or seed.get("source_reference") != manifest_record["image_reference"]
+            or seed.get("source_manifest_digest") != manifest_record["digest"]
+            or seed.get("cache_trusted_by_filename_only") is not False
+            or [item.get("receipt_path") for item in seed.get("source_archives", [])] != donors):
+        raise ImageTransportError("Domestic donor discovery or seed binding differs")
+    by_path = {item["path"]: item for item in donor_evidence}
+    for source in seed["source_archives"]:
+        if (source.get("receipt_sha256") != by_path.get(source["receipt_path"], {}).get("sha256")
+                or source.get("archive_sha256") != by_path.get(source["archive_path"], {}).get("sha256")
+                or source.get("prior_full_archive_identity_reverified") is not True):
+            raise ImageTransportError("Domestic seed donor digest evidence differs")
+
+
+def explicit_domestic_mirror_transport(client, original_manifest, *, workdir):
+    """One operator-invoked direct 1ms transport after both official failures.
+
+    Old partials are evidence only. Cache donors must be complete run-scoped
+    verified archives, freshly checked again before any layer is seeded.
+    This helper never starts qualifications, tests, containers or model calls.
+    """
+    workdir = Path(workdir).absolute()
+    manifest_record = _domestic_source(original_manifest, workdir)
+    if list(workdir.glob("domestic_mirror_attempt_*")):
+        raise FileExistsError("Domestic mirror attempt already exists; no repeat authorized")
+    original = _domestic_old_snapshots(workdir)
+    attempt = workdir / "domestic_mirror_attempt_1"
+    attempt.mkdir(mode=0o700, exist_ok=False)
+    route_path = attempt / "route.json"
+    request = {"schema": "repair50_domestic_mirror_transport_v1", "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"], "transport_reference": DOMESTIC_MIRROR + "/" + manifest_record["image_reference"],
+        "mirror_host": DOMESTIC_MIRROR, "proxy_mode": "DISABLED", "max_domestic_attempts": 1, "timeout_seconds": 1800,
+        "original_failed_retry_receipt_path": str(workdir / "transport_retry_1/transport_retry_receipt.json"),
+        "original_evidence": original, "prechange_github_checkpoint": "becde8e3fcad6ab9159568259fb1b7a400205a04",
+        "model_requests": 0, "qualifications_started": 0, "network_bytes": None}
+    started = time.monotonic()
+    try:
+        _domestic_disk_gate(attempt, manifest_record, seeding=True)
+        discovery = discover_initial_cache_sources(manifest_record, workdir)
+        donors = discovery["selected_receipts"]
+        donor_evidence = _config_eof_verify_donors(manifest_record, donors)
+        request.update(source_archive_receipts=donors, donor_evidence=donor_evidence)
+        _save(attempt / "request.json", request)
+        _save(attempt / "registry_manifest_receipt.json", manifest_record)
+        _save(attempt / "donor_discovery.json", discovery)
+        seed = seed_full_verified_archive_cache(manifest_record, donors, attempt / "private_layer_cache",
+            budget_check=lambda: _domestic_disk_gate(attempt, manifest_record))
+        _save(attempt / "cache_seed_receipt.json", seed)
+        _domestic_cache_binding(manifest_record, attempt, donors, donor_evidence)
+        _domestic_disk_gate(attempt, manifest_record)
+        _probe_domestic_manifest(manifest_record, attempt)
+        download_archive(manifest_record, attempt / "official_image.tar", attempt / "download",
+                         cache_path=attempt / "private_layer_cache", _domestic_mirror=True)
+        loaded = ensure_verified_image(client, manifest_record, workdir=attempt)
+        loaded, _ = _config_eof_success_identity(client, manifest_record, attempt, workdir)
+        if original != _domestic_old_snapshots(workdir):
+            raise ImageTransportError("Domestic transport changed old failure evidence")
+        _config_eof_check_donor_evidence(donor_evidence)
+        evidence = _domestic_success_evidence(manifest_record, attempt, workdir)
+        _save(route_path, {**request, "status": "SUCCEEDED", "resolved_workdir": str(attempt),
+            "runtime_image_reference": loaded["runtime_image_reference"], "successful_evidence": evidence,
+            "original_evidence_unchanged": True, "elapsed_seconds": time.monotonic() - started})
+        return {**loaded, "domestic_mirror_receipt_path": str(route_path), "original_partial_preserved": True}
+    except Exception as exc:
+        _save(route_path, {**request, "status": "FAILED", "error_type": type(exc).__name__,
+            "error_message": "Domestic transport stopped; private evidence preserved", "automatic_retry_authorized": False,
+            "elapsed_seconds": time.monotonic() - started})
+        raise
+
+
+def _resolve_domestic_mirror_route(client, manifest_record, workdir):
+    _domestic_source(manifest_record, workdir)
+    attempt = _config_eof_private_path(workdir / "domestic_mirror_attempt_1", workdir, directory=True)
+    if {path.name for path in workdir.glob("domestic_mirror_attempt_*")} != {attempt.name}:
+        raise ImageTransportError("Unknown domestic mirror attempt")
+    route_path = _config_eof_private_path(attempt / "route.json", workdir)
+    route = json.loads(route_path.read_text())
+    request = json.loads(_config_eof_private_path(attempt / "request.json", workdir).read_text())
+    required_keys = {"schema", "source_reference", "source_manifest_digest", "transport_reference", "mirror_host", "proxy_mode",
+        "max_domestic_attempts", "timeout_seconds", "original_failed_retry_receipt_path", "original_evidence",
+        "prechange_github_checkpoint", "model_requests", "qualifications_started", "network_bytes", "source_archive_receipts", "donor_evidence"}
+    if (set(request) != required_keys or route.get("schema") != "repair50_domestic_mirror_transport_v1"
+            or route.get("status") != "SUCCEEDED" or route.get("source_reference") != manifest_record["image_reference"]
+            or route.get("source_manifest_digest") != manifest_record["digest"]
+            or route.get("transport_reference") != DOMESTIC_MIRROR + "/" + manifest_record["image_reference"]
+            or route.get("mirror_host") != DOMESTIC_MIRROR or route.get("proxy_mode") != "DISABLED"
+            or route.get("max_domestic_attempts") != 1 or route.get("timeout_seconds") != 1800
+            or route.get("model_requests") != 0 or route.get("qualifications_started") != 0 or route.get("network_bytes") is not None
+            or route.get("original_evidence_unchanged") is not True or route.get("resolved_workdir") != str(attempt)
+            or route.get("original_failed_retry_receipt_path") != str(workdir / "transport_retry_1/transport_retry_receipt.json")
+            or any(route.get(key) != value for key, value in request.items())):
+        raise ImageTransportError("Domestic mirror route is unknown, failed, incomplete or belongs to another source")
+    if route.get("original_evidence") != _domestic_old_snapshots(workdir):
+        raise ImageTransportError("Domestic mirror route old failure evidence binding differs")
+    donors = route.get("source_archive_receipts")
+    if not isinstance(donors, list) or any(not isinstance(item, str) for item in donors):
+        raise ImageTransportError("Domestic mirror route donor list is invalid")
+    if route.get("donor_evidence") != _config_eof_verify_donors(manifest_record, donors):
+        raise ImageTransportError("Domestic mirror route donor evidence differs")
+    _config_eof_check_snapshots(route.get("successful_evidence"), workdir)
+    if route["successful_evidence"] != _domestic_success_evidence(manifest_record, attempt, workdir):
+        raise ImageTransportError("Domestic mirror successful evidence binding differs")
+    allowed = {"request.json", "registry_manifest_receipt.json", "donor_discovery.json", "cache_seed_receipt.json",
+        "probe", "private_layer_cache", "official_image.tar", "download", "loaded_identity_receipt_v2.json",
+        "route.json", "docker_load.log", "load-anonymous-config"}
+    for child in attempt.iterdir():
+        if child.name not in allowed and not (re.fullmatch(r"reload-[0-9]+", child.name) and child.is_dir()):
+            raise ImageTransportError("Unknown domestic mirror route artifact")
+        _config_eof_private_path(child, workdir, directory=child.is_dir())
+    _domestic_cache_binding(manifest_record, attempt, donors, route["donor_evidence"])
+    loaded, _ = _config_eof_success_identity(client, manifest_record, attempt, workdir, verify_daemon=False)
+    if (loaded.get("runtime_image_reference") != route.get("runtime_image_reference")
+            or loaded.get("runtime_image_reference") not in expected_runtime_ids(loaded)):
+        raise ImageTransportError("Domestic mirror stored loaded identity differs")
+    archived = json.loads(_config_eof_private_path(attempt / "registry_manifest_receipt.json", workdir).read_text())
+    verify_manifest_record(archived)
+    if any(archived.get(key) != manifest_record.get(key) for key in ("image_reference", "digest", "manifest")):
+        raise ImageTransportError("Domestic mirror reload source differs")
+    loaded = ensure_verified_image(client, archived, workdir=attempt)
+    _config_eof_check_snapshots(route["successful_evidence"], workdir)
+    if route["original_evidence"] != _domestic_old_snapshots(workdir):
+        raise ImageTransportError("Domestic mirror reload changed old evidence")
+    _config_eof_check_donor_evidence(route["donor_evidence"])
+    if loaded.get("load_performed_in_this_call") is not True:
+        loaded = {**loaded, "new_to_daemon": False, "loaded_by_this_run": False,
+                  "load_performed_in_this_call": False, "cached": True}
+    return {**loaded, "domestic_mirror_receipt_path": str(route_path), "original_partial_preserved": True}
+
+
 def discover_initial_cache_sources(manifest_record, workdir):
     """Deterministic metadata discovery confined to this run's trusted scope.
 
@@ -1506,6 +1774,9 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    domestic_route = workdir / "domestic_mirror_attempt_1"
+    if domestic_route.exists() or domestic_route.is_symlink():
+        return _resolve_domestic_mirror_route(client, manifest_record, workdir.absolute())
     config_route = workdir / "config_eof_recovery"
     if config_route.exists() or config_route.is_symlink():
         return _resolve_config_metadata_eof_route(client, manifest_record, workdir.absolute())

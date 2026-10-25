@@ -22,6 +22,7 @@ from code_repair50.image_transport import (
     seed_full_verified_archive_cache, explicit_verified_transport_retry,
     discover_initial_cache_sources, first_download_with_private_cache, cleanup_new_initial_cache,
     classify_config_metadata_eof, recover_config_metadata_eof_image,
+    explicit_domestic_mirror_transport, domestic_crane_environment, DOMESTIC_MIRROR,
 )
 
 
@@ -1108,6 +1109,294 @@ class ImageTransportTests(unittest.TestCase):
                 with self.assertRaisesRegex(ImageTransportError, "prior full verification"):
                     recover_config_metadata_eof_image(client, self.record, workdir=workdir)
             pull.assert_not_called()
+
+    @contextmanager
+    def domestic_case(self):
+        _, source, workdir = self.initial_cache_fixture()
+        archive = self.partial_archive(workdir)
+        (workdir / "download").mkdir()
+        log = workdir / "download/crane_pull.log"
+        log.write_bytes(self.config_eof_line(archive))
+        persist_crane_download_failure(self.record, archive, log, 1)
+        (workdir / "registry_manifest_receipt.json").write_text(json.dumps(self.record))
+        (workdir / "initial_layer_cache").mkdir()
+        (workdir / "initial_layer_cache/preserve-old-cache").write_bytes(b"old cache evidence")
+        client = Mock()
+        client.images.get.return_value.attrs = {"Id": self.config_digest,
+            "RootFS": {"Type": "layers", "Layers": self.diff_ids}, "Os": "linux", "Architecture": "amd64"}
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root), \
+             patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=2 ** 50)):
+            with patch("code_repair50.image_transport.probe_crane"), \
+                 patch("code_repair50.image_transport.download_archive", side_effect=self.config_eof_download_failure):
+                with self.assertRaises(CraneDownloadError):
+                    explicit_verified_transport_retry(client, self.record, workdir=workdir, source_archive_receipts=[source])
+            complete = self.archive().read_bytes()
+            def pull(command, **kwargs):
+                self.assertEqual(command[:4], ["/pinned-crane", "--platform", "linux/amd64", "pull"])
+                self.assertEqual(command[4], DOMESTIC_MIRROR + "/" + self.record["image_reference"])
+                cache = Path(command[command.index("--cache_path") + 1])
+                self.assertEqual(cache, workdir / "domestic_mirror_attempt_1/private_layer_cache")
+                for layer, body in zip(self.manifest["layers"], self.layers):
+                    self.assertEqual((cache / layer["digest"]).read_bytes(), body)
+                self.assertFalse(any("proxy" in key.lower() for key in kwargs["env"]))
+                Path(command[5]).write_bytes(complete)
+                return Mock(returncode=0, poll=Mock(return_value=0))
+            raw = json.dumps(self.manifest, separators=(",", ":")).encode()
+            with patch("code_repair50.image_transport.verified_binary", return_value=Path("/pinned-crane")), \
+                 patch("code_repair50.image_transport.subprocess.run", return_value=Mock(returncode=0, stdout=raw + b"\n", stderr=b"")) as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen", side_effect=pull) as download:
+                yield workdir, client, probe, download
+
+    def test_domestic_environment_clears_all_proxy_spellings_and_keeps_anonymous_auth(self):
+        with patch.dict("os.environ", {"HTTP_PROXY": "secret", "https_proxy": "secret", "All_PrOxY": "secret",
+                "NO_PROXY": "secret", "no_proxy": "secret", "DeEpSeEk_ApI_KeY": "secret", "DEEPSEEK_API_KEY": "secret"}):
+            env = domestic_crane_environment(self.root / "domestic-auth")
+        self.assertFalse(any("proxy" in key.lower() or "api_key" in key.lower() for key in env))
+        self.assertEqual((Path(env["DOCKER_CONFIG"]) / "config.json").read_bytes(), b'{"auths":{}}\n')
+        official = crane_pull_argv("/pinned-crane", self.record, self.root / "official.tar")
+        domestic = crane_pull_argv("/pinned-crane", self.record, self.root / "domestic.tar", _domestic_mirror=True)
+        self.assertEqual(official[4], self.record["image_reference"])
+        self.assertEqual(domestic[4], DOMESTIC_MIRROR + "/" + official[4])
+        with self.assertRaises(ImageTransportError):
+            crane_pull_argv("/pinned-crane", self.record, self.root / "other.tar", _domestic_mirror="attacker.example")
+
+    def test_domestic_success_reuses_only_full_donor_and_preserves_old_evidence(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in workdir.rglob("*") if p.is_file()}
+            with patch("code_repair50.image_transport.seed_verified_partial_cache") as partial, \
+                 patch("code_repair50.image_transport.probe_crane") as official_probe:
+                result = explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            partial.assert_not_called()
+            official_probe.assert_not_called()
+            self.assertEqual(probe.call_count, 1)
+            self.assertEqual(pull.call_count, 1)
+            self.assertFalse(any("proxy" in key.lower() for key in probe.call_args.kwargs["env"]))
+            route = json.loads(Path(result["domestic_mirror_receipt_path"]).read_text())
+            self.assertEqual(route["status"], "SUCCEEDED")
+            self.assertEqual(route["source_reference"], self.record["image_reference"])
+            self.assertEqual(route["max_domestic_attempts"], 1)
+            self.assertEqual(route["timeout_seconds"], 1800)
+            self.assertIsNone(route["network_bytes"])
+            self.assertTrue(route["source_archive_receipts"])
+            self.assertTrue(route["donor_evidence"])
+            seed = json.loads((workdir / "domestic_mirror_attempt_1/cache_seed_receipt.json").read_text())
+            self.assertEqual(seed["seeded_compressed_bytes"], sum(map(len, self.layers)))
+            for raw_path, snapshot in before.items():
+                path = Path(raw_path)
+                self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), snapshot)
+            self.assertEqual(json.loads((workdir / "transport_retry_1/transport_retry_receipt.json").read_text())["status"], "FAILED")
+            with self.assertRaises(FileExistsError):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+
+    def test_domestic_cached_cleanup_reload_cached_is_offline_and_owns_only_new_load(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in workdir.rglob("*") if p.is_file()}
+            with patch("code_repair50.image_transport.subprocess.run") as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen") as process, \
+                 patch("code_repair50.image_transport.download_archive") as network:
+                cached = ensure_verified_image(client, self.record, workdir=workdir)
+            probe.assert_not_called(); process.assert_not_called(); network.assert_not_called()
+            for flag in ("new_to_daemon", "loaded_by_this_run", "load_performed_in_this_call"):
+                self.assertFalse(cached[flag])
+            load = self.fake_local_image_load(client, [False])
+            with patch("code_repair50.image_transport.subprocess.run") as probe, \
+                 patch("code_repair50.image_transport.download_archive") as network, \
+                 patch("code_repair50.image_transport.subprocess.Popen", side_effect=load) as process:
+                reloaded = ensure_verified_image(client, {**self.record, "checked_at": "new metadata time"}, workdir=workdir)
+            probe.assert_not_called(); network.assert_not_called()
+            self.assertEqual(process.call_count, 1)
+            for flag in ("new_to_daemon", "loaded_by_this_run", "load_performed_in_this_call"):
+                self.assertTrue(reloaded[flag])
+            self.assertTrue(Path(reloaded["loaded_identity_receipt_path"]).parent.name.startswith("reload-"))
+            with patch("code_repair50.image_transport.subprocess.run") as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen") as process:
+                cached_again = ensure_verified_image(client, self.record, workdir=workdir)
+            probe.assert_not_called(); process.assert_not_called()
+            for flag in ("new_to_daemon", "loaded_by_this_run", "load_performed_in_this_call"):
+                self.assertFalse(cached_again[flag])
+            for raw_path, snapshot in before.items():
+                path = Path(raw_path)
+                self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), snapshot)
+
+    def test_domestic_wrong_manifest_digest_stops_before_full_pull(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            probe.return_value.stdout = b'{"wrong":"manifest"}'
+            with self.assertRaisesRegex(ImageTransportError, "original source digest"):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            pull.assert_not_called()
+            self.assertEqual(json.loads((workdir / "domestic_mirror_attempt_1/route.json").read_text())["status"], "FAILED")
+
+    def test_domestic_disk_gate_precedes_probe_cache_copy_and_pull(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            with patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=0)), \
+                 patch("code_repair50.image_transport.seed_full_verified_archive_cache") as seed:
+                with self.assertRaisesRegex(ImageTransportError, "disk budget"):
+                    explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called(); seed.assert_not_called()
+
+    def test_domestic_failed_pull_is_preserved_and_never_retried(self):
+        with self.domestic_case() as (workdir, client, _, pull):
+            def failed(command, **kwargs):
+                Path(command[5]).write_bytes(b"partial domestic archive")
+                return Mock(returncode=1, poll=Mock(return_value=1))
+            pull.side_effect = failed
+            with self.assertRaises(CraneDownloadError):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            partial = workdir / "domestic_mirror_attempt_1/official_image.tar"
+            before = partial.read_bytes(), partial.stat().st_mtime_ns
+            with self.assertRaises(FileExistsError):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            self.assertEqual((partial.read_bytes(), partial.stat().st_mtime_ns), before)
+
+    def test_domestic_original_1800_second_gate_stops_own_pull_without_retry(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            process = Mock(returncode=None, poll=Mock(return_value=None))
+            tick = iter(range(0, 100000, 1801))
+            with patch("code_repair50.image_transport.subprocess.Popen", return_value=process) as pull, \
+                 patch("code_repair50.image_transport.time.monotonic", side_effect=lambda: next(tick)):
+                with self.assertRaisesRegex(ImageTransportError, "timeout or disk-reserve"):
+                    explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            process.terminate.assert_called_once()
+            process.wait.assert_called_once_with(timeout=15)
+            self.assertEqual(json.loads((workdir / "domestic_mirror_attempt_1/route.json").read_text())["status"], "FAILED")
+
+    def test_domestic_donor_must_pass_fresh_full_archive_verification(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            donor = next(path for path in self.root.iterdir() if path.is_dir() and path != workdir)
+            with (donor / "official_image.tar").open("ab") as output:
+                output.write(b"changed donor")
+            with self.assertRaisesRegex(ImageTransportError, "prior full verification"):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+
+    def test_domestic_source_old_log_mutation_is_rejected_before_network(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            with (workdir / "transport_retry_1/download/crane_pull.log").open("ab") as output:
+                output.write(b"changed old failed log")
+            with self.assertRaises(ImageTransportError):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+            self.assertFalse((workdir / "domestic_mirror_attempt_1").exists())
+
+    def test_domestic_source_intermediate_symlink_is_rejected_before_network(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            directory = workdir / "transport_retry_1/download"
+            moved = workdir / "preserved-download"
+            directory.rename(moved)
+            directory.symlink_to(moved, target_is_directory=True)
+            with self.assertRaisesRegex(ImageTransportError, "symlink"):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+
+    def test_domestic_incomplete_route_is_rejected_without_fallback(self):
+        with self.domestic_case() as (workdir, client, probe, pull):
+            (workdir / "domestic_mirror_attempt_1").mkdir()
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=workdir)
+            with self.assertRaises(FileExistsError):
+                explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            probe.assert_not_called(); pull.assert_not_called()
+
+    def test_domestic_success_route_rejects_unknown_status_and_forged_source(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            result = explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            path = Path(result["domestic_mirror_receipt_path"])
+            original = path.read_text()
+            for field, value in (("status", "UNKNOWN"), ("source_reference", "swerebench/other@" + self.record["digest"]),
+                                 ("transport_reference", "attacker.example/" + self.record["image_reference"]),
+                                 ("resolved_workdir", str(self.root))):
+                route = json.loads(original); route[field] = value; path.write_text(json.dumps(route))
+                with self.subTest(field=field), self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            path.write_text(original)
+
+    def test_domestic_success_route_rejects_empty_request_and_multiple_attempts(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            request = workdir / "domestic_mirror_attempt_1/request.json"
+            original = request.read_bytes(); request.write_text("{}")
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=workdir)
+            request.write_bytes(original)
+            (workdir / "domestic_mirror_attempt_2").mkdir()
+            with self.assertRaisesRegex(ImageTransportError, "Unknown domestic"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_domestic_success_route_rejects_changed_old_failed_receipt_and_cache(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            for relative in ("transport_retry_1/transport_retry_receipt.json", "initial_layer_cache/preserve-old-cache"):
+                path = workdir / relative
+                original = path.read_bytes(); mtime = path.stat().st_mtime_ns
+                path.write_bytes(original + b"\n")
+                with self.subTest(path=relative), self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+                path.write_bytes(original)
+                import os
+                os.utime(path, ns=(path.stat().st_atime_ns, mtime))
+
+    def test_domestic_success_route_rejects_donor_and_probe_tampering(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            result = explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            route = json.loads(Path(result["domestic_mirror_receipt_path"]).read_text())
+            donor = Path(route["source_archive_receipts"][0])
+            before = donor.read_bytes(); mtime = donor.stat().st_mtime_ns
+            donor.write_bytes(before + b"\n")
+            with self.assertRaisesRegex(ImageTransportError, "donor evidence"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+            donor.write_bytes(before)
+            import os
+            os.utime(donor, ns=(donor.stat().st_atime_ns, mtime))
+            (workdir / "domestic_mirror_attempt_1/probe/manifest.raw").write_bytes(b"tampered manifest")
+            with self.assertRaises(ImageTransportError):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_domestic_success_route_rejects_tar_and_loaded_identity_tampering(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            result = explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            archive = Path(result["archive_path"])
+            with archive.open("ab") as output:
+                output.write(b"bad tar")
+            with patch("code_repair50.image_transport.subprocess.Popen") as load:
+                with self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            load.assert_not_called()
+
+    def test_domestic_success_route_rejects_actual_wrong_diff_ids(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            client.images.get.return_value.attrs["RootFS"]["Layers"] = ["sha256:" + "f" * 64]
+            with self.assertRaisesRegex(ImageTransportError, "diff IDs"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_domestic_unknown_docker_error_is_failclosed_and_not_reloaded(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            error = RuntimeError("daemon unavailable")
+            client.images.get.side_effect = error
+            with patch("code_repair50.image_transport.subprocess.Popen") as load, \
+                 patch("code_repair50.image_transport.subprocess.run") as probe:
+                with self.assertRaises(RuntimeError) as caught:
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            self.assertIs(caught.exception, error)
+            load.assert_not_called(); probe.assert_not_called()
+
+    def test_domestic_success_route_rejects_foreign_archive_symlink(self):
+        with self.domestic_case() as (workdir, client, _, _):
+            result = explicit_domestic_mirror_transport(client, self.record, workdir=workdir)
+            archive = Path(result["archive_path"])
+            preserved = workdir / "foreign-preserved.tar"
+            archive.rename(preserved); archive.symlink_to(preserved)
+            with patch("code_repair50.image_transport.subprocess.Popen") as load:
+                with self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            load.assert_not_called()
 
     def initial_cache_fixture(self):
         archive, receipt_path = self.full_archive_source()
