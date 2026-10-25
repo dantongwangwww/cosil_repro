@@ -21,6 +21,7 @@ from code_repair50.image_transport import (
     persist_crane_download_failure,
     seed_full_verified_archive_cache, explicit_verified_transport_retry,
     discover_initial_cache_sources, first_download_with_private_cache, cleanup_new_initial_cache,
+    classify_config_metadata_eof, recover_config_metadata_eof_image,
 )
 
 
@@ -739,6 +740,282 @@ class ImageTransportTests(unittest.TestCase):
             with self.assertRaisesRegex(ImageTransportError, "another source"):
                 ensure_verified_image(Mock(), self.record, workdir=workdir)
         pull.assert_not_called()
+
+    def config_eof_line(self, archive, *, digest=None, host="production.cloudfront.docker.com"):
+        value = (digest or self.config_digest).split(":", 1)[1]
+        return ('Error: saving tarball ' + str(archive) + ': unable to calculate manifest: Get "https://'
+                + host + '/registry-v2/docker/registry/v2/blobs/sha256/' + value[:2] + '/' + value
+                + '/data?Signature=private-test-value": EOF\n').encode()
+
+    def config_eof_download_failure(self, record, archive, output, *, cache_path):
+        archive.write_bytes(b"")
+        output.mkdir()
+        log = output / "crane_pull.log"
+        log.write_bytes(self.config_eof_line(archive))
+        raise persist_crane_download_failure(record, archive, log, 1)
+
+    @contextmanager
+    def config_eof_case(self):
+        _, source, workdir = self.initial_cache_fixture()
+        self.partial_archive(workdir)
+        (workdir / "download").mkdir()
+        (workdir / "download/crane_pull.log").write_bytes(b"original terminated own CLI\n")
+        (workdir / "registry_manifest_receipt.json").write_text(json.dumps(self.record))
+        (workdir / "initial_layer_cache").mkdir()
+        (workdir / "initial_layer_cache/old-cache").write_bytes(b"old immutable cache")
+        client = Mock()
+        client.images.get.return_value.attrs = {"Id": self.config_digest,
+            "RootFS": {"Type": "layers", "Layers": self.diff_ids}, "Os": "linux", "Architecture": "amd64"}
+        with patch("code_repair50.image_transport.TRANSPORT_ROOT", self.root), \
+             patch("code_repair50.image_transport.shutil.disk_usage", return_value=Mock(free=2 ** 50)), \
+             patch("code_repair50.image_transport.probe_crane"):
+            with patch("code_repair50.image_transport.download_archive", side_effect=self.config_eof_download_failure):
+                with self.assertRaises(CraneDownloadError):
+                    explicit_verified_transport_retry(client, self.record, workdir=workdir, source_archive_receipts=[source])
+            complete = self.archive().read_bytes()
+            def successful_download(record, archive, output, *, cache_path):
+                self.assertEqual(record["image_reference"], self.record["image_reference"])
+                self.assertEqual((cache_path / self.manifest["layers"][0]["digest"]).read_bytes(), self.layers[0])
+                archive.write_bytes(complete)
+                output.mkdir()
+                receipt = verify_docker_archive(archive, record)
+                (output / "archive_receipt.json").write_text(json.dumps(receipt))
+                return receipt
+            yield workdir, client, successful_download
+
+    def test_config_eof_classifier_requires_exact_terminal_stage_host_and_config_path(self):
+        archive = self.root / "official_image.tar"
+        valid = self.config_eof_line(archive)
+        self.assertTrue(classify_config_metadata_eof(valid, self.record, archive, 1))
+        self.assertTrue(classify_config_metadata_eof(b"retrying EOF\n" + valid, self.record, archive, 1))
+        for raw in (valid + b"Error: permission denied\n", b"retrying: " + valid + b"Error: another failure\n",
+                    valid.replace(b"unable to calculate manifest: ", b""),
+                    self.config_eof_line(archive, digest=self.manifest["layers"][0]["digest"]),
+                    self.config_eof_line(archive, host="attacker.example"),
+                    self.config_eof_line(archive, host="production.cloudfront.docker.com.attacker.example"),
+                    valid.replace(b"/data?", b"/data/extra?"), valid.replace(b"/data?", b"/%64ata?"),
+                    valid.replace(b'": EOF', b'#fragment": EOF'), b"HTTP 403\n" + valid,
+                    b"status code: 429\n" + valid, b"no space left on device\n" + valid,
+                    b"digest mismatch\n" + valid):
+            with self.subTest(raw=raw.split(b"?", 1)[0]):
+                self.assertFalse(classify_config_metadata_eof(raw, self.record, archive, 1))
+        self.assertFalse(classify_config_metadata_eof(valid, self.record, archive, -15))
+        self.assertFalse(classify_config_metadata_eof(valid, self.record, self.root / "other.tar", 1))
+
+    def test_config_eof_success_preserves_all_original_files_and_old_failed_receipt(self):
+        with self.config_eof_case() as (workdir, client, download):
+            before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in workdir.rglob("*") if p.is_file()}
+            with patch("code_repair50.image_transport.download_archive", side_effect=download) as pull:
+                result = recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            for raw, snapshot in before.items():
+                self.assertEqual((Path(raw).read_bytes(), Path(raw).stat().st_mtime_ns), snapshot)
+            route = json.loads(Path(result["config_metadata_eof_recovery_receipt_path"]).read_text())
+            self.assertEqual(route["status"], "SUCCEEDED")
+            self.assertIsNone(route["network_bytes"])
+            self.assertEqual(json.loads((workdir / "transport_retry_1/transport_retry_receipt.json").read_text())["status"], "FAILED")
+            with patch("code_repair50.image_transport.download_archive") as later:
+                resolved = ensure_verified_image(client, self.record, workdir=workdir)
+            later.assert_not_called()
+            self.assertEqual(resolved["runtime_image_reference"], self.config_digest)
+            self.assertFalse(resolved["new_to_daemon"])
+
+    def test_config_eof_maximum_two_extra_attempts_never_reentered(self):
+        with self.config_eof_case() as (workdir, client, _):
+            with patch("code_repair50.image_transport.download_archive", side_effect=self.config_eof_download_failure) as pull:
+                with self.assertRaises(CraneDownloadError):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 2)
+            route = json.loads((workdir / "config_eof_recovery/route.json").read_text())
+            self.assertEqual(route["status"], "FAILED")
+            self.assertEqual(len(route["attempt_receipts"]), 2)
+            with self.assertRaises(FileExistsError):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            with self.assertRaisesRegex(ImageTransportError, "incomplete, failed"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_config_eof_second_attempt_requires_first_zero_byte_eof_then_can_succeed(self):
+        with self.config_eof_case() as (workdir, client, download):
+            def first_failure_then_success(*args, **kwargs):
+                if args[1].parent.name == "attempt_1":
+                    return self.config_eof_download_failure(*args, **kwargs)
+                return download(*args, **kwargs)
+            with patch("code_repair50.image_transport.download_archive", side_effect=first_failure_then_success) as pull:
+                result = recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 2)
+            self.assertEqual(Path(result["archive_path"]).parent.name, "attempt_2")
+            self.assertTrue(ensure_verified_image(client, self.record, workdir=workdir)["loaded_image_verified"])
+
+    def test_config_eof_nonzero_archive_after_failure_stops_without_second_attempt(self):
+        with self.config_eof_case() as (workdir, client, _):
+            def started_payload(record, archive, output, *, cache_path):
+                archive.write_bytes(b"payload started")
+                output.mkdir()
+                log = output / "crane_pull.log"
+                log.write_bytes(self.config_eof_line(archive))
+                raise persist_crane_download_failure(record, archive, log, 1)
+            with patch("code_repair50.image_transport.download_archive", side_effect=started_payload) as pull:
+                with self.assertRaises(CraneDownloadError):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            self.assertFalse((workdir / "config_eof_recovery/attempt_2").exists())
+
+    def test_config_eof_other_error_stops_without_second_attempt(self):
+        with self.config_eof_case() as (workdir, client, _):
+            with patch("code_repair50.image_transport.download_archive", side_effect=PermissionError("private diagnostic")) as pull:
+                with self.assertRaises(PermissionError):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            self.assertEqual(json.loads((workdir / "config_eof_recovery/route.json").read_text())["status"], "FAILED")
+            self.assertNotIn("private diagnostic", (workdir / "config_eof_recovery/route.json").read_text())
+
+    def test_config_eof_first_new_failure_evidence_cannot_change_during_second_attempt(self):
+        with self.config_eof_case() as (workdir, client, download):
+            def first_failure_then_mutation(*args, **kwargs):
+                if args[1].parent.name == "attempt_1":
+                    return self.config_eof_download_failure(*args, **kwargs)
+                receipt = download(*args, **kwargs)
+                (workdir / "config_eof_recovery/attempt_1/download/crane_pull.log").write_bytes(b"changed previous failure")
+                return receipt
+            with patch("code_repair50.image_transport.download_archive", side_effect=first_failure_then_mutation) as pull:
+                with self.assertRaises(ImageTransportError):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 2)
+            self.assertEqual(json.loads((workdir / "config_eof_recovery/route.json").read_text())["status"], "FAILED")
+
+    def test_config_eof_success_route_rejects_changed_donor_receipt(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            request = json.loads((workdir / "transport_retry_1/transport_retry_request.json").read_text())
+            donor_receipt = Path(request["source_archive_receipts"][0])
+            donor_receipt.write_text(donor_receipt.read_text() + "\n")
+            with self.assertRaisesRegex(ImageTransportError, "donor evidence binding"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_config_eof_success_route_rejects_empty_request(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            (workdir / "config_eof_recovery/request.json").write_text("{}")
+            with self.assertRaisesRegex(ImageTransportError, "incomplete, failed"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_config_eof_success_route_rejects_extra_unfinished_attempt(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            (workdir / "config_eof_recovery/attempt_2").mkdir()
+            with self.assertRaisesRegex(ImageTransportError, "unknown or unfinished"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_config_eof_original_log_tampering_rejected_before_network(self):
+        with self.config_eof_case() as (workdir, client, _):
+            with (workdir / "transport_retry_1/download/crane_pull.log").open("ab") as output:
+                output.write(b"changed")
+            with patch("code_repair50.image_transport.download_archive") as pull:
+                with self.assertRaises(ImageTransportError):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            pull.assert_not_called()
+            self.assertFalse((workdir / "config_eof_recovery").exists())
+
+    def test_config_eof_nonzero_original_retry_tar_rejected_before_network(self):
+        with self.config_eof_case() as (workdir, client, _):
+            (workdir / "transport_retry_1/official_image.tar").write_bytes(b"not empty")
+            with patch("code_repair50.image_transport.download_archive") as pull:
+                with self.assertRaises(ImageTransportError):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            pull.assert_not_called()
+
+    def test_config_eof_intermediate_symlink_rejected_before_network(self):
+        with self.config_eof_case() as (workdir, client, _):
+            original = workdir / "transport_retry_1/download"
+            moved = workdir / "preserved-download"
+            original.rename(moved)
+            original.symlink_to(moved, target_is_directory=True)
+            with patch("code_repair50.image_transport.download_archive") as pull:
+                with self.assertRaisesRegex(ImageTransportError, "symlink"):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            pull.assert_not_called()
+
+    def test_config_eof_original_evidence_mutation_during_attempt_fails_closed(self):
+        with self.config_eof_case() as (workdir, client, download):
+            def mutate(*args, **kwargs):
+                receipt = download(*args, **kwargs)
+                (workdir / "initial_layer_cache/old-cache").write_bytes(b"changed evidence")
+                return receipt
+            with patch("code_repair50.image_transport.download_archive", side_effect=mutate) as pull:
+                with self.assertRaisesRegex(ImageTransportError, "original evidence changed"):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+            self.assertEqual(json.loads((workdir / "config_eof_recovery/route.json").read_text())["status"], "FAILED")
+
+    def test_config_eof_success_route_does_not_bypass_full_archive_reverification(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                result = recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            archive = Path(result["archive_path"])
+            with archive.open("ab") as output:
+                output.write(b"changed")
+            with patch("code_repair50.image_transport.download_archive") as pull:
+                with self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            pull.assert_not_called()
+
+    def test_config_eof_success_route_does_not_bypass_actual_loaded_identity(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            client.images.get.return_value.attrs["RootFS"]["Layers"] = ["sha256:" + "f" * 64]
+            with self.assertRaisesRegex(ImageTransportError, "diff IDs"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_config_eof_unknown_or_unfinished_route_never_uses_old_failed_retry(self):
+        with self.config_eof_case() as (workdir, client, _):
+            (workdir / "config_eof_recovery").mkdir()
+            with patch("code_repair50.image_transport.download_archive") as pull:
+                with self.assertRaisesRegex(ImageTransportError, "missing"):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            pull.assert_not_called()
+
+    def test_config_eof_route_source_and_original_failed_receipt_tampering_rejected(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            route_path = workdir / "config_eof_recovery/route.json"
+            original = route_path.read_text()
+            route = json.loads(original)
+            route["source_reference"] = "swerebench/other@" + self.record["digest"]
+            route_path.write_text(json.dumps(route))
+            with self.assertRaisesRegex(ImageTransportError, "another source"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+            route_path.write_text(original)
+            failed = workdir / "transport_retry_1/transport_retry_receipt.json"
+            failed.write_text(failed.read_text() + "\n")
+            with self.assertRaisesRegex(ImageTransportError, "evidence binding"):
+                ensure_verified_image(client, self.record, workdir=workdir)
+
+    def test_config_eof_recovery_requires_ordinary_compressed_and_diffid_flags(self):
+        with self.config_eof_case() as (workdir, client, download):
+            def invalid(*args, **kwargs):
+                receipt = download(*args, **kwargs)
+                receipt["uncompressed_layers_verified"] = False
+                return receipt
+            with patch("code_repair50.image_transport.download_archive", side_effect=invalid) as pull:
+                with self.assertRaisesRegex(ImageTransportError, "blob/diffID"):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertEqual(pull.call_count, 1)
+
+    def test_config_eof_donor_archive_is_fully_reverified_before_network(self):
+        with self.config_eof_case() as (workdir, client, _):
+            request = json.loads((workdir / "transport_retry_1/transport_retry_request.json").read_text())
+            receipt = json.loads(Path(request["source_archive_receipts"][0]).read_text())
+            with Path(receipt["archive_path"]).open("ab") as output:
+                output.write(b"changed donor")
+            with patch("code_repair50.image_transport.download_archive") as pull:
+                with self.assertRaisesRegex(ImageTransportError, "prior full verification"):
+                    recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            pull.assert_not_called()
 
     def initial_cache_fixture(self):
         archive, receipt_path = self.full_archive_source()

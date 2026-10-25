@@ -959,6 +959,368 @@ def explicit_verified_transport_retry(client, manifest_record, *, workdir, sourc
         raise
 
 
+def classify_config_metadata_eof(log_bytes, manifest_record, archive, returncode):
+    """Recognize the terminal config-metadata GET EOF, never an earlier retry.
+
+    This deliberately does not broaden the ordinary registry-blob classifier
+    or its automatic 16MiB recovery gate. Signed URLs stay in the private log.
+    """
+    manifest = verify_manifest_record(manifest_record)
+    if returncode != 1 or not log_bytes or len(log_bytes) > 1024 ** 2:
+        return False
+    text = log_bytes.decode(errors="replace")
+    forbidden = ("no space left", "permission denied", "timed out", "timeout",
+        "deadline exceeded", "context canceled", "digest mismatch", "checksum mismatch",
+        "hash mismatch", "broken pipe", "x509:", "unauthorized", "access denied",
+        "forbidden", "too many requests", "input/output error", "read-only file system")
+    if (any(word in text.lower() for word in forbidden)
+            or re.search(r"\b(?:403|429)\b|\bHTTP(?:/[0-9.]+)?\s+[45][0-9]{2}\b|"
+                         r"\bstatus(?:\s+code)?[: =]+[45][0-9]{2}\b", text, re.I)):
+        return False
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    prefix = "Error: saving tarball " + str(archive) + ': unable to calculate manifest: Get "'
+    suffix = '": EOF'
+    if not lines or not lines[-1].startswith(prefix) or not lines[-1].endswith(suffix):
+        return False
+    try:
+        url = urllib.parse.urlsplit(lines[-1][len(prefix):-len(suffix)])
+        if (url.scheme != "https" or url.hostname != "production.cloudfront.docker.com"
+                or url.port not in (None, 443) or url.username or url.password or url.fragment):
+            return False
+    except ValueError:
+        return False
+    config_hex = manifest["config"]["digest"].split(":", 1)[1]
+    # No unquoting, substring match, arbitrary CDN, or layer digest is accepted.
+    return url.path == "/registry-v2/docker/registry/v2/blobs/sha256/" + config_hex[:2] + "/" + config_hex + "/data"
+
+
+def _config_eof_private_path(path, scope, *, directory=False):
+    path, scope = Path(path), Path(scope)
+    if not path.is_absolute() or not scope.is_absolute() or not path.is_relative_to(scope):
+        raise ImageTransportError("Config EOF evidence path is outside its private scope")
+    # Check all ancestors, even above the first 0700 directory.
+    if any(item.is_symlink() for item in (path, *path.parents)):
+        raise ImageTransportError("Config EOF evidence contains a symlink")
+    if (not scope.is_dir() or scope.stat().st_uid != os.getuid()
+            or scope.stat().st_mode & 0o077):
+        raise ImageTransportError("Config EOF scope is not owned and private")
+    if not (path.is_dir() if directory else path.is_file()):
+        raise ImageTransportError("Config EOF evidence is missing or has an unexpected file type")
+    for item in (path, *path.parents):
+        if not item.is_relative_to(scope):
+            break
+        if item.stat().st_uid != os.getuid():
+            raise ImageTransportError("Config EOF evidence is not owned")
+    return path
+
+
+def _config_eof_snapshot(path, scope):
+    path = _config_eof_private_path(path, scope)
+    before = path.stat()
+    with path.open("rb") as source:
+        digest, size = _sha(source)
+    after = path.stat()
+    if ((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)):
+        raise ImageTransportError("Config EOF evidence changed while hashing")
+    return {"path": str(path), "sha256": digest, "bytes": size, "mtime_ns": after.st_mtime_ns}
+
+
+def _config_eof_check_snapshots(snapshots, scope):
+    if not isinstance(snapshots, list) or not snapshots:
+        raise ImageTransportError("Missing config EOF evidence snapshots")
+    if len({item["path"] for item in snapshots}) != len(snapshots):
+        raise ImageTransportError("Duplicate config EOF evidence snapshots")
+    for snapshot in snapshots:
+        if _config_eof_snapshot(snapshot["path"], scope) != snapshot:
+            raise ImageTransportError("Config EOF original evidence changed")
+
+
+def _config_eof_tree_snapshots(workdir):
+    """Bind every old file, including old caches, without writing old evidence."""
+    result = []
+    for path in sorted(workdir.rglob("*")):
+        if path.is_relative_to(workdir / "config_eof_recovery"):
+            continue
+        if path.is_dir():
+            _config_eof_private_path(path, workdir, directory=True)
+        else:
+            result.append(_config_eof_snapshot(path, workdir))
+    return result
+
+
+def _config_eof_failure(manifest_record, attempt, scope):
+    """Recompute admission from persisted bytes, including a strictly empty tar."""
+    archive = _config_eof_private_path(attempt / "official_image.tar", scope)
+    log = _config_eof_private_path(attempt / "download/crane_pull.log", scope)
+    path = _config_eof_private_path(attempt / "download/download_failure_receipt.json", scope)
+    failure = json.loads(path.read_text())
+    archive_snapshot = _config_eof_snapshot(archive, scope)
+    log_snapshot = _config_eof_snapshot(log, scope)
+    if (failure.get("schema") != "repair50_crane_download_failure_v1"
+            or failure.get("phase") != "crane_download"
+            or failure.get("source_reference") != manifest_record["image_reference"]
+            or failure.get("source_manifest_digest") != manifest_record["digest"]
+            or failure.get("archive_path") != str(archive)
+            or failure.get("private_log_path") != str(log)
+            or failure.get("process_returncode") != 1
+            or failure.get("partial_archive_bytes") != 0 or archive_snapshot["bytes"] != 0
+            or failure.get("partial_archive_mtime_ns") != archive_snapshot["mtime_ns"]
+            or failure.get("private_log_sha256") != log_snapshot["sha256"]
+            or failure.get("private_log_bytes") != log_snapshot["bytes"]
+            or not classify_config_metadata_eof(log.read_bytes(), manifest_record, archive, 1)):
+        raise ImageTransportError("Failure is not an unchanged zero-byte terminal config-metadata EOF")
+    return [archive_snapshot, log_snapshot, _config_eof_snapshot(path, scope)]
+
+
+def _config_eof_source(manifest_record, workdir):
+    verify_manifest_record(manifest_record)
+    if (workdir.parent != TRANSPORT_ROOT.absolute()
+            or workdir.name != manifest_record["digest"].split(":", 1)[1]):
+        raise ImageTransportError("Config EOF recovery requires this run's stable digest workdir")
+    _config_eof_private_path(workdir, workdir, directory=True)
+    registry = _config_eof_private_path(workdir / "registry_manifest_receipt.json", workdir)
+    archived = json.loads(registry.read_text())
+    verify_manifest_record(archived)
+    if (archived.get("image_reference") != manifest_record["image_reference"]
+            or archived.get("manifest") != manifest_record["manifest"]):
+        raise ImageTransportError("Config EOF registry evidence belongs to another source")
+    attempt = _config_eof_private_path(workdir / "transport_retry_1", workdir, directory=True)
+    request_path = _config_eof_private_path(attempt / "transport_retry_request.json", workdir)
+    failed_path = _config_eof_private_path(attempt / "transport_retry_receipt.json", workdir)
+    request, failed = json.loads(request_path.read_text()), json.loads(failed_path.read_text())
+    if (request.get("schema") != "repair50_explicit_transport_retry_v1"
+            or request.get("source_reference") != manifest_record["image_reference"]
+            or request.get("source_manifest_digest") != manifest_record["digest"]
+            or request.get("max_explicit_transport_retries") != 1
+            or failed.get("status") != "FAILED" or failed.get("error_type") != "CraneDownloadError"
+            or any(failed.get(key) != value for key, value in request.items())):
+        raise ImageTransportError("Config EOF recovery requires the matching prior FAILED explicit retry")
+    original = request.get("original_evidence", [])
+    if [item.get("path") for item in original] != [str(workdir / "official_image.tar"), str(workdir / "download/crane_pull.log")]:
+        raise ImageTransportError("Prior explicit retry original evidence paths differ")
+    _config_eof_check_snapshots(original, workdir)
+    _config_eof_failure(manifest_record, attempt, workdir)
+    donors = request.get("source_archive_receipts")
+    if not isinstance(donors, list) or not donors or any(not isinstance(item, str) for item in donors):
+        raise ImageTransportError("Config EOF recovery requires the original full-verified donor receipts")
+    return donors
+
+
+def _config_eof_verify_donors(manifest_record, donors):
+    """Recheck every original donor's whole archive and ordinary identity gates."""
+    snapshots = []
+    for raw_path in donors:
+        path = Path(raw_path)
+        scope = path.parent.parent
+        # Original receipts are run-scoped ordinary or successfully recovered tars.
+        while scope.parent != TRANSPORT_ROOT.absolute() and scope != scope.parent:
+            scope = scope.parent
+        _config_eof_private_path(path, scope)
+        if scope.parent != TRANSPORT_ROOT.absolute() or not re.fullmatch(r"[0-9a-f]{64}", scope.name):
+            raise ImageTransportError("Config EOF donor is outside this run")
+        receipt = json.loads(path.read_text())
+        source = {"image_reference": receipt.get("source_reference"), "digest": receipt.get("source_manifest_digest"),
+                  "manifest": receipt.get("registry_manifest")}
+        verify_manifest_record(source)
+        archive = path.parent.parent / "official_image.tar"
+        if (source["digest"] != "sha256:" + scope.name or path.name != "archive_receipt.json"
+                or path.parent.name != "download" or receipt.get("archive_path") != str(archive)
+                or receipt.get("compressed_layers_verified") is not True
+                or receipt.get("uncompressed_layers_verified") is not True):
+            raise ImageTransportError("Config EOF donor lacks prior full verification and source binding")
+        if archive.parent != scope:
+            relative = archive.parent.relative_to(scope).as_posix()
+            route_name = {"transport_retry_1": "transport_retry_receipt.json", "recovery_attempt_1": "recovery_receipt.json"}.get(relative)
+            if route_name is None:
+                raise ImageTransportError("Unknown config EOF donor route")
+            route_path = _config_eof_private_path(archive.parent / route_name, scope)
+            route = json.loads(route_path.read_text())
+            if (route.get("status") != "SUCCEEDED" or route.get("source_reference") != source["image_reference"]
+                    or route.get("source_manifest_digest") != source["digest"]
+                    or route.get("resolved_workdir") != str(archive.parent)):
+                raise ImageTransportError("Config EOF donor recovery route is not bound and successful")
+            snapshots.append(_config_eof_snapshot(route_path, scope))
+        _config_eof_private_path(archive, scope)
+        current = verify_docker_archive(archive, source)
+        for key in ("archive_sha256", "archive_bytes", "config_digest", "diff_ids"):
+            if current[key] != receipt.get(key):
+                raise ImageTransportError("Config EOF donor differs from its prior full verification")
+        snapshots.extend([_config_eof_snapshot(path, scope), _config_eof_snapshot(archive, scope)])
+    return snapshots
+
+
+def _config_eof_check_donor_evidence(snapshots):
+    for snapshot in snapshots:
+        scope = Path(snapshot["path"]).parent
+        while scope.parent != TRANSPORT_ROOT.absolute() and scope != scope.parent:
+            scope = scope.parent
+        if scope.parent != TRANSPORT_ROOT.absolute():
+            raise ImageTransportError("Config EOF donor evidence left this run")
+        _config_eof_check_snapshots([snapshot], scope)
+
+
+def _config_eof_success_identity(client, manifest_record, attempt, scope):
+    archive = _config_eof_private_path(attempt / "official_image.tar", scope)
+    current = verify_docker_archive(archive, manifest_record)
+    download_path = _config_eof_private_path(attempt / "download/archive_receipt.json", scope)
+    loaded_path = _config_eof_private_path(attempt / "loaded_identity_receipt_v2.json", scope)
+    downloaded, loaded = json.loads(download_path.read_text()), json.loads(loaded_path.read_text())
+    for receipt in (downloaded, loaded):
+        for key in ("schema", "source_reference", "source_manifest_digest", "registry_manifest", "archive_path",
+                    "archive_sha256", "archive_bytes", "config_digest", "diff_ids", "compressed_layers_verified", "uncompressed_layers_verified"):
+            if receipt.get(key) != current[key]:
+                raise ImageTransportError("Config EOF successful archive receipt identity differs")
+    if loaded.get("loaded_image_verified") is not True:
+        raise ImageTransportError("Config EOF loaded identity is incomplete")
+    image = client.images.get(loaded.get("runtime_image_reference"))
+    verified = verify_loaded_image(image.attrs, current)
+    if verified["runtime_image_reference"] != loaded.get("runtime_image_reference"):
+        raise ImageTransportError("Config EOF actual loaded identity differs")
+    return loaded, [_config_eof_snapshot(path, scope) for path in (archive, download_path, loaded_path)]
+
+
+def recover_config_metadata_eof_image(client, manifest_record, *, workdir):
+    """Operator-only image recovery after the failed explicit config EOF.
+
+    At most two additional isolated transports; a second requires the first's
+    persisted terminal config EOF and exactly zero archive bytes. Never starts
+    qualifications, containers, tests or model calls, or overwrites old files.
+    """
+    workdir = Path(workdir).absolute()
+    donors = _config_eof_source(manifest_record, workdir)
+    original = _config_eof_tree_snapshots(workdir)
+    root = workdir / "config_eof_recovery"
+    root.mkdir(mode=0o700, exist_ok=False)
+    route_path = root / "route.json"
+    request = {"schema": "repair50_config_metadata_eof_recovery_v1", "source_reference": manifest_record["image_reference"],
+        "source_manifest_digest": manifest_record["digest"], "original_evidence": original,
+        "original_failed_retry_receipt_path": str(workdir / "transport_retry_1/transport_retry_receipt.json"),
+        "source_archive_receipts": donors, "max_config_metadata_attempts": 2,
+        "prechange_github_checkpoint": "82ba9d477d0ea0120c6b7e16c22707e52ac16608",
+        "model_requests": 0, "qualifications_started": 0, "network_bytes": None}
+    _save(root / "request.json", request)
+    attempts = []
+    started = time.monotonic()
+    try:
+        for number in (1, 2):
+            attempt = root / ("attempt_" + str(number))
+            attempt.mkdir(mode=0o700, exist_ok=False)
+            attempt_path = attempt / "attempt_receipt.json"
+            try:
+                _config_eof_check_snapshots(original, workdir)
+                donor_evidence = _config_eof_verify_donors(manifest_record, donors)
+                manifest = manifest_record["manifest"]
+                required = 2 * sum(item["size"] for item in manifest["layers"]) + manifest["config"]["size"] + 1024 ** 2 + 20 * 1024 ** 3
+                if (shutil.disk_usage(attempt).free < required
+                        or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                    raise ImageTransportError("Insufficient disk budget for config EOF recovery and fixed reserves")
+                def budget_check():
+                    if (shutil.disk_usage(attempt).free < 20 * 1024 ** 3
+                            or shutil.disk_usage("/mnt/skygruop0/containerd").free < 10 * 1024 ** 3):
+                        raise ImageTransportError("Config EOF cache copy reached a fixed disk reserve")
+                seed = seed_full_verified_archive_cache(manifest_record, donors, attempt / "private_layer_cache", budget_check=budget_check)
+                _save(attempt / "cache_seed_receipt.json", seed)
+                probe_crane(manifest_record, attempt / "probe")
+                downloaded = download_archive(manifest_record, attempt / "official_image.tar", attempt / "download", cache_path=attempt / "private_layer_cache")
+                if downloaded.get("compressed_layers_verified") is not True or downloaded.get("uncompressed_layers_verified") is not True:
+                    raise ImageTransportError("Config EOF archive failed ordinary complete blob/diffID gates")
+                loaded = ensure_verified_image(client, manifest_record, workdir=attempt)
+                loaded, successful_evidence = _config_eof_success_identity(client, manifest_record, attempt, workdir)
+                _config_eof_check_snapshots(original, workdir)
+                _config_eof_check_donor_evidence(donor_evidence)
+                for previous in attempts:
+                    _config_eof_check_snapshots([previous], workdir)
+                    previous_record = json.loads(Path(previous["path"]).read_text())
+                    previous_attempt = Path(previous["path"]).parent
+                    if previous_record.get("failure_evidence") != _config_eof_failure(manifest_record, previous_attempt, workdir):
+                        raise ImageTransportError("Previous config EOF failure evidence changed")
+                _save(attempt_path, {"status": "SUCCEEDED", "attempt_number": number,
+                    "source_reference": manifest_record["image_reference"], "source_manifest_digest": manifest_record["digest"],
+                    "successful_evidence": successful_evidence, "donor_evidence": donor_evidence, "network_bytes": None})
+                attempts.append(_config_eof_snapshot(attempt_path, workdir))
+                _save(route_path, {**request, "status": "SUCCEEDED", "attempt_receipts": attempts,
+                    "resolved_workdir": str(attempt), "runtime_image_reference": loaded["runtime_image_reference"],
+                    "original_evidence_unchanged": True, "elapsed_seconds": time.monotonic() - started})
+                return {**loaded, "config_metadata_eof_recovery_receipt_path": str(route_path), "original_partial_preserved": True}
+            except Exception as exc:
+                retryable, failure_evidence = False, []
+                try:
+                    _config_eof_check_snapshots(original, workdir)
+                    if isinstance(exc, CraneDownloadError):
+                        failure_evidence = _config_eof_failure(manifest_record, attempt, workdir)
+                        retryable = True
+                except Exception:
+                    retryable = False
+                _save(attempt_path, {"status": "FAILED", "attempt_number": number, "error_type": type(exc).__name__,
+                    "retryable_zero_byte_config_eof": retryable, "failure_evidence": failure_evidence,
+                    "network_bytes": None, "model_requests": 0, "qualifications_started": 0})
+                attempts.append(_config_eof_snapshot(attempt_path, workdir))
+                if not retryable or number == 2:
+                    raise
+    except Exception as exc:
+        _save(route_path, {**request, "status": "FAILED", "attempt_receipts": attempts,
+            "error_type": type(exc).__name__, "error_message": "Config EOF recovery stopped; private evidence preserved",
+            "automatic_retry_authorized": False, "elapsed_seconds": time.monotonic() - started})
+        raise
+
+
+def _resolve_config_metadata_eof_route(client, manifest_record, workdir):
+    root = _config_eof_private_path(workdir / "config_eof_recovery", workdir, directory=True)
+    path = _config_eof_private_path(root / "route.json", workdir)
+    route = json.loads(path.read_text())
+    request_path = _config_eof_private_path(root / "request.json", workdir)
+    request = json.loads(request_path.read_text())
+    request_keys = {"schema", "source_reference", "source_manifest_digest", "original_evidence",
+        "original_failed_retry_receipt_path", "source_archive_receipts", "max_config_metadata_attempts",
+        "prechange_github_checkpoint", "model_requests", "qualifications_started", "network_bytes"}
+    if (set(request) != request_keys
+            or route.get("schema") != "repair50_config_metadata_eof_recovery_v1" or route.get("status") != "SUCCEEDED"
+            or route.get("source_reference") != manifest_record["image_reference"]
+            or route.get("source_manifest_digest") != manifest_record["digest"]
+            or route.get("max_config_metadata_attempts") != 2
+            or route.get("model_requests") != 0 or route.get("qualifications_started") != 0
+            or route.get("network_bytes") is not None or route.get("original_evidence_unchanged") is not True
+            or any(route.get(key) != value for key, value in request.items())):
+        raise ImageTransportError("Prior config EOF recovery is incomplete, failed or belongs to another source")
+    donors = _config_eof_source(manifest_record, workdir)
+    if (route.get("source_archive_receipts") != donors
+            or route.get("original_failed_retry_receipt_path") != str(workdir / "transport_retry_1/transport_retry_receipt.json")
+            or route.get("original_evidence") != _config_eof_tree_snapshots(workdir)):
+        raise ImageTransportError("Config EOF route original FAILED evidence binding differs")
+    receipts = route.get("attempt_receipts", [])
+    if not isinstance(receipts, list) or not 1 <= len(receipts) <= 2:
+        raise ImageTransportError("Config EOF route has an invalid attempt count")
+    expected_names = {"route.json", "request.json", *("attempt_" + str(n) for n in range(1, len(receipts) + 1))}
+    if {item.name for item in root.iterdir()} != expected_names:
+        raise ImageTransportError("Config EOF route contains an unknown or unfinished attempt")
+    _config_eof_check_snapshots(receipts, workdir)
+    for number, snapshot in enumerate(receipts, 1):
+        attempt = root / ("attempt_" + str(number))
+        if snapshot["path"] != str(attempt / "attempt_receipt.json"):
+            raise ImageTransportError("Config EOF attempt path differs")
+        record = json.loads(Path(snapshot["path"]).read_text())
+        if record.get("attempt_number") != number:
+            raise ImageTransportError("Config EOF attempt order differs")
+        if number < len(receipts):
+            if (record.get("status") != "FAILED" or record.get("retryable_zero_byte_config_eof") is not True
+                    or record.get("failure_evidence") != _config_eof_failure(manifest_record, attempt, workdir)):
+                raise ImageTransportError("Config EOF second attempt lacks the required zero-byte predecessor")
+        else:
+            if (record.get("status") != "SUCCEEDED" or route.get("resolved_workdir") != str(attempt)
+                    or record.get("source_reference") != manifest_record["image_reference"]
+                    or record.get("source_manifest_digest") != manifest_record["digest"]):
+                raise ImageTransportError("Config EOF successful attempt binding differs")
+            _config_eof_check_snapshots(record.get("successful_evidence"), workdir)
+            if record.get("donor_evidence") != _config_eof_verify_donors(manifest_record, donors):
+                raise ImageTransportError("Config EOF route donor evidence binding differs")
+            loaded, evidence = _config_eof_success_identity(client, manifest_record, attempt, workdir)
+            if evidence != record["successful_evidence"] or loaded["runtime_image_reference"] != route.get("runtime_image_reference"):
+                raise ImageTransportError("Config EOF successful route identity differs")
+    return {**loaded, "config_metadata_eof_recovery_receipt_path": str(path), "original_partial_preserved": True,
+            "new_to_daemon": False, "cached": True}
+
+
 def discover_initial_cache_sources(manifest_record, workdir):
     """Deterministic metadata discovery confined to this run's trusted scope.
 
@@ -1129,6 +1491,9 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    config_route = workdir / "config_eof_recovery"
+    if config_route.exists() or config_route.is_symlink():
+        return _resolve_config_metadata_eof_route(client, manifest_record, workdir.absolute())
     retry_path = workdir / "transport_retry_1/transport_retry_receipt.json"
     if retry_path.exists():
         retry = json.loads(retry_path.read_text())
