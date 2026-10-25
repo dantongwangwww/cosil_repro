@@ -21,7 +21,7 @@ def system_failure(record):
     message=str(record.get('error','')).upper()
     return any(value in message for value in ['SYSTEM_DISK_CAPACITY','NO SPACE LEFT ON DEVICE',
         'PERMISSION DENIED','CANNOT CONNECT TO THE DOCKER','SYSTEM_IMAGE_PULL',
-        'SYSTEM_BASE_COMMIT_MISMATCH','SYSTEM_BASE_WORKTREE_DIRTY']) or record.get('error_type') in ['ImageTransportError','SYSTEM_IMAGE_IDENTITY']
+        'SYSTEM_BASE_COMMIT_MISMATCH','SYSTEM_BASE_WORKTREE_DIRTY','SYSTEM_BASE_SOURCE_IDENTITY']) or record.get('error_type') in ['ImageTransportError','SYSTEM_IMAGE_IDENTITY','BaseIdentityError']
 
 def audit_gold_patch_identity(result):
     """Preserve an old receipt while preventing byte-changing I/O from excluding a task."""
@@ -40,7 +40,7 @@ def audit_initial_base_identity(task):
     """Freeze clean-base evidence, including old official empty-run git status."""
     receipt_path=Path(task['empty_receipt']);receipt=E.read(receipt_path);folder=receipt_path.parent
     head_path=folder/'base_head.json';head=E.read(head_path)
-    if head.get('returncode')!=0 or head.get('head')!=task['base_commit']:
+    if head.get('returncode')!=0:
         raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH: frozen qualification audit')
     if receipt.get('image_reference')!=task['image_reference']:
         raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH: base evidence image identity differs')
@@ -48,6 +48,31 @@ def audit_initial_base_identity(task):
            'image_reference':task['image_reference'],'empty_receipt':str(receipt_path),
            'empty_receipt_sha256':E.digest(receipt_path),'base_head_receipt':str(head_path),
            'base_head_receipt_sha256':E.digest(head_path),'clean':True,'tree_mutated':False}
+    setup_source=head.get('head')!=task['base_commit']
+    if setup_source:
+        from .base_identity import BaseIdentityError,validate_persisted_setup_identity
+        expected_proof=folder/'base_source_identity/proof.json'
+        if (not expected_proof.is_file()
+                or receipt.get('base_source_identity_proof_path')!=str(expected_proof)
+                or not receipt.get('base_source_identity_sha256')):
+            raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH: no independently proven setup identity')
+        row=E.private_row(task['instance_id'])
+        if (row.get('base_commit')!=task['base_commit']
+                or receipt.get('base_worktree_clean') is not True
+                or receipt.get('base_source_identity_proof_path')!=str(expected_proof)):
+            raise BaseIdentityError('Missing row/initial-clean/source-proof identity binding')
+        image=E.read(folder/'image_receipt.json');protocol=E.read(folder/'protocol.json')
+        if (image.get('reference')!=task['image_reference']
+                or not image.get('image_id') or protocol.get('base_commit')!=task['base_commit']
+                or E.digest(folder/'eval.sh')!=protocol.get('official_eval_script_sha256')):
+            raise BaseIdentityError('Official image/evaluation script binding differs')
+        identity=validate_persisted_setup_identity(expected_proof.parent,row=row,
+            image_reference=task['image_reference'],runtime_image_id=image['image_id'],actual_head=head['head'],
+            expected_script_sha256=protocol['official_eval_script_sha256'],
+            expected_proof_sha256=receipt.get('base_source_identity_sha256'))
+        proof.update(audit_version='v3_proven_official_setup_no_mutation',
+            base_source_identity_proof=str(expected_proof),base_source_identity_sha256=E.digest(expected_proof),
+            source_validation=identity)
     status_path=folder/'base_worktree_status.json'
     if receipt.get('base_worktree_clean') is True and status_path.exists():
         status=E.read(status_path);raw=folder/'base_worktree_status.txt'
@@ -58,6 +83,8 @@ def audit_initial_base_identity(task):
         proof.update(evidence='EXPLICIT_PRE_BUSINESS_PATCH_PORCELAIN',
                      status_receipt=str(status_path),status_receipt_sha256=E.digest(status_path))
     else:
+        if setup_source:
+            raise RuntimeError('SYSTEM_BASE_WORKTREE_DIRTY: setup source proof requires explicit initial status')
         log=folder/'test_output.txt';text=log.read_bytes().decode('utf-8',errors='strict')
         initial=text.split('>>>>> Start Test Output',1)[0]
         match=re.search(r'(?ms)^\+ git status\r?\n(.*?)^\+ git show(?:\r?\n|$)',initial)
@@ -72,7 +99,7 @@ def audit_initial_base_identity(task):
                      log_path=str(log),log_sha256=E.digest(log),
                      status_excerpt_sha256=hashlib.sha256(status.encode()).hexdigest(),
                      before_business_and_test_patches=True,no_checkout_reset_or_apply_before_status=True)
-    path=E.LIVE/'base_identity_audit_v2'/(task['instance_id']+'.json')
+    path=E.LIVE/('base_identity_audit_v3' if setup_source else 'base_identity_audit_v2')/(task['instance_id']+'.json')
     E.save(path,proof)
     return str(path)
 

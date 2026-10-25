@@ -44,7 +44,7 @@ LABEL = 'cosil.repair50.20261024'
 CHECKPOINT = '8ddd2ae3700c660f7832c600b1ca1b71813fbf45'
 ENGINEERING_FIX_CHECKPOINT = '50c40d43bc8c5147c623cca816bc3c8a27a57925'
 INTEGRITY_FIX_CHECKPOINT = '6ac31aa324994b5b689932d1543f49e445408f96'
-BASE_IDENTITY_FIX_CHECKPOINT = '9df8f833805534fcbfd47544ed34dedd0c61b8b3'
+BASE_IDENTITY_FIX_CHECKPOINT = '24de7366b408fadc07a1dbe85192cba837311327'
 
 def utc(): return dt.datetime.now(dt.timezone.utc).isoformat()
 def digest(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -302,11 +302,25 @@ def evaluate_in_worker(task,arm,patch_path,directory):
         actual=container.exec_run(['git','rev-parse','HEAD'],workdir='/testbed')
         save(directory/'base_head.json',{'returncode':actual.exit_code,'head':actual.output.decode(errors='replace').strip(),
             'expected':row['base_commit']})
-        if actual.exit_code or actual.output.decode().strip()!=row['base_commit']:
+        if actual.exit_code:
             raise RuntimeError('SYSTEM_BASE_COMMIT_MISMATCH')
         record['stage']='BASE_WORKTREE_IDENTITY'
         base_status=check_base_worktree(container,directory)
         record.update(base_worktree_clean=True,base_worktree_status_receipt=str(directory/'base_worktree_status.json'))
+        if actual.output.decode().strip()!=row['base_commit']:
+            from .base_identity import BaseIdentityError,collect_setup_identity
+            record['stage']='BASE_SOURCE_IDENTITY'
+            try:
+                identity=collect_setup_identity(container,directory/'base_source_identity',row=row,spec=spec,
+                    image_reference=task['image_reference'],runtime_image_id=image.id,
+                    actual_head=actual.output.decode(errors='strict').strip())
+            except BaseIdentityError:
+                raise
+            except Exception as exc:
+                raise BaseIdentityError('Unverifiable setup evidence: '+type(exc).__name__) from exc
+            record.update(base_source_identity_schema=identity['schema'],
+                base_source_identity_proof_path=str(directory/'base_source_identity/proof.json'),
+                base_source_identity_sha256=digest(directory/'base_source_identity/proof.json'))
         from swebench.harness.docker_utils import copy_to_container,exec_run_with_timeout
         business=directory/'patch.diff';business.write_bytes(patch_bytes)
         record['stage']='BUSINESS_PATCH_APPLICATION'
