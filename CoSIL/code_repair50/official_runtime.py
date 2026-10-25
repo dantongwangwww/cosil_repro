@@ -16,11 +16,14 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import ssl
 import struct
 import subprocess
 import tomllib
+import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "results/repair50_20261024/runtime_preflight"
@@ -29,6 +32,8 @@ HARNESS_COMMIT = "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284"
 CHECKPOINT = "7d8d46f258cabb18f5740e1e48193f12bd09dd0a"
 TAR_SHA256 = "3dfc6035ceabb319431a7e0e66fb99024e5db2aa250533cb669b44ad071e38b9"
 MIN_FREE_BYTES = 2 * 1024 ** 3
+REGISTRY_GET_MAX_ATTEMPTS = 3
+REGISTRY_GET_AUDIT_ROOT = WORK / "registry_get_audit"
 DATASET = (ROOT.parent / "ModelLoc/experiments/deepseek_simple_external_v1/"
            "evaluator_private/preparation/dataset/test-00000-of-00001.parquet")
 DATASET_SHA256 = "1497b218db0a8259d22471812f0de12b779c699daf741b930d68bc717636f0bf"
@@ -99,25 +104,96 @@ def capacity_gate(free_bytes, compressed_bytes, uncompressed_lower_bound,
             "reason": "No automatic pull: gzip ISIZE can wrap and image unpack peak is not an upper bound"}
 
 
-def _get(url, headers=None, maximum=None):
+class RegistryGetError(RuntimeError):
+    """A failed GET with safe diagnostics; raw URLs and exception text stay out."""
+
+    def __init__(self, record, audit_paths, cause):
+        self.attempts = record["attempt"]
+        self.final_error_type = record["error_type"]
+        self.category = record["failure_category"]
+        self.http_status = record.get("http_status")
+        self.audit_paths = tuple(audit_paths)
+        # Retain the typed cause for in-process inspection, without putting its
+        # potentially signed URL/token-bearing text in the public traceback.
+        self.cause = cause
+        super().__init__("Registry metadata GET failed after " + str(self.attempts)
+                         + " attempt(s): " + self.category + "; sanitized audit preserved")
+
+
+def _tls_eof_error(exc):
+    # HTTPError is a URLError subclass, and must never enter the TLS retry path.
+    if isinstance(exc, urllib.error.HTTPError):
+        return False
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    return (isinstance(reason, ssl.SSLError)
+            and not isinstance(reason, ssl.SSLCertVerificationError)
+            and (isinstance(reason, ssl.SSLEOFError)
+                 or reason.errno == ssl.SSL_ERROR_EOF
+                 or getattr(reason, "reason", None) == "UNEXPECTED_EOF_WHILE_READING"))
+
+
+def _get_audit(path, record):
+    # Exclusive creation preserves every attempt, including the final failure.
+    fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with os.fdopen(fd, "w") as handle:
+        json.dump(record, handle, indent=2)
+        handle.write("\n")
+
+
+def _get(url, headers=None, maximum=None, *, audit_directory=None, phase="registry_get"):
+    if phase not in {"registry_get", "anonymous_token", "manifest", "layer_footer"}:
+        raise ValueError("Unknown registry GET audit phase")
     request = urllib.request.Request(url, headers=headers or {})
-    with urllib.request.urlopen(request, timeout=25) as response:
-        body = response.read(maximum) if maximum is not None else response.read()
-        return response.status, {key.lower(): value for key, value in response.headers.items()}, body
+    directory = Path(audit_directory) if audit_directory is not None else REGISTRY_GET_AUDIT_ROOT
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    request_id = uuid.uuid4().hex
+    identity = {"schema": "repair50_registry_get_attempt_v1", "request_id": request_id,
+                "method": "GET", "phase": phase, "url_host": urllib.parse.urlsplit(url).hostname,
+                "url_sha256": hashlib.sha256(url.encode()).hexdigest(),
+                "max_attempts": REGISTRY_GET_MAX_ATTEMPTS, "timeout_seconds": 25,
+                "raw_urls_headers_tokens_bodies_disclosed": False}
+    audit_paths = []
+    for attempt in range(1, REGISTRY_GET_MAX_ATTEMPTS + 1):
+        record = {**identity, "attempt": attempt, "started_at": now()}
+        path = directory / ("registry_get_" + request_id + "_attempt_" + str(attempt) + ".json")
+        try:
+            with urllib.request.urlopen(request, timeout=25) as response:
+                body = response.read(maximum) if maximum is not None else response.read()
+                result = response.status, {key.lower(): value for key, value in response.headers.items()}, body
+        except Exception as exc:
+            retryable = _tls_eof_error(exc)
+            reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+            category = "TLS_EOF" if retryable else (
+                "HTTP_ERROR" if isinstance(exc, urllib.error.HTTPError) else "NONRETRYABLE_REQUEST_ERROR")
+            record.update(outcome="FAILED", ended_at=now(), error_type=type(exc).__name__,
+                          reason_type=type(reason).__name__, failure_category=category,
+                          http_status=exc.code if isinstance(exc, urllib.error.HTTPError) else None,
+                          retry_scheduled=retryable and attempt < REGISTRY_GET_MAX_ATTEMPTS)
+            _get_audit(path, record)
+            audit_paths.append(str(path))
+            if record["retry_scheduled"]:
+                continue
+            raise RegistryGetError(record, audit_paths, exc) from None
+        record.update(outcome="SUCCEEDED", ended_at=now(), http_status=result[0],
+                      received_bytes=len(body), retry_scheduled=False)
+        _get_audit(path, record)
+        return result
 
 
-def registry_manifest(image, probe_layers=False):
+def registry_manifest(image, probe_layers=False, *, audit_directory=None):
     if not re.fullmatch(r"swerebench/[a-z0-9_.-]+:[a-zA-Z0-9_.-]+", image):
         raise ValueError("Only frozen official public SWE-rebench image tags are allowed")
     repo, tag = image.rsplit(":", 1)
     auth_url = "https://auth.docker.io/token?" + urllib.parse.urlencode({
         "service": "registry.docker.io", "scope": "repository:" + repo + ":pull"})
-    _, _, auth = _get(auth_url)
+    get_options = {"audit_directory": audit_directory} if audit_directory is not None else {}
+    _, _, auth = _get(auth_url, phase="anonymous_token", **get_options)
     token = json.loads(auth)["token"]  # Anonymous public token never persisted.
     headers = {"Authorization": "Bearer " + token,
                "Accept": "application/vnd.docker.distribution.manifest.v2+json"}
     status, response_headers, raw = _get(
-        "https://registry-1.docker.io/v2/" + repo + "/manifests/" + tag, headers)
+        "https://registry-1.docker.io/v2/" + repo + "/manifests/" + tag, headers,
+        phase="manifest", **get_options)
     manifest = json.loads(raw)
     digest = response_headers.get("docker-content-digest")
     calculated = "sha256:" + hashlib.sha256(raw).hexdigest()
@@ -141,7 +217,8 @@ def registry_manifest(image, probe_layers=False):
             try:
                 code, response, tail = _get(
                     "https://registry-1.docker.io/v2/" + repo + "/blobs/" + layer["digest"],
-                    {"Authorization": "Bearer " + token, "Range": "bytes=-4"}, maximum=5)
+                    {"Authorization": "Bearer " + token, "Range": "bytes=-4"}, maximum=5,
+                    phase="layer_footer", **get_options)
                 content_range = response.get("content-range")
                 receipt.update(status=code, content_range=content_range, received_bytes=len(tail),
                     gzip_isize_mod_2pow32=valid_footer(code, content_range, tail, layer["size"]),

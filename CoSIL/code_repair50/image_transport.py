@@ -1160,7 +1160,7 @@ def _config_eof_check_donor_evidence(snapshots):
         _config_eof_check_snapshots([snapshot], scope)
 
 
-def _config_eof_success_identity(client, manifest_record, attempt, scope):
+def _config_eof_success_identity(client, manifest_record, attempt, scope, *, verify_daemon=True):
     archive = _config_eof_private_path(attempt / "official_image.tar", scope)
     current = verify_docker_archive(archive, manifest_record)
     download_path = _config_eof_private_path(attempt / "download/archive_receipt.json", scope)
@@ -1173,10 +1173,11 @@ def _config_eof_success_identity(client, manifest_record, attempt, scope):
                 raise ImageTransportError("Config EOF successful archive receipt identity differs")
     if loaded.get("loaded_image_verified") is not True:
         raise ImageTransportError("Config EOF loaded identity is incomplete")
-    image = client.images.get(loaded.get("runtime_image_reference"))
-    verified = verify_loaded_image(image.attrs, current)
-    if verified["runtime_image_reference"] != loaded.get("runtime_image_reference"):
-        raise ImageTransportError("Config EOF actual loaded identity differs")
+    if verify_daemon:
+        image = client.images.get(loaded.get("runtime_image_reference"))
+        verified = verify_loaded_image(image.attrs, current)
+        if verified["runtime_image_reference"] != loaded.get("runtime_image_reference"):
+            raise ImageTransportError("Config EOF actual loaded identity differs")
     return loaded, [_config_eof_snapshot(path, scope) for path in (archive, download_path, loaded_path)]
 
 
@@ -1314,11 +1315,25 @@ def _resolve_config_metadata_eof_route(client, manifest_record, workdir):
             _config_eof_check_snapshots(record.get("successful_evidence"), workdir)
             if record.get("donor_evidence") != _config_eof_verify_donors(manifest_record, donors):
                 raise ImageTransportError("Config EOF route donor evidence binding differs")
-            loaded, evidence = _config_eof_success_identity(client, manifest_record, attempt, workdir)
+            loaded, evidence = _config_eof_success_identity(client, manifest_record, attempt, workdir, verify_daemon=False)
             if evidence != record["successful_evidence"] or loaded["runtime_image_reference"] != route.get("runtime_image_reference"):
                 raise ImageTransportError("Config EOF successful route identity differs")
-    return {**loaded, "config_metadata_eof_recovery_receipt_path": str(path), "original_partial_preserved": True,
-            "new_to_daemon": False, "cached": True}
+            registry_path = _config_eof_private_path(attempt / "registry_manifest_receipt.json", workdir)
+            registry_snapshot = _config_eof_snapshot(registry_path, workdir)
+            original_manifest = json.loads(registry_path.read_text())
+            verify_manifest_record(original_manifest)
+            if any(original_manifest.get(key) != manifest_record.get(key)
+                   for key in ("image_reference", "digest", "manifest")):
+                raise ImageTransportError("Config EOF reload registry evidence belongs to another source")
+            # Use the original full record: a new checked_at from the caller
+            # must never rewrite the old immutable registry receipt on reload.
+            loaded = ensure_verified_image(client, original_manifest, workdir=attempt)
+            _config_eof_check_snapshots(record["successful_evidence"], workdir)
+            _config_eof_check_snapshots([registry_snapshot], workdir)
+    if loaded.get("load_performed_in_this_call") is not True:
+        loaded = {**loaded, "new_to_daemon": False, "loaded_by_this_run": False,
+                  "load_performed_in_this_call": False, "cached": True}
+    return {**loaded, "config_metadata_eof_recovery_receipt_path": str(path), "original_partial_preserved": True}
 
 
 def discover_initial_cache_sources(manifest_record, workdir):
@@ -1545,9 +1560,11 @@ def ensure_verified_image(client, manifest_record, *, workdir):
             verified = verify_loaded_image(image.attrs, previous)
             return {**verified, "registry_reference": verified["source_reference"],
                     "loaded_identity_receipt_path": str(previous_path.resolve()),
-                    "new_to_daemon": False, "cached": True}
+                    "new_to_daemon": False, "loaded_by_this_run": False,
+                    "load_performed_in_this_call": False, "cached": True}
     _save(workdir / "registry_manifest_receipt.json", manifest_record)
-    if not (workdir / "probe/manifest_probe_receipt.json").exists():
+    if (not (workdir / "probe/manifest_probe_receipt.json").exists()
+            and not (workdir / "download/archive_receipt.json").exists()):
         probe_crane(manifest_record, workdir / "probe")
     archive = workdir / "official_image.tar"
     receipt_path = workdir / "download/archive_receipt.json"

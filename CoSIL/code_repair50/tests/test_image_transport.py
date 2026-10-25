@@ -909,6 +909,98 @@ class ImageTransportTests(unittest.TestCase):
             with self.assertRaisesRegex(ImageTransportError, "unknown or unfinished"):
                 ensure_verified_image(client, self.record, workdir=workdir)
 
+    def fake_local_image_load(self, client, present):
+        class ImageNotFound(Exception):
+            pass
+        image = client.images.get.return_value
+        def get(reference):
+            if not present[0]:
+                raise ImageNotFound()
+            return image
+        client.images.get.side_effect = get
+        def load(command, **kwargs):
+            self.assertEqual(command[:3], ["docker", "load", "--input"])
+            self.assertTrue(Path(command[3]).is_file())
+            present[0] = True
+            return Mock(returncode=0, poll=Mock(return_value=0))
+        return load
+
+    def test_config_route_missing_image_reloads_offline_and_preserves_old_evidence(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns) for p in workdir.rglob("*") if p.is_file()}
+            present = [False]
+            load = self.fake_local_image_load(client, present)
+            changed_check_time = {**self.record, "checked_at": "new read of the same pinned manifest"}
+            with patch("code_repair50.image_transport.download_archive") as network, \
+                 patch("code_repair50.image_transport.probe_crane") as probe, \
+                 patch("code_repair50.image_transport.subprocess.Popen", side_effect=load) as process:
+                result = ensure_verified_image(client, changed_check_time, workdir=workdir)
+            network.assert_not_called()
+            probe.assert_not_called()
+            self.assertEqual(process.call_count, 1)
+            self.assertTrue(result["new_to_daemon"])
+            self.assertTrue(result["loaded_by_this_run"])
+            self.assertTrue(result["load_performed_in_this_call"])
+            self.assertTrue(Path(result["loaded_identity_receipt_path"]).parent.name.startswith("reload-"))
+            for raw, snapshot in before.items():
+                self.assertEqual((Path(raw).read_bytes(), Path(raw).stat().st_mtime_ns), snapshot)
+            with patch("code_repair50.image_transport.subprocess.Popen") as later:
+                cached = ensure_verified_image(client, changed_check_time, workdir=workdir)
+            later.assert_not_called()
+            for flag in ("new_to_daemon", "loaded_by_this_run", "load_performed_in_this_call"):
+                self.assertFalse(cached[flag])
+
+    def test_config_route_existing_image_does_not_inherit_producer_ownership(self):
+        with self.config_eof_case() as (workdir, client, download):
+            present = [False]
+            load = self.fake_local_image_load(client, present)
+            with patch("code_repair50.image_transport.download_archive", side_effect=download), \
+                 patch("code_repair50.image_transport.subprocess.Popen", side_effect=load):
+                produced = recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.assertTrue(produced["new_to_daemon"])
+            self.assertTrue(produced["loaded_by_this_run"])
+            self.assertTrue(produced["load_performed_in_this_call"])
+            with patch("code_repair50.image_transport.subprocess.Popen") as process:
+                cached = ensure_verified_image(client, self.record, workdir=workdir)
+            process.assert_not_called()
+            for flag in ("new_to_daemon", "loaded_by_this_run", "load_performed_in_this_call"):
+                self.assertFalse(cached[flag])
+
+    def test_config_route_unknown_daemon_failure_is_not_a_missing_image_reload(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            client.images.get.side_effect = RuntimeError("daemon unavailable")
+            with patch("code_repair50.image_transport.subprocess.Popen") as process:
+                with self.assertRaisesRegex(RuntimeError, "daemon unavailable"):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            process.assert_not_called()
+
+    def test_config_route_missing_image_with_tampered_tar_never_loads(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                produced = recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.fake_local_image_load(client, [False])
+            with Path(produced["archive_path"]).open("ab") as output:
+                output.write(b"tampered tar")
+            with patch("code_repair50.image_transport.subprocess.Popen") as process:
+                with self.assertRaises(ImageTransportError):
+                    ensure_verified_image(client, self.record, workdir=workdir)
+            process.assert_not_called()
+
+    def test_config_route_missing_image_with_different_source_never_loads(self):
+        with self.config_eof_case() as (workdir, client, download):
+            with patch("code_repair50.image_transport.download_archive", side_effect=download):
+                recover_config_metadata_eof_image(client, self.record, workdir=workdir)
+            self.fake_local_image_load(client, [False])
+            changed_source = {**self.record, "image_reference": "swerebench/other@" + self.record["digest"]}
+            with patch("code_repair50.image_transport.subprocess.Popen") as process:
+                with self.assertRaisesRegex(ImageTransportError, "another source"):
+                    ensure_verified_image(client, changed_source, workdir=workdir)
+            process.assert_not_called()
+
     def test_config_eof_original_log_tampering_rejected_before_network(self):
         with self.config_eof_case() as (workdir, client, _):
             with (workdir / "transport_retry_1/download/crane_pull.log").open("ab") as output:

@@ -123,7 +123,8 @@ def qualify_task(candidate,retry_infrastructure=False):
     if not pin.exists():
         original_pin=E.LIVE/'candidates'/iid/'image_manifest.json'
         if original_pin.exists():E.save(pin,E.read(original_pin))
-        else:E.save(pin,registry_manifest(row['docker_image'],probe_layers=False))
+        else:E.save(pin,registry_manifest(row['docker_image'],probe_layers=False,
+                                         audit_directory=folder/'registry_get_audit'))
     manifest=E.read(pin)
     task={**candidate,'image_digest':manifest['digest'],'image_reference':manifest['image_reference'],
         'compressed_layer_bytes':manifest['compressed_layer_bytes'],
