@@ -673,6 +673,15 @@ def domestic_crane_environment(credentials_dir, *, http1_only=False):
     return env
 
 
+def official_http1_crane_environment(credentials_dir):
+    """Use the existing approved HTTPS proxy/CA, changing only child HTTP mode."""
+    env = crane_environment(credentials_dir)
+    if not (env.get("HTTPS_PROXY") or env.get("https_proxy")):
+        raise ImageTransportError("Official HTTP1 transport requires the existing approved HTTPS proxy")
+    env["GODEBUG"] = "http2client=0"
+    return env
+
+
 def verified_binary(binary=DEFAULT_CRANE):
     binary = Path(binary)
     with binary.open("rb") as handle:
@@ -682,14 +691,17 @@ def verified_binary(binary=DEFAULT_CRANE):
     return binary
 
 
-def probe_crane(image_record, output, binary=DEFAULT_CRANE):
+def probe_crane(image_record, output, binary=DEFAULT_CRANE, *, _official_http1=False):
     """Small public manifest connectivity check, without fetching any image layers."""
     verify_manifest_record(image_record)
+    if type(_official_http1) is not bool:
+        raise ImageTransportError("Invalid fixed official HTTP policy selector")
     _validate_storage_scope(image_record, Path(output).parent)
     binary = verified_binary(binary)
     output = Path(output)
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
-    env = crane_environment(output / "anonymous-docker-config")
+    env = (official_http1_crane_environment(output / "anonymous-docker-config") if _official_http1
+           else crane_environment(output / "anonymous-docker-config"))
     started = time.monotonic()
     result = subprocess.run([str(binary), "--platform", "linux/amd64", "manifest",
                              image_record["image_reference"]],
@@ -708,6 +720,15 @@ def probe_crane(image_record, output, binary=DEFAULT_CRANE):
         "crane_version": CRANE_VERSION, "crane_binary_sha256": CRANE_BINARY_SHA256,
         "elapsed_seconds": time.monotonic() - started, "image_layers_downloaded": 0,
         "shared_daemon_configuration_modified": False}
+    if _official_http1:
+        canonical = next(value for value in candidates if "sha256:" + hashlib.sha256(value).hexdigest() == expected)
+        with (output / "manifest.raw").open("xb") as handle:
+            os.fchmod(handle.fileno(), 0o600); handle.write(canonical)
+        receipt.update(schema="repair50_official_http1_manifest_probe_v1", source_manifest_digest=expected,
+            transport_reference=image_record["image_reference"], proxy_mode="APPROVED_PROXY_CA",
+            http_policy="HTTP1_ONLY", go_debug="http2client=0", manifest_bytes=len(canonical), network_bytes=None)
+        _save(output / "manifest_probe_receipt.json", receipt)
+        return receipt
     (output / "manifest_probe_receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     return receipt
 
@@ -716,7 +737,7 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
                      timeout=1800, reserve_bytes=20 * 1024 ** 3,
                      shared_store=None,
                      shared_reserve_bytes=10 * 1024 ** 3, cache_path=None, _domestic_mirror=False,
-                     _http1_only=False):
+                     _http1_only=False, _official_http1=False):
     """Explicit opt-in network transport; does not load images or start containers.
 
     The caller is responsible for stopping the failed own daemon-pull attempt
@@ -724,6 +745,8 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
     """
     if type(_http1_only) is not bool or (_http1_only and not _domestic_mirror):
         raise ImageTransportError("HTTP1_ONLY is restricted to the fixed domestic transport")
+    if type(_official_http1) is not bool or (_official_http1 and (_domestic_mirror or _http1_only)):
+        raise ImageTransportError("Official HTTP1 transport selectors are mutually exclusive")
     manifest = verify_manifest_record(image_record)
     shared_store = SHARED_STORE if shared_store is None else Path(shared_store)
     binary = verified_binary(binary)
@@ -739,7 +762,8 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
         raise ImageTransportError("Insufficient archive-disk space including fixed reserve")
     command = crane_pull_argv(binary, image_record, archive, cache_path=cache_path,
                               _domestic_mirror=_domestic_mirror)
-    env = (domestic_crane_environment(output / "anonymous-docker-config", http1_only=_http1_only)
+    env = (official_http1_crane_environment(output / "anonymous-docker-config") if _official_http1 else
+           domestic_crane_environment(output / "anonymous-docker-config", http1_only=_http1_only)
            if _domestic_mirror else crane_environment(output / "anonymous-docker-config"))
     started = time.monotonic()
     log = output / "crane_pull.log"
@@ -771,6 +795,9 @@ def download_archive(image_record, archive, output, *, binary=DEFAULT_CRANE,
                        transport_proxy_mode="DISABLED", network_bytes=None)
     if _http1_only:
         receipt.update(http_policy="HTTP1_ONLY", go_debug="http2client=0")
+    if _official_http1:
+        receipt.update(transport_reference=image_record["image_reference"], transport_proxy_mode="APPROVED_PROXY_CA",
+                       http_policy="HTTP1_ONLY", go_debug="http2client=0", network_bytes=None)
     (output / "archive_receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     return receipt
 
@@ -2378,6 +2405,9 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     workdir = Path(workdir)
     storage_root = _validate_storage_scope(manifest_record, workdir)
     workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if list(workdir.glob("official_http1_attempt_*")) or (workdir / "official_http1_attempt_1").is_symlink():
+        from .official_http1_transport import resolve_official_http1_transport
+        return resolve_official_http1_transport(client, manifest_record, workdir=workdir.absolute())
     http1_route = workdir / _DOMESTIC_HTTP1["attempt"]
     if list(workdir.glob(_DOMESTIC_HTTP1["prefix"])) or http1_route.is_symlink():
         return _resolve_domestic_http1_route(client, manifest_record, workdir.absolute())
