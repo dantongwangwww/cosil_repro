@@ -45,6 +45,7 @@ with tempfile.TemporaryDirectory(prefix='repair50_storage_cpu_') as temporary:
         return module
     T=mapped('code_repair50.image_transport',STAGE/'image_transport.py',code_repair50)
     O=mapped('code_repair50.official_http1_transport',STAGE/'official_http1_transport.py',code_repair50)
+    F=mapped('code_repair50.fresh_official_http1',STAGE/'fresh_official_http1.py',code_repair50)
     for name,relative in [('TRANSPORT_ROOT','legacy'),('DATA_TRANSPORT_ROOT','data'),('FRESH_POLICY_ROOT','dom_policy'),
             ('STORAGE_POLICY_ROOT','storage_policy'),('SHARED_STORE','store'),('SYSTEM_DISK','system')]:
         p=root/relative;p.mkdir(mode=0o700);setattr(T,name,p)
@@ -54,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='repair50_storage_cpu_') as temporary:
     E.SOURCE=E.WORK/'runtime/official_harness_e490';E.VENV=E.WORK/'runtime/venv/bin/python'
     code=E.ROOT/'code_repair50';code.mkdir(parents=True);(code/'image_transport.py').write_bytes((STAGE/'image_transport.py').read_bytes())
     tests_package=importlib.import_module('code_repair50.tests')
-    names=sorted({p.stem for directory in (REPO/'code_repair50/tests',STAGE/'tests') for p in directory.glob('test_*.py')}) if options.full else ['test_executor','test_image_transport','test_official_http1_transport']
+    names=sorted({p.stem for directory in (REPO/'code_repair50/tests',STAGE/'tests') for p in directory.glob('test_*.py')}) if options.full else ['test_executor','test_image_transport','test_official_http1_transport','test_fresh_official_http1']
     suite=unittest.TestSuite()
     for name in names:
         fullname='code_repair50.tests.'+name
@@ -64,8 +65,8 @@ with tempfile.TemporaryDirectory(prefix='repair50_storage_cpu_') as temporary:
         selected=unittest.defaultTestLoader.loadTestsFromModule(module)
         print('STAGED_TEST_MODULE',name,selected.countTestCases(),str(module.__file__),flush=True)
         suite.addTests(selected)
-    print('STAGED_MODULES',str(T.__file__),str(E.__file__),str(O.__file__),flush=True)
+    print('STAGED_MODULES',str(T.__file__),str(E.__file__),str(O.__file__),str(F.__file__),flush=True)
     result=unittest.TextTestRunner(verbosity=1).run(suite)
-    for name in ('executor.py','image_transport.py','official_http1_transport.py','tests/test_executor.py','tests/test_image_transport.py','tests/test_official_http1_transport.py',Path(__file__).name):
+    for name in ('executor.py','image_transport.py','official_http1_transport.py','fresh_official_http1.py','tests/test_executor.py','tests/test_image_transport.py','tests/test_official_http1_transport.py','tests/test_fresh_official_http1.py',Path(__file__).name):
         print('STAGE_SHA256',name,hashlib.sha256((STAGE/name).read_bytes()).hexdigest())
     if not result.wasSuccessful():raise SystemExit(1)
