@@ -66,6 +66,6 @@ with tempfile.TemporaryDirectory(prefix='repair50_storage_cpu_') as temporary:
         suite.addTests(selected)
     print('STAGED_MODULES',str(T.__file__),str(E.__file__),str(O.__file__),flush=True)
     result=unittest.TextTestRunner(verbosity=1).run(suite)
-    for name in ('executor.py','image_transport.py','official_http1_transport.py','tests/test_executor.py','tests/test_image_transport.py','tests/test_official_http1_transport.py','run_cpu_tests.py'):
+    for name in ('executor.py','image_transport.py','official_http1_transport.py','tests/test_executor.py','tests/test_image_transport.py','tests/test_official_http1_transport.py',Path(__file__).name):
         print('STAGE_SHA256',name,hashlib.sha256((STAGE/name).read_bytes()).hexdigest())
     if not result.wasSuccessful():raise SystemExit(1)
