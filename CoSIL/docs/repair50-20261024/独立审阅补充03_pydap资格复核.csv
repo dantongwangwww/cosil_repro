@@ -1,0 +1,3 @@
+﻿instance_id,qualification_condition,official_resolved,apply_ok,all_expected_observed,F2P_success,F2P_failure,P2P_success,P2P_failure,model_repair_calls,result_path
+pydap__pydap-624,gold,False,True,True,2,1,101,54,0,../../results/repair50_20261024/qualification_live/candidates/pydap__pydap-624/infrastructure_attempt_2/gold/result.json
+pydap__pydap-624,empty,False,True,True,0,3,101,54,0,../../results/repair50_20261024/qualification_live/candidates/pydap__pydap-624/infrastructure_attempt_2/empty/result.json

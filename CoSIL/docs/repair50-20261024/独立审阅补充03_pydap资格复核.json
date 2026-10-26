@@ -1,0 +1,36 @@
+{
+  "reviewed_at": "2026-10-24T14:33:19.096499+00:00",
+  "patch_byte_checks": [
+    {
+      "relative_artifact": "gold.diff",
+      "bytes": 2077,
+      "sha256": "6fedce2b9a775cee6699d7187df85205cfb118b3bf8202dffd9ce963300527f1",
+      "CRLF_count": 34
+    },
+    {
+      "relative_artifact": "infrastructure_attempt_2/gold.diff",
+      "bytes": 2077,
+      "sha256": "6fedce2b9a775cee6699d7187df85205cfb118b3bf8202dffd9ce963300527f1",
+      "CRLF_count": 34
+    },
+    {
+      "relative_artifact": "infrastructure_attempt_2/gold/patch.diff",
+      "bytes": 2077,
+      "sha256": "6fedce2b9a775cee6699d7187df85205cfb118b3bf8202dffd9ce963300527f1",
+      "CRLF_count": 34
+    }
+  ],
+  "base_identity": {
+    "returncode": 0,
+    "head": "12fb95e64776aaabc5edddd1563c6e1c7b5656aa",
+    "expected": "12fb95e64776aaabc5edddd1563c6e1c7b5656aa"
+  },
+  "gold_log_error_string_counts": {
+    "ConnectionError_mentions": 142,
+    "Temporary_failure_in_name_resolution_mentions": 507,
+    "NameResolutionError_mentions": 419
+  },
+  "reference_patch_body_printed_or_interpreted": false,
+  "classification": "BYTE_IO_FIX_CONFIRMED_BUT_GOLD_QUALIFICATION_STILL_FAILED",
+  "new_model_calls": 0
+}

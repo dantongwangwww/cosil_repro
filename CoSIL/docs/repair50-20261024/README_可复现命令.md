@@ -1,17 +1,70 @@
-# repair50准备产物与可复现命令
+# repair50执行产物与可复现命令
 
-这些命令复核已完成的准备工作；当前没有已验收的完整付费实验启动命令。正式测试因镜像盘容量不足而未启动，不能用下列CPU命令冒充修复评价。
+2026-10-26更新：正式修复实验已经启动。50题的参考补丁/空补丁资格验证、全部50对输入冻结和固定前3题的6份补丁工程冒烟均已完成；其余题目按冻结顺序继续生成单次补丁并进行官方测试。当前进度见[执行进度](执行进度.md)，逐题正式结果以 `arm_record.json` 为准；运行中的阶段报告不代表50题最终成绩。
 
-2026-10-24晚间更新：已按用户授权清理旧Git临时文件，镜像盘恢复约100GiB可用空间，首题容量下界已通过。见[清理回执及最新状态](磁盘清理记录_20261024.md)；早先容量阻塞证据不改写，正式测试仍待执行器与资格集成验收。
+代码恢复点为用户GitHub仓库的 `bd1a797ca2f3d2a7d8266b56a5b7504724983d78`，该代码快照的468项CPU测试通过。本文只更新执行说明，没有修改模型、输入、参数、候选名单、执行器或计费规则。早先磁盘、网络与镜像身份阻塞的历史证据继续保留在[准备与环境阻塞报告](执行报告_准备与环境阻塞.md)及相关恢复记录中。
 
-在服务器运行：
+## 当前正式产物
+
+下表均相对于 `results/repair50_20261024/`：
+
+| 内容 | 路径 |
+|---|---|
+| 固定候选顺序、资格与排除记录 | `candidate_order.csv`、`qualification_live/candidates/` |
+| 已通过资格的50题、官方执行器版本、不可变镜像身份 | `qualification_live/qualified50.json` |
+| 共同输入/输出上限、修复参数及50对输入长度 | `paired_run_v1/repair_input_freeze.json` |
+| 固定前3题工程冒烟回执 | `paired_run_v1/smoke_gate.json` |
+| 每题两组输入、请求响应、补丁和正式测试 | `paired_run_v1/cases/<issue>/` |
+| 本轮唯一新增API授权账本 | `budget/ledger.json` |
+| 最新阶段报告位置 | `paired_run_v1/latest_report.json` |
+| 独立输入、源码与函数可见性核验 | `runtime_preflight/all50_input_source_audit_20261026/` |
+| 已完成配对的离线证据审阅 | `runtime_preflight/completed_pair_failure_reviews_20261026/` |
+
+正式名单SHA256为 `a5255d0a2449627c7bca4a642e8c7c5be11bc271ad60202e4e417b200b4fce83`。50题来自固定265题范围中的235道既有函数目标完整且非空任务，经资格检查和每仓最多一题约束选出，属于开发诊断实验，不代表全部SWE-rebench任务。
+
+## 只读查看进度与结果
+
+以下命令只读本地文件，不调用模型、不启动容器、不改变账本：
 
 ```bash
 cd /mnt/skygruop0/home/wdt/cosil_repro/CoSIL
-PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES='' .venv-v5/bin/python -B -m unittest discover -s code_repair50/tests -v
+cat results/repair50_20261024/paired_run_v1/latest_report.json
+cat results/repair50_20261024/paired_run_v1/smoke_gate.json
+sha256sum results/repair50_20261024/qualification_live/qualified50.json
 ```
 
-重新核验抽样源文件与候选顺序，脚本对相同产物幂等、对不同内容拒绝覆盖：
+打开 `latest_report.json` 的 `report_dir` 后，可查看其中的 `实验报告_定位辅助修复配对.md`、`per_issue.csv`、`summary.json`、`修复失败分析_先分类再逐题.md`。所有阶段报告分别落盘，不覆盖之前的快照。深度证据审阅另行核对实际源码、模型补丁和正式测试日志，证据不足时保留未知；任何审阅结果都不回传修复模型。
+
+## CPU检查与既有运行的恢复
+
+已验收的全套CPU检查入口是隔离测试运行器，使用模块形式：
+
+```bash
+cd /mnt/skygruop0/home/wdt/cosil_repro/CoSIL
+PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES='' .venv-v5/bin/python -B -m code_repair50.run_isolated_transport_tests --full
+```
+
+这不是正式修复评价；不要因实验仍在运行而重复执行全部检查。官方修复评分只来自固定执行器对干净base独立容器的实际测试。
+
+仅在确认原控制器已退出、检查其终态和未完成记录之后，既有授权运行可沿原目录与原账本恢复：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES='' .venv-v5/bin/python -B -m code_repair50.main --phase run --wait-seconds 172800
+```
+
+控制器有独占锁；恢复复用已经保存的正常候选和兼容的上游阶段，不因测试失败重新生成答案。不能删除结果或账本以重抽答案、重置5美元上限，也不能在已经冻结50题后重跑资格流程并覆盖正式名单。当前主控仍在运行时，不另起一份控制器。
+
+控制器结束后，可读取既有记录并新增一份离线报告快照：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES='' .venv-v5/bin/python -B -m code_repair50.main --phase report
+```
+
+`report` 不调用模型或执行测试，但会新写报告和更新指针，因此运行中直接读取最新报告即可。环境、预算未执行、正常模型输出失败和正式测试未解决必须分别报告；未知费用保留上界，不能记为零。
+
+## 早期准备命令与历史证据
+
+下面保留早期准备阶段的复现命令；它们不能替代官方资格与实际A/B评测，也不表示正式实验仍未启动。准备程序对相同产物幂等、对不同内容拒绝覆盖，读取隔离侧金标与固定parquet，未向模型传送数据：
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES='' .venv-v5/bin/python -B -m code_repair50.prepare
@@ -19,9 +72,9 @@ sha256sum results/repair50_20261024/candidate_order.csv
 sha256sum results/repair50_20261024/official_sources/official_harness_e490_full.tar.gz
 ```
 
-期望候选CSV的SHA256为 `b748e93522eeae3411ab72f736ad8a314406cc697f2cb8d88b944063f09f4f1e`，官方源码tar为 `3dfc6035ceabb319431a7e0e66fb99024e5db2aa250533cb669b44ad071e38b9`。脚本读取隔离侧金标与固定parquet来确认范围，未向模型传送数据。
+期望候选CSV的SHA256为 `b748e93522eeae3411ab72f736ad8a314406cc697f2cb8d88b944063f09f4f1e`，官方源码tar为 `3dfc6035ceabb319431a7e0e66fb99024e5db2aa250533cb669b44ad071e38b9`。
 
-只读检查Docker与容量（不会拉镜像或启动容器）：
+只读检查Docker与容量，不拉镜像、不启动容器：
 
 ```bash
 sg docker -c 'docker version'
@@ -29,12 +82,4 @@ sg docker -c 'docker info --format "{{.DockerRootDir}} {{json .DriverStatus}}"'
 df -h /mnt/skygruop0 /tmp
 ```
 
-联网复核公开镜像manifest及第一题压缩层footer，下列文件名必须不存在；后续复核请更换新文件名，禁止覆盖旧证据。网络沿用服务器现有获准代理环境，不读取DeepSeek密钥：
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES='' .venv-v5/bin/python -B -m code_repair50.official_runtime --candidate-limit 3 --output results/repair50_20261024/runtime_preflight/storage_preflight_recheck.json
-```
-
-这一步即使“下界放得下”也不会自动拉镜像；gzip尾部只能给下界，不能保证真实运行峰值。实际评测仍须完成安装固定官方执行器、受限容器、真实gold/empty资格适配与运行验收。
-
-当前原始状态位于 `results/repair50_20261024/current_status.json`，详细说明见[准备与环境阻塞报告](执行报告_准备与环境阻塞.md)。待环境恢复后才能冻结正式50题与共同修复上下文上限，接入带$5事务预算的provider，并执行用户要求的6次冒烟和余下94次单候选生成。任何普通pytest结果、空补丁应用失败或CPU合成测试都不能替代官方Resolved判分。
+早期磁盘清理见[清理回执](磁盘清理记录_20261024.md)。`current_status.json` 和[准备与环境阻塞报告](执行报告_准备与环境阻塞.md)保留的是当时的证据，当前运行状态应读取本页开头列出的产物。普通pytest退出码、补丁应用成功和CPU合成检查均不能替代官方Resolved判分。

@@ -1,0 +1,26 @@
+{
+  "instance_id": "Ultraplot__UltraPlot-346",
+  "candidate_rank": 14,
+  "checked_at_utc": "2026-10-24T16:26:23.716105+00:00",
+  "image_reference": "swerebench/sweb.eval.x86_64.ultraplot_1776_ultraplot-346@sha256:a2acf87bfad72c19ef3e7ed223f13d7bcbe3ecefa5c28b4ff7ac87fc2fabac4d",
+  "observed_head": "dd37dd81332174003e5c5d9c10f935a560578824",
+  "required_base_commit": "4affafd75d9e446ada59ea4e9c8474b1ca2b7318",
+  "status": "ENVIRONMENT_ERROR",
+  "stage": "BASE_IDENTITY",
+  "official_verdict": false,
+  "resolved": null,
+  "apply_ok": null,
+  "test_completed": false,
+  "container_removed": true,
+  "qualified_count_at_audit": 9,
+  "formal50_exists": false,
+  "incremental_ledger_exists": false,
+  "paid_sent_receipts": 0,
+  "source_tree_content_compared": false,
+  "candidate_excluded_as_ordinary_failure": false,
+  "audit_actions": "Read-only persisted metadata; no containers/process signals/model/network requests",
+  "source_sha256": {
+    "results/repair50_20261024/qualification_live/candidates/Ultraplot__UltraPlot-346/infrastructure_attempt_2/gold/base_head.json": "bae59ed1cdec60371ee38430d871a06cb50dcca559274b1a24eb9ed223b167aa",
+    "results/repair50_20261024/qualification_live/candidates/Ultraplot__UltraPlot-346/infrastructure_attempt_2/gold/result.json": "6e573536c5065b070a52a9a4735dae30871c9f44c741dd039b86f4dbf643afcd"
+  }
+}

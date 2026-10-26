@@ -1,0 +1,3 @@
+﻿instance_id,classification,formal_repair_result,excluded_as_task_ineligible,official_qualification_verdict_usable,evidence
+pydap__pydap-624,IMPLEMENTATION_FAULT_PENDING_SAME_TASK_RETRY,NA,False,False,../../results/repair50_20261024/qualification_live/candidates/pydap__pydap-624/crlf_artifact_integrity_audit.json
+quantumlib__ReCirq-410,ENVIRONMENT_IMAGE_TRANSPORT_FAILURE,NA,False,False,../../results/repair50_20261024/qualification_live/candidates/quantumlib__ReCirq-410/gold/result.json
