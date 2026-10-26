@@ -30,3 +30,7 @@
 安装后复核发现，直接按脚本文件路径运行会使包内 `statistics.py` 遮蔽Python标准库同名模块，在测试执行前发生ImportError；因此长期复现命令改用上述 `-m` 模块入口。运输代码和测试用例未因此改动，首次错误也不计作测试通过或正式实验失败。
 
 2026-10-26 10:39（UTC+8）安装复核：代码快照 `254a667f930c454ffe411dd95d111bee7ece7908` 已核验远端并通过无producer/无正式50题/无ledger/唯一主控锁等守卫安装，原代码备份与回执在 `runtime_preflight/official_http1_install_20261026`。第一次模块入口的442项测试全通过，但尾部SHA打印仍引用旧runner文件名，命令退出1；随后仅将该元组末项改为 `Path(__file__).name`。独立复核确认其余runner字节全同原SHA `22a7475d…`，审计保护与收集范围未改；再次运行模块full命令，442项全通过且真实exit0。执行器、运输模块和新入口的上述SHA保持不变，尚未进行真实下载。
+
+2026-10-26 11:03（UTC+8）实际恢复成功：唯一session78750真实exit0，完整tar为1,402,586,624字节，SHA256 `444ce07ea6f3cc1d6279b7ba3c1fc1a3c077397dedfb335843950dcd067c1d7e`，压缩层、实际解压diffID和加载身份全部通过。runtime为 `sha256:8c5c145cbe9a4bac2561df84bd001ca65168b90cc5489f051fa6b96555fb0a74`，三项实际ownership标志均True，新增lease已登记。原58项旧树/placement/策略/核心源码等证据SHA/stat前后相同；零模型、资格、容器或GPU调用，网络字节未知。回执为 `runtime_preflight/babel1163_official_http1_transport_20261026/verified_summary.json`，SHA256 `674c849552de0f77aaa7cd3c4e098b3842e2d5959bde5d3a9a76d85d971bc032`。这仍不是该题资格通过，合格数仍34。
+
+时长分别为：归档下载含校验130.15秒、Docker加载106.17秒、整route436.44秒、运维wrapper510.09秒。后两项包含多次证据复核，不能相加或当作纯网络/模型推理时间，也不构成HTTP/2根因证明。首次sg启动在任何OUT或网络前因主组切换后的/proc cwd读取限制被守卫拒绝；核实本会话已有Docker补充组后，保持原wrapper与身份守卫，改用正确runtime直接启动，未消耗第二次producer。
