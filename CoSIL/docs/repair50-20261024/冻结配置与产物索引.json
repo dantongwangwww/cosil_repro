@@ -1,0 +1,86 @@
+{
+  "schema": "repair50_documentation_delivery_index_v1",
+  "scope": "既有函数目标任务上的开发诊断；不是全SWE-rebench、不是CQ2-CARE原论文300题",
+  "dataset_revision": "34d5a58864acf91613740a09ec5d205228dcfa39",
+  "dataset_parquet_sha256": "1497b218db0a8259d22471812f0de12b779c699daf741b930d68bc717636f0bf",
+  "parent_pool_n": 265,
+  "existing_function_complete_nonempty_candidate_n": 235,
+  "seed": 20261024,
+  "sample_algorithm": "SHA256(UTF8(NUL.join([repair50-v1,20261024,dataset_revision,instance_id]))), then (hash,instance_id); fixed order qualification/substitution,at most1 repo.",
+  "selected_n": 50,
+  "model_request_and_return_alias": "deepseek-flash",
+  "model_permanent_weights_sha_available": false,
+  "repair_parameters": {
+    "temperature": 0,
+    "thinking": {
+      "type": "disabled"
+    },
+    "input_limit": 108963,
+    "output_limit": 32768,
+    "model_context_limit": 1000000,
+    "no_context_truncation": true,
+    "candidates_per_task_arm": 1,
+    "arm_order": "SHA256('repair50-arms\\0'+'20261024'+'\\0'+iid), first-byte parity"
+  },
+  "official_harness_commit": "e4907b7a90eafaa1f0a6428fd04fe31cdd8b4284",
+  "code_checkpoint": "5a3bc0e879f4a6de702ac2d666a77d2e630a9d6f",
+  "cpu_suite_passed_n": 514,
+  "artifacts": {
+    "frozen50": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/qualification_live/qualified50.json",
+      "sha256": "a5255d0a2449627c7bca4a642e8c7c5be11bc271ad60202e4e417b200b4fce83"
+    },
+    "candidate_order": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/candidate_order.csv",
+      "sha256": "b748e93522eeae3411ab72f736ad8a314406cc697f2cb8d88b944063f09f4f1e"
+    },
+    "input_freeze": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/paired_run_v1/repair_input_freeze.json",
+      "sha256": "42a734f1d9759e235c65373fa6b41da913250f752e65fe17386a130dc40e02a6"
+    },
+    "incremental_ledger": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/budget/ledger.json",
+      "sha256": "cb70b6eb5b9ec13f1b6430851952f3f85f0d466b5da48e293ad2e83d760ae152"
+    },
+    "derived_summary": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/final_delivery_v1/summary.json",
+      "sha256": "d6d24b3a3314db26fee8b4c2e8e9b4197fd32b172a393ed3155b80b85b19e1ca"
+    },
+    "derived_delivery": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/final_delivery_v1/delivery_summary.json",
+      "sha256": "c3f0a4fb933bcb692cd44084ebae5cd8b2a3fbc7650401c1622f7dd4a06152b3"
+    },
+    "system_delivery_and_groups": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/final_delivery_v1/supplemental_analysis.json",
+      "sha256": "e656bf29d5873360a932cbc81e199b4c37970a0bd291f1cbf96ef529da2bbef1"
+    },
+    "source_hash_manifest": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/final_delivery_v1/source_hash_manifest.json",
+      "sha256": "9c212956dd2f45d7a78e120e52a0911a4f3f0fb0f0f8886010e175bf788c3633"
+    },
+    "failure_index": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/runtime_preflight/case_synthesis_final_20261026/index.json",
+      "sha256": "e3fb426967927283a0355ba6f7cbde986dc29546599d7166f164f27802bec2f2"
+    },
+    "per_issue_csv": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/docs/repair50-20261024/逐题配对修复结果.csv",
+      "sha256": "3a3fd97acbe4edea8d7952236cabfe2a3fcc2ff8357ba33a2ddc3113ec8727ad"
+    },
+    "selected50_documentation": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/docs/repair50-20261024/冻结50题清单.csv",
+      "sha256": "ff7164885587a847784e4e8bdc66da6a7d33fa04d1c1182e9ace4d55e00faeb6"
+    },
+    "recovery_binding": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/same_candidate_recovery_20261026/SpikeInterface__spikeinterface-3934/A/recovery_binding.json",
+      "sha256": "6c64f22daf02cd07bdf5e76fdb94b34fedeb1ce04c78d3ebd1bd5aed0c793875"
+    },
+    "recovery_completion": {
+      "path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/results/repair50_20261024/same_candidate_recovery_20261026/SpikeInterface__spikeinterface-3934/A/completion.json",
+      "sha256": "a62c66bc08fc515fd629bf1024a5c288d3f4c09370b28f9aa7cd7d4f09e4db6d"
+    }
+  },
+  "raw_requests_responses_patches_tests": "See real per-arm paths in逐题配对修复结果.csv; raw artifacts remain server-side and are not published to GitHub.",
+  "historical_results_sealed_tests_and_matrix_changed": false,
+  "fee_columns_note": "Fee columns are execution-time rate × measured usage estimates, not account invoice. Normal-response columns describe the single normal response; repair_actual_all_attempt_fee and shared_localization_actual_all_attempt_fee stay blank if any attempt lacks usage. Shared localization is added once per pair. Historical reuse is not recharged.",
+  "source_visibility_columns_note": "A_all_targets_complete and B_all_targets_complete refer to frozen complete existing-definition ranges including decorators; they do not guarantee all dependencies are supplied."
+}
