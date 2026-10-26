@@ -218,4 +218,104 @@ class ImageStorageSelectionTests(unittest.TestCase):
         transport.assert_not_called()
 
 
+class CachedImageCapacityTests(unittest.TestCase):
+    setUp=ImageStorageSelectionTests.setUp
+
+    def proof(self):
+        return {'source_reference':self.task['image_reference'],
+                'source_manifest_digest':self.record['digest'],
+                'runtime_image_reference':'sha256:'+'c'*64,'cached':True,
+                'new_to_daemon':False,'loaded_by_this_run':False,
+                'load_performed_in_this_call':False}
+
+    def setup_case(self,proof=None,free=40*1024**3):
+        self.task['compressed_layer_bytes']=12*1024**3
+        client=Mock();client.images.get.return_value=Mock(id='sha256:'+'c'*64,attrs={'Id':'sha256:'+'c'*64})
+        stack=contextlib.ExitStack();self.addCleanup(stack.close)
+        stack.enter_context(patch.object(E.shutil,'disk_usage',return_value=Mock(free=free)))
+        stack.enter_context(patch.object(E,'digest',return_value='stage-source'))
+        probe=stack.enter_context(patch.object(self.T,'probe_verified_cached_image',return_value=proof,create=True))
+        ensure=stack.enter_context(patch.object(self.T,'ensure_verified_image'))
+        select=stack.enter_context(patch.object(self.T,'select_image_workdir'))
+        verify=stack.enter_context(patch.object(self.T,'verify_loaded_image'))
+        return client,probe,ensure,select,verify
+
+    def test_low_free_verified_live_cache_reuses_without_materialization(self):
+        proof=self.proof();client,probe,ensure,select,verify=self.setup_case(proof)
+        image,owned,meta=E.acquire_image(client,self.task,self.root/'receipt')
+        self.assertFalse(owned);self.assertTrue(meta['new_allocation_planning_exempt_for_verified_cache'])
+        self.assertLess(meta['free_before_bytes'],meta['planning_required_bytes'])
+        probe.assert_called_once_with(client,self.record)
+        client.images.get.assert_called_once_with(proof['runtime_image_reference'])
+        verify.assert_called_once_with(image.attrs,proof)
+        ensure.assert_not_called();select.assert_not_called()
+        self.assertEqual(json.loads((self.root/'receipt/verified_image_transport.json').read_text()),proof)
+
+    def test_low_free_cache_miss_preserves_original_planning_gate(self):
+        client,probe,ensure,select,verify=self.setup_case(None)
+        with self.assertRaisesRegex(RuntimeError,'pre-pull planning guard'):
+            E.acquire_image(client,self.task,self.root/'receipt')
+        probe.assert_called_once();ensure.assert_not_called();select.assert_not_called()
+        client.images.get.assert_not_called();verify.assert_not_called()
+
+    def test_corrupt_cache_proof_error_is_not_silently_reloaded(self):
+        client,probe,ensure,select,verify=self.setup_case()
+        probe.side_effect=self.T.ImageTransportError('Wrong bound archive')
+        with self.assertRaisesRegex(self.T.ImageTransportError,'Wrong bound archive'):
+            E.acquire_image(client,self.task,self.root/'receipt')
+        ensure.assert_not_called();select.assert_not_called();client.images.get.assert_not_called()
+
+    def test_cache_disappearing_after_probe_never_materializes(self):
+        client,probe,ensure,select,verify=self.setup_case(self.proof())
+        error=type('ImageNotFound',(Exception,),{})
+        client.images.get.side_effect=error('gone')
+        with self.assertRaises(error):E.acquire_image(client,self.task,self.root/'receipt')
+        ensure.assert_not_called();select.assert_not_called();verify.assert_not_called()
+        self.assertFalse((self.root/'receipt/verified_image_transport.json').exists())
+
+    def test_identity_changed_after_probe_fails_before_use(self):
+        client,probe,ensure,select,verify=self.setup_case(self.proof())
+        verify.side_effect=self.T.ImageTransportError('Different diff IDs')
+        with self.assertRaisesRegex(self.T.ImageTransportError,'Different diff IDs'):
+            E.acquire_image(client,self.task,self.root/'receipt')
+        ensure.assert_not_called();select.assert_not_called()
+        self.assertFalse((self.root/'receipt/verified_image_transport.json').exists())
+
+    def test_false_ownership_or_source_flags_cannot_exempt_planning(self):
+        changes=[{'cached':False},{'new_to_daemon':True},{'loaded_by_this_run':True},
+                 {'load_performed_in_this_call':True},{'source_reference':'other'},
+                 {'source_manifest_digest':'sha256:'+'f'*64}]
+        for change in changes:
+            with self.subTest(change=change):
+                client,probe,ensure,select,verify=self.setup_case({**self.proof(),**change})
+                with self.assertRaisesRegex(RuntimeError,'invalid read-only cache proof'):
+                    E.acquire_image(client,self.task,self.root/'receipt')
+                ensure.assert_not_called();select.assert_not_called();client.images.get.assert_not_called()
+
+    def test_runtime_reserves_apply_even_if_image_is_cached(self):
+        for data_free,tmp_free in [(5*1024**3,40*1024**3),(40*1024**3,15*1024**3)]:
+            with self.subTest(data_free=data_free,tmp_free=tmp_free):
+                client,probe,ensure,select,verify=self.setup_case(self.proof())
+                with patch.object(E.shutil,'disk_usage',side_effect=lambda p:Mock(free=data_free if str(p).endswith('/containerd') else tmp_free)):
+                    with self.assertRaisesRegex(RuntimeError,'runtime reserve guard'):
+                        E.acquire_image(client,self.task,self.root/'receipt')
+                probe.assert_not_called();ensure.assert_not_called();select.assert_not_called()
+
+    def test_unknown_archive_size_still_rejects_without_cache_probe(self):
+        client,probe,ensure,select,verify=self.setup_case(self.proof())
+        self.task.pop('compressed_layer_bytes')
+        with self.assertRaisesRegex(RuntimeError,'pre-pull planning guard'):
+            E.acquire_image(client,self.task,self.root/'receipt')
+        probe.assert_not_called();ensure.assert_not_called();select.assert_not_called()
+
+    def test_sufficient_free_keeps_original_materialization_path(self):
+        client,probe,ensure,select,verify=self.setup_case(self.proof(),free=2**50)
+        select.return_value=self.root/'original-scope'
+        ensure.return_value={'runtime_image_reference':'sha256:'+'c'*64,'new_to_daemon':True,'loaded_by_this_run':True,'cached':False}
+        _,owned,meta=E.acquire_image(client,self.task,self.root/'receipt')
+        self.assertTrue(owned);self.assertFalse(meta['new_allocation_planning_exempt_for_verified_cache'])
+        probe.assert_not_called();verify.assert_not_called()
+        ensure.assert_called_once_with(client,self.record,workdir=self.root/'original-scope')
+
+
 if __name__=='__main__':unittest.main()

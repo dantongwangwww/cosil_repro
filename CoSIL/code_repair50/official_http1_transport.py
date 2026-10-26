@@ -156,7 +156,7 @@ def explicit_official_http1_transport(client, original_manifest, *, workdir):
         raise
 
 
-def resolve_official_http1_transport(client, manifest, *, workdir):
+def resolve_official_http1_transport(client, manifest, *, workdir, _cache_only=False):
     """Fail closed on unknown/failed routes; success permits offline reuse only."""
     workdir = Path(workdir).absolute()
     if {p.name for p in workdir.glob(PREFIX)} != {ATTEMPT}:
@@ -194,12 +194,15 @@ def resolve_official_http1_transport(client, manifest, *, workdir):
     if (loaded.get("runtime_image_reference") != route.get("runtime_image_reference") or
             loaded.get("runtime_image_reference") not in T.expected_runtime_ids(loaded)):
         raise T.ImageTransportError("Official HTTP1 stored loaded identity differs")
-    loaded = T.ensure_verified_image(client, stored, workdir=attempt)
+    loaded = T.ensure_verified_image(client, stored, workdir=attempt,
+        **({"_cache_only": True} if _cache_only else {}))
     T._config_eof_check_snapshots(route["successful_evidence"], workdir)
     if request["original_evidence"] != _old(manifest, workdir) or request["placement_evidence"] != _placement(manifest, workdir):
         raise T.ImageTransportError("Official HTTP1 reload changed old evidence or placement")
     T._config_eof_check_donor_evidence(evidence)
     _predecessor(manifest, workdir)
+    if loaded is None:
+        return None
     if loaded.get("load_performed_in_this_call") is not True:
         loaded = {**loaded, "new_to_daemon": False, "loaded_by_this_run": False,
             "load_performed_in_this_call": False, "cached": True}

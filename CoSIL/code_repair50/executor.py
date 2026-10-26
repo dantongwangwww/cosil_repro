@@ -229,25 +229,48 @@ def clean_lease(client,task):
 def acquire_image(client,task,directory):
     reference=task['image_reference']
     if not valid_image_reference(reference):raise ValueError('Unpinned/nonofficial image rejected')
+    manifest_path=Path(task.get('image_manifest_path') or LIVE/'candidates'/task['instance_id']/'image_manifest.json')
+    manifest=read(manifest_path)
+    if manifest['image_reference']!=reference:raise RuntimeError('SYSTEM_IMAGE_DIGEST_MISMATCH')
     compressed=task.get('compressed_layer_bytes')
     free=shutil.disk_usage('/mnt/skygruop0/containerd').free
     # Conservative planning guard, not a mathematical gzip expansion bound.
     required=max(int(compressed or 0)*8,16*1024**3)+2*1024**3
-    if compressed is None or free<required:raise RuntimeError('SYSTEM_DISK_CAPACITY: pre-pull planning guard')
-    manifest_path=Path(task.get('image_manifest_path') or LIVE/'candidates'/task['instance_id']/'image_manifest.json')
-    manifest=read(manifest_path)
-    if manifest['image_reference']!=reference:raise RuntimeError('SYSTEM_IMAGE_DIGEST_MISMATCH')
+    if compressed is None:raise RuntimeError('SYSTEM_DISK_CAPACITY: pre-pull planning guard')
     from .image_transport import ensure_verified_image, select_image_workdir
     transport_source_sha=digest(ROOT/'code_repair50/image_transport.py')
-    receipt=ensure_verified_image(client,manifest,workdir=select_image_workdir(manifest))
+    cache_planning_exempt=free<required
+    if cache_planning_exempt:
+        from .image_transport import probe_verified_cached_image, verify_loaded_image
+        # Existing daemon storage is already allocated. Only a fully verified,
+        # read-only cache hit may bypass the *new allocation* heuristic; all
+        # real runtime reserves remain mandatory, including for this branch.
+        if free<10*1024**3 or shutil.disk_usage('/tmp').free<20*1024**3:
+            raise RuntimeError('SYSTEM_DISK_CAPACITY: cached-image runtime reserve guard')
+        receipt=probe_verified_cached_image(client,manifest)
+        if receipt is None:
+            raise RuntimeError('SYSTEM_DISK_CAPACITY: pre-pull planning guard')
+        if (receipt.get('cached') is not True or receipt.get('new_to_daemon') is not False
+                or receipt.get('loaded_by_this_run') is not False
+                or receipt.get('load_performed_in_this_call') is not False
+                or receipt.get('source_reference')!=reference
+                or receipt.get('source_manifest_digest')!=manifest['digest']):
+            raise RuntimeError('SYSTEM_IMAGE_IDENTITY: invalid read-only cache proof')
+    else:
+        receipt=ensure_verified_image(client,manifest,workdir=select_image_workdir(manifest))
     image=client.images.get(receipt['runtime_image_reference'])
+    if cache_planning_exempt:
+        # A disappearance or identity change after the probe fails closed.
+        # Never invoke materialization after exempting its capacity plan.
+        verify_loaded_image(image.attrs,receipt)
     save(directory/'verified_image_transport.json',receipt)
     return image,bool(receipt.get('new_to_daemon') or receipt.get('loaded_by_this_run')),{
         'reference':reference,'runtime_image_reference':image.id,'registry_digest_preservation_claimed':False,
         'transport':'Verified original registry manifest/config/compressed layers/diffIDs; user-proxy archive transfer then local Docker load',
         'cached':receipt.get('cached'),'image_id':image.id,'receipt':str(directory/'verified_image_transport.json'),
         'image_transport_source_sha256_at_import':transport_source_sha,
-        'free_before_bytes':free,'planning_required_bytes':required}
+        'free_before_bytes':free,'planning_required_bytes':required,
+        'new_allocation_planning_exempt_for_verified_cache':cache_planning_exempt}
 
 def evaluate_in_worker(task,arm,patch_path,directory):
     """Runs only inside the sg/docker worker, with no model credentials mounted."""

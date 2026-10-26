@@ -1610,7 +1610,7 @@ def recover_config_metadata_eof_image(client, manifest_record, *, workdir):
         raise
 
 
-def _resolve_config_metadata_eof_route(client, manifest_record, workdir):
+def _resolve_config_metadata_eof_route(client, manifest_record, workdir, *, _cache_only=False):
     root = _config_eof_private_path(workdir / "config_eof_recovery", workdir, directory=True)
     path = _config_eof_private_path(root / "route.json", workdir)
     route = json.loads(path.read_text())
@@ -1671,9 +1671,12 @@ def _resolve_config_metadata_eof_route(client, manifest_record, workdir):
                 raise ImageTransportError("Config EOF reload registry evidence belongs to another source")
             # Use the original full record: a new checked_at from the caller
             # must never rewrite the old immutable registry receipt on reload.
-            loaded = ensure_verified_image(client, original_manifest, workdir=attempt)
+            loaded = ensure_verified_image(client, original_manifest, workdir=attempt,
+                **({"_cache_only": True} if _cache_only else {}))
             _config_eof_check_snapshots(record["successful_evidence"], workdir)
             _config_eof_check_snapshots([registry_snapshot], workdir)
+    if loaded is None:
+        return None
     if loaded.get("load_performed_in_this_call") is not True:
         loaded = {**loaded, "new_to_daemon": False, "loaded_by_this_run": False,
                   "load_performed_in_this_call": False, "cached": True}
@@ -2020,15 +2023,17 @@ def _explicit_domestic_transport(client, original_manifest, *, workdir, spec):
         raise
 
 
-def _resolve_domestic_mirror_route(client, manifest_record, workdir):
-    return _resolve_domestic_transport(client, manifest_record, workdir, spec=_DOMESTIC_AUTO)
+def _resolve_domestic_mirror_route(client, manifest_record, workdir, *, _cache_only=False):
+    return _resolve_domestic_transport(client, manifest_record, workdir, spec=_DOMESTIC_AUTO,
+        **({"_cache_only": True} if _cache_only else {}))
 
 
-def _resolve_domestic_http1_route(client, manifest_record, workdir):
-    return _resolve_domestic_transport(client, manifest_record, workdir, spec=_DOMESTIC_HTTP1)
+def _resolve_domestic_http1_route(client, manifest_record, workdir, *, _cache_only=False):
+    return _resolve_domestic_transport(client, manifest_record, workdir, spec=_DOMESTIC_HTTP1,
+        **({"_cache_only": True} if _cache_only else {}))
 
 
-def _resolve_domestic_transport(client, manifest_record, workdir, *, spec):
+def _resolve_domestic_transport(client, manifest_record, workdir, *, spec, _cache_only=False):
     _domestic_source(manifest_record, workdir)
     if spec["http1_only"]:
         _domestic_http1_predecessor(manifest_record, workdir)
@@ -2057,13 +2062,16 @@ def _resolve_domestic_transport(client, manifest_record, workdir, *, spec):
     verify_manifest_record(archived)
     if any(archived.get(key) != manifest_record.get(key) for key in ("image_reference", "digest", "manifest")):
         raise ImageTransportError("Domestic mirror reload source differs")
-    loaded = ensure_verified_image(client, archived, workdir=attempt)
+    loaded = ensure_verified_image(client, archived, workdir=attempt,
+        **({"_cache_only": True} if _cache_only else {}))
     _config_eof_check_snapshots(route["successful_evidence"], workdir)
     if route["original_evidence"] != _domestic_old_snapshots(workdir, attempt_name=spec["attempt"]):
         raise ImageTransportError("Domestic mirror reload changed old evidence")
     _config_eof_check_donor_evidence(route["donor_evidence"])
     if spec["http1_only"]:
         _domestic_http1_predecessor(manifest_record, workdir)
+    if loaded is None:
+        return None
     if loaded.get("load_performed_in_this_call") is not True:
         loaded = {**loaded, "new_to_daemon": False, "loaded_by_this_run": False,
                   "load_performed_in_this_call": False, "cached": True}
@@ -2408,7 +2416,28 @@ def first_download_with_private_cache(manifest_record, archive, output, *, workd
         raise
 
 
-def ensure_verified_image(client, manifest_record, *, workdir):
+def probe_verified_cached_image(client, manifest_record):
+    """Read only an already bound, fully verified image still in the daemon.
+
+    A missing cache is not permission to create a placement, retry transport,
+    load an archive, or downgrade damaged evidence into a fresh download.
+    """
+    verify_manifest_record(manifest_record)
+    digest = manifest_record["digest"].split(":", 1)[1]
+    roots = _transport_roots()
+    if any(p.is_symlink() for root in roots for p in (root, *root.parents)):
+        raise ImageTransportError("Cached image storage root contains a symlink")
+    placement = _read_placement(manifest_record)
+    if placement is None:
+        if any((root / digest).exists() or (root / digest).is_symlink() for root in roots):
+            raise ImageTransportError("Existing cached image scope lacks its frozen placement")
+        return None
+    workdir = Path(placement["workdir"])
+    _validate_storage_scope(manifest_record, workdir)
+    return ensure_verified_image(client, manifest_record, workdir=workdir, _cache_only=True)
+
+
+def ensure_verified_image(client, manifest_record, *, workdir, _cache_only=False):
     """Explicit fallback entry point, called serially by the qualification worker.
 
     Only this run's immutable public image is loaded.  No container, host mount,
@@ -2418,19 +2447,23 @@ def ensure_verified_image(client, manifest_record, *, workdir):
     manifest = verify_manifest_record(manifest_record)
     workdir = Path(workdir)
     storage_root = _validate_storage_scope(manifest_record, workdir)
-    workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if _cache_only:
+        _config_eof_private_path(workdir, workdir, directory=True)
+    else:
+        workdir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    cache_options = {"_cache_only": True} if _cache_only else {}
     if list(workdir.glob("official_http1_attempt_*")) or (workdir / "official_http1_attempt_1").is_symlink():
         from .official_http1_transport import resolve_official_http1_transport
-        return resolve_official_http1_transport(client, manifest_record, workdir=workdir.absolute())
+        return resolve_official_http1_transport(client, manifest_record, workdir=workdir.absolute(), **cache_options)
     http1_route = workdir / _DOMESTIC_HTTP1["attempt"]
     if list(workdir.glob(_DOMESTIC_HTTP1["prefix"])) or http1_route.is_symlink():
-        return _resolve_domestic_http1_route(client, manifest_record, workdir.absolute())
+        return _resolve_domestic_http1_route(client, manifest_record, workdir.absolute(), **cache_options)
     domestic_route = workdir / "domestic_mirror_attempt_1"
     if domestic_route.exists() or domestic_route.is_symlink():
-        return _resolve_domestic_mirror_route(client, manifest_record, workdir.absolute())
+        return _resolve_domestic_mirror_route(client, manifest_record, workdir.absolute(), **cache_options)
     config_route = workdir / "config_eof_recovery"
     if config_route.exists() or config_route.is_symlink():
-        return _resolve_config_metadata_eof_route(client, manifest_record, workdir.absolute())
+        return _resolve_config_metadata_eof_route(client, manifest_record, workdir.absolute(), **cache_options)
     retry_path = workdir / "transport_retry_1/transport_retry_receipt.json"
     if retry_path.exists():
         retry = json.loads(retry_path.read_text())
@@ -2440,7 +2473,9 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                 or retry.get("source_manifest_digest") != manifest_record["digest"]
                 or retry.get("resolved_workdir") != str(expected.resolve()) or expected.is_symlink()):
             raise ImageTransportError("Prior explicit transport retry failed or belongs to another source; stop")
-        loaded = ensure_verified_image(client, manifest_record, workdir=expected)
+        loaded = ensure_verified_image(client, manifest_record, workdir=expected, **cache_options)
+        if loaded is None:
+            return None
         return {**loaded, "transport_retry_receipt_path": str(retry_path.resolve()), "original_partial_preserved": True}
     recovery_path = workdir / "recovery_attempt_1/recovery_receipt.json"
     if recovery_path.exists():
@@ -2452,7 +2487,9 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                 or recovery.get("resolved_workdir") != str(expected_directory.resolve())
                 or expected_directory.is_symlink()):
             raise ImageTransportError("Prior recovery failed or belongs to another source; stop without automatic retry")
-        recovered = ensure_verified_image(client, manifest_record, workdir=expected_directory)
+        recovered = ensure_verified_image(client, manifest_record, workdir=expected_directory, **cache_options)
+        if recovered is None:
+            return None
         return {**recovered, "recovery_receipt_path": str(recovery_path.resolve()),
                 "original_partial_preserved": True}
     if (workdir / "initial_cache/failure_receipt.json").exists():
@@ -2486,16 +2523,25 @@ def ensure_verified_image(client, manifest_record, *, workdir):
         raise ImageTransportError("Existing loaded identity receipt symlink is rejected")
     previous_path = loaded_path if loaded_path.exists() else workdir / "loaded_identity_receipt.json"
     if previous_path.exists():
+        if _cache_only and previous_path != loaded_path:
+            raise ImageTransportError("Cached planning exemption requires the complete loaded v2 proof")
         previous = json.loads(previous_path.read_text())
         if (previous.get("source_reference") != manifest_record["image_reference"]
                 or previous.get("source_manifest_digest") != manifest_record["digest"]
                 or previous.get("config_digest") != manifest["config"]["digest"]):
             raise ImageTransportError("Existing receipt belongs to another image")
+        if _cache_only:
+            # This validates the full archive, compressed blobs, diff IDs, and
+            # both immutable receipts before a daemon lookup can grant reuse.
+            previous, _ = _config_eof_success_identity(
+                client, manifest_record, workdir, workdir, verify_daemon=False)
         try:
             image = client.images.get(previous.get("runtime_image_reference", previous["config_digest"]))
         except Exception as exc:
             if type(exc).__name__ not in {"ImageNotFound", "NotFound"}:
                 raise
+            if _cache_only:
+                return None
             # The experiment may have cleaned its own image after qualifying a
             # task. Reuse the verified archive, preserving the first load log.
             load_directory = workdir / ("reload-" + str(time.time_ns()))
@@ -2507,6 +2553,8 @@ def ensure_verified_image(client, manifest_record, *, workdir):
                     "loaded_identity_receipt_path": str(previous_path.resolve()),
                     "new_to_daemon": False, "loaded_by_this_run": False,
                     "load_performed_in_this_call": False, "cached": True}
+    if _cache_only:
+        return None  # Stop before policy activation, writes, transport or load.
     from .fresh_official_http1 import fresh_case
     fresh_official = fresh_case(manifest_record, workdir.absolute())
     fresh_http1 = _fresh_http1_case(manifest_record, workdir.absolute()) if not fresh_official else None
