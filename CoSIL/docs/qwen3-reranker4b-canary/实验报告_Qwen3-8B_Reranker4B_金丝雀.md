@@ -1,8 +1,15 @@
 # Qwen3-8B＋训练版Reranker-4B：Lite20配对金丝雀
 
-状态：**PREPARED_NOT_RUN**。完成同题配对0/20。未运行保留NOT_RUN，不填充成绩。
+状态：**RUNNING_CANARY**。完成同题配对20/20。未运行保留NOT_RUN，不填充成绩。
 
-尚无GPU推理结果，不能据CPU接入检查声称定位改善或安全。
+同题baseline 11/20，hybrid 12/20；差值5.00pp，精确McNemar p=1.0000。小样本不显著不等于非劣效。
+
+| 同题已完成范围 | baseline | hybrid |
+|---|---:|---:|
+| 主模型剪枝token | 166620 | 75955 |
+| 可比全流程主模型token（共享文件阶段补计） | 2384320 | 1995759 |
+| 本地4B输入token | 0 | 89155 |
+| 本地gold直剪事件 | 0 | 0 |
 
 主模型保持Qwen/Qwen3-8B官方固定revision，关闭思考；剪枝器为v6首轮1:2、epoch1的Qwen3-Reranker-4B LoRA。温度仅使用旧val拟合值，low取严格低于同val最小gold概率的最大浮点值，high=0.9；同val零gold直剪是构造结果。
 
