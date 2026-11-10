@@ -1,4 +1,5 @@
 """Read-only shared model reuse, without relaxing historical output path guards."""
+from pathlib import Path
 from . import config as P
 
 
@@ -6,6 +7,13 @@ def adapt():
     P.configure()
     from code_rebench_qwen import deploy as D
     original_command = D.command
+    original_cache_environment = D.cache_environment
+    def cache_environment():
+        values = original_cache_environment()
+        short = Path('/tmp/rr4_ipc_1110')
+        short.mkdir(mode=0o700, parents=True, exist_ok=True)
+        values.update(TMPDIR=str(short), VLLM_RPC_BASE_PATH=str(short))
+        return values
     def command():
         argv = original_command()
         # Two physical cards total. Leave space on one TP2 card for the 4B
@@ -25,4 +33,5 @@ def adapt():
         return receipt
     D.verify_model = verify_shared_model
     D.command = command
+    D.cache_environment = cache_environment
     return D

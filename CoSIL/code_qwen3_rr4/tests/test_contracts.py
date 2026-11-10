@@ -84,6 +84,9 @@ class Isolation(unittest.TestCase):
                 self.assertEqual(argv[argv.index('--max-num-seqs')+1], '1')
                 self.assertEqual(argv[argv.index('--max-model-len')+1], '65536')
                 self.assertEqual(argv[argv.index('--dtype')+1], 'bfloat16')
+                env = got.cache_environment()
+                self.assertLess(len(env['TMPDIR'])+40, 107)
+                self.assertEqual(env['VLLM_RPC_BASE_PATH'], env['TMPDIR'])
             finally:
                 D.verify_model = original
 

@@ -1,6 +1,6 @@
 # Qwen3-8B＋训练版Reranker-4B：Lite20配对金丝雀
 
-状态：**PREPARED_NOT_RUN**。完成同题配对0/20。未运行保留NOT_RUN，不填充成绩。
+状态：**WAITING_FOR_TWO_IDLE_GPUS**。完成同题配对0/20。未运行保留NOT_RUN，不填充成绩。
 
 尚无GPU推理结果，不能据CPU接入检查声称定位改善或安全。
 

@@ -168,7 +168,15 @@ def main():
         while True:
             try:
                 D.health(synthetic=True); break
-            except Exception:
+            except Exception as error:
+                owner = P.read(D.SERVICE/'ownership.json')
+                try:
+                    current = D.identity(owner['identity']['pid'])
+                    alive = current['state'] != 'Z'
+                except (FileNotFoundError, ProcessLookupError):
+                    alive = False
+                if not alive:
+                    raise RuntimeError('Owned Qwen3 server exited during startup; inspect vllm.log') from error
                 if time.monotonic() >= ready:
                     raise TimeoutError('Owned Qwen3 readiness exceeded15min')
                 time.sleep(5)
@@ -199,7 +207,10 @@ def main():
         raise
     finally:
         if service_started:
-            state['shutdown'] = D.stop(execute=True)
+            try:
+                state['shutdown'] = D.stop(execute=True)
+            except (FileNotFoundError, ProcessLookupError):
+                state['shutdown'] = {'leader_already_exited': True, 'other_processes_signalled': False}
         publish(); report.create()
 
 
