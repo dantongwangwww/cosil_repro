@@ -51,7 +51,7 @@ def verify():
     return frozen
 
 
-def worker_argv(job_path, out, arm, judge_gpu, *, shared=None, probe=False):
+def worker_argv(job_path, out, arm, judge_gpu, *, shared=None, probe=False, resource_probe=False):
     from code_rebench_qwen import bootstrap as B
     args = B.argv(job_path, out)
     position = args.index('--chdir')
@@ -74,6 +74,8 @@ def worker_argv(job_path, out, arm, judge_gpu, *, shared=None, probe=False):
         args += ['--shared', str(shared)]
     if probe:
         args += ['--probe']
+    if resource_probe:
+        args += ['--resource-probe']
     env = B.environment(out)
     env['CUDA_VISIBLE_DEVICES'] = str(judge_gpu) if arm == 'hybrid_safe' and not probe else ''
     return args, env
@@ -122,7 +124,8 @@ def main():
     if (P.OUT/'execution_started.json').exists():
         raise FileExistsError('No implicit controller restart/replay')
     P.write(P.OUT/'execution_started.json', {'utc': now(), 'pid': os.getpid()}, immutable=True)
-    state = {'stage': 'WAITING_FOR_THREE_IDLE_GPUS', 'pid': os.getpid(), 'model_calls_started': False, 'completed_pairs': 0}
+    state = {'stage': 'WAITING_FOR_TWO_IDLE_GPUS', 'pid': os.getpid(), 'model_calls_started': False, 'completed_pairs': 0,
+             'physical_gpu_limit': 2, 'main_gpu_memory_utilization': .59}
     service_started = False
     from .deployment import adapt
     D = adapt()
@@ -135,7 +138,7 @@ def main():
         while True:
             rows = inventory(); free = eligible(rows)
             state['gpu_observation'] = rows
-            chosen = tuple(free[:3]) if len(free) >= 3 else None
+            chosen = tuple(free[:2]) if len(free) >= 2 else None
             quiet = (quiet or time.monotonic()) if chosen is not None and chosen == selected else (time.monotonic() if chosen else None)
             selected = chosen
             state['continuous_idle_seconds'] = time.monotonic()-quiet if quiet else 0
@@ -143,17 +146,17 @@ def main():
             if quiet and time.monotonic()-quiet >= 90:
                 break
             if time.monotonic() >= deadline:
-                raise TimeoutError('No three-card idle window within frozen wait deadline')
+                raise TimeoutError('No two-card idle window within frozen wait deadline')
             time.sleep(30)
         verify()
         records = P.read(P.OUT/'inputs/manifest.json')['records']
         probe_out = P.OUT/'run/isolation_probe'
-        command, env = worker_argv(records[0]['job'], probe_out, 'baseline', selected[2], probe=True)
+        command, env = worker_argv(records[0]['job'], probe_out, 'baseline', selected[1], probe=True)
         done = subprocess.run(command, env=env, capture_output=True, text=True, timeout=180)
         P.write(probe_out/'controller.json', {'returncode': done.returncode, 'stdout': done.stdout, 'stderr': done.stderr})
         if done.returncode or not P.read(probe_out/'probe.json')['passed']:
             raise RuntimeError('Filesystem isolation probe failed')
-        D.GPUS = selected[:2]
+        D.GPUS = selected
         state.update(stage='LOADING_OWNED_QWEN3', selected_gpus=selected); publish()
         # A start failure may occur after Popen/ownership was written. Preserve
         # that ownership and still clean up the exact new session in finally.
@@ -169,16 +172,23 @@ def main():
                 if time.monotonic() >= ready:
                     raise TimeoutError('Owned Qwen3 readiness exceeded15min')
                 time.sleep(5)
+        state.update(stage='TWO_CARD_MAX_LENGTH_RESOURCE_PROBE'); publish()
+        resource_out = P.OUT/'run/resource_probe'
+        command, env = worker_argv(records[0]['job'], resource_out, 'hybrid_safe', selected[1], resource_probe=True)
+        with (resource_out/'controller_process.log').open('x') as stream:
+            probe_process = subprocess.run(command, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=600)
+        if probe_process.returncode or not P.read(resource_out/'resource_probe.json')['passed']:
+            raise RuntimeError('Two-card max-length coexistence probe failed; no benchmark calls allowed')
         state.update(stage='RUNNING_CANARY', model_calls_started=True); publish()
         for record in records:
             iid = record['instance_id']; state.update(active_issue=iid, active_arm='baseline'); publish()
-            off = one(record, 'baseline', selected[2])
+            off = one(record, 'baseline', selected[1])
             shared = P.OUT/'shared'/f'{iid}.json'
             P.write(shared, {'instance_id': iid, 'base_commit': record['base_commit'],
                 'files': off['file_rank_after_reflection'], 'raw_file_responses': off['raw_file_responses'],
                 'baseline_result_sha256': P.sha(P.OUT/'run/baseline'/iid/'result.json')}, immutable=True)
             state.update(active_arm='hybrid_safe'); publish()
-            one(record, 'hybrid_safe', selected[2], shared)
+            one(record, 'hybrid_safe', selected[1], shared)
             assessment = report.create(); state['completed_pairs'] = assessment['n']; publish()
             if assessment['delta'] < -.03-1e-12:
                 state.update(stage='STOP_LOSS', stop_issue=iid); publish(); break

@@ -84,12 +84,33 @@ def main():
     parser.add_argument('--arm', choices=P.ARMS, required=True)
     parser.add_argument('--shared', type=Path)
     parser.add_argument('--probe', action='store_true')
+    parser.add_argument('--resource-probe', action='store_true')
     args = parser.parse_args()
     P.configure()
     from code_rebench_qwen import runner as R
     from code_rebench_qwen import bootstrap as B
     if args.probe:
         B.probe(args.job, args.out)
+        return
+    if args.resource_probe:
+        import torch
+        from .judge import Judge
+        from code_v5.judge_models import _score
+        job = P.read(args.job)
+        judge = Judge(job, P.read(P.OUT/'deployment.json'))
+        torch.cuda.reset_peak_memory_stats()
+        started = time.perf_counter()
+        # Purely synthetic max-length token input, excluded from task metrics.
+        with torch.no_grad(), torch.autocast('cuda', dtype=torch.bfloat16):
+            no, yes, _ = _score(judge.model, [judge.codec.no_id]*8128,
+                              [[judge.codec.no_id], [judge.codec.yes_id]], 'cuda:0')
+        torch.cuda.synchronize()
+        if not bool(torch.isfinite(torch.tensor([no, yes])).all()):
+            raise FloatingPointError('Synthetic resource probe returned nonfinite logits')
+        P.write(args.out/'resource_probe.json', {'passed': True, 'synthetic_tokens': 8128,
+            'seconds': time.perf_counter()-started, 'peak_allocated_bytes': torch.cuda.max_memory_allocated(),
+            'peak_reserved_bytes': torch.cuda.max_memory_reserved(), 'finite_logits': bool(torch.isfinite(torch.tensor([no, yes])).all()),
+            'benchmark_model_requests': 0, 'local_synthetic_judge_forwards': 1}, immutable=True)
         return
     if args.arm == 'hybrid_safe' and args.shared is None:
         raise ValueError('Frozen baseline file stage is required')

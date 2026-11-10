@@ -5,6 +5,14 @@ from . import config as P
 def adapt():
     P.configure()
     from code_rebench_qwen import deploy as D
+    original_command = D.command
+    def command():
+        argv = original_command()
+        # Two physical cards total. Leave space on one TP2 card for the 4B
+        # batch-one scorer; weights, context and decoding remain unchanged.
+        argv[argv.index('--gpu-memory-utilization')+1] = '0.59'
+        argv[argv.index('--max-num-seqs')+1] = '1'
+        return argv
     def verify_shared_model():
         if not P.MODEL.is_dir() or P.MODEL.is_symlink():
             raise ValueError('Shared pinned model directory must be a real directory')
@@ -16,4 +24,5 @@ def adapt():
         P.write(P.OUT/'model_files.json', receipt, immutable=True)
         return receipt
     D.verify_model = verify_shared_model
+    D.command = command
     return D

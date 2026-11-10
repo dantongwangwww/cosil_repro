@@ -78,6 +78,12 @@ class Isolation(unittest.TestCase):
                 got = adapt()
                 self.assertIs(got.owned_path, guard)
                 self.assertIsNot(got.verify_model, original)
+                argv = got.command()
+                self.assertEqual(argv[argv.index('--tensor-parallel-size')+1], '2')
+                self.assertEqual(argv[argv.index('--gpu-memory-utilization')+1], '0.59')
+                self.assertEqual(argv[argv.index('--max-num-seqs')+1], '1')
+                self.assertEqual(argv[argv.index('--max-model-len')+1], '65536')
+                self.assertEqual(argv[argv.index('--dtype')+1], 'bfloat16')
             finally:
                 D.verify_model = original
 
