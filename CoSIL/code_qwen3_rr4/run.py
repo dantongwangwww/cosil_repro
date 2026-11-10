@@ -59,7 +59,7 @@ def worker_argv(job_path, out, arm, judge_gpu, *, shared=None, probe=False, reso
     for name in ('code_qwen3_rr4', 'code_v5', 'code_v6', 'code_rebench_qwen_repair'):
         path = P.ROOT/name; mounts += ['--ro-bind', str(path), str(path)]
     paths = [P.OUT/'deployment.json', P.JUDGE_MODEL, P.ROOT/'models_v5/Qwen3-Reranker-0.6B',
-             Path('/home/wdt/models/qwen25coder7b').resolve(),
+             P.LEGACY_TOKENIZER,
              P.CHECKPOINT/'adapter_model.safetensors', P.CHECKPOINT/'adapter_config.json']
     if shared is not None:
         paths.append(shared)

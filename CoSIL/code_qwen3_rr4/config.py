@@ -9,6 +9,7 @@ OUT = ROOT / 'results/qwen3_reranker4b_canary_20261110'
 DOCS = ROOT / 'docs/qwen3-reranker4b-canary'
 MODEL = Path('/tmp/cosil_rebench_qwen3_8b_20261023/model')
 JUDGE_MODEL = ROOT / 'models_v6/Qwen3-Reranker-4B'
+LEGACY_TOKENIZER = Path('/mnt/ssd1/personal/wdt/models/qwen25coder7b')
 CHECKPOINT = ROOT / 'results/v6_pruner/20261016/T3_round1_exploratory/reranker4B/epoch_1'
 SAMPLE = ROOT / 'results/v6_pruner/20261016/T1_canary_preparation/sampling_manifest.json'
 ISSUES = ROOT / 'results/v6_pruner/20261019/T1_canary_v2/inference_issues.json'

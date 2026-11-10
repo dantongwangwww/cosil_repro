@@ -16,7 +16,7 @@ class Renderer:
         self.job = job
         self.tokenizers = {
             'Qwen3-Reranker-0.6B': (AutoTokenizer.from_pretrained(P.ROOT/'models_v5/Qwen3-Reranker-0.6B', local_files_only=True), 'reranker'),
-            'Qwen2.5-Coder-7B-Instruct': (AutoTokenizer.from_pretrained('/home/wdt/models/qwen25coder7b', local_files_only=True), 'instruct')}
+            'Qwen2.5-Coder-7B-Instruct': (AutoTokenizer.from_pretrained(P.LEGACY_TOKENIZER, local_files_only=True), 'instruct')}
         index = P.read(job['code_index'])
         self.graph = Graph(); self.full = {}; self.parse_errors = []
         for path in sorted(job['paths']):

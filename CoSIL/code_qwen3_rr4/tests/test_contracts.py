@@ -107,6 +107,8 @@ class Isolation(unittest.TestCase):
                 args, env = worker_argv(job, run/'hybrid', 'hybrid_safe', 2, shared=root/'shared.json')
             self.assertIn(str(P.CHECKPOINT/'adapter_model.safetensors'), args)
             self.assertIn(str(P.CHECKPOINT/'adapter_config.json'), args)
+            self.assertIn(str(P.LEGACY_TOKENIZER), args)
+            self.assertNotIn('/home/wdt/models/qwen25coder7b', args)
             self.assertNotIn(str(P.CHECKPOINT), args)
             self.assertFalse(any('pruner_val.jsonl' in a or 'checkpoint_complete.json' in a or 'ground_truth' in a for a in args))
             self.assertEqual(env['CUDA_VISIBLE_DEVICES'], '2')

@@ -91,6 +91,12 @@ def main():
     from code_rebench_qwen import bootstrap as B
     if args.probe:
         B.probe(args.job, args.out)
+        from .judge import Renderer
+        renderer = Renderer(P.read(args.job))
+        probe = P.read(args.out/'probe.json')
+        probe.update(judge_renderer_cpu_checked=True, graph_functions=len(renderer.graph.functions),
+                     legacy_tokenizer_canonical_path=str(P.LEGACY_TOKENIZER), gpu_used=False)
+        P.write(args.out/'probe.json', probe)
         return
     if args.resource_probe:
         import torch
