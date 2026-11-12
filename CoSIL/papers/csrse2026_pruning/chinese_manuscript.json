@@ -1,0 +1,612 @@
+{
+  "title": "面向代码定位智能体的保守证据路由方法",
+  "title_en": "Conservative Evidence Routing for Code Localization Agents",
+  "author": "作者姓名待填写",
+  "affiliation": "作者单位及通讯信息待填写",
+  "abstract": "代码定位智能体需要反复判断检索到的函数是否值得继续关注。这类决策为较小模型提供了参与机会，同时要求证据移除过程可观察，并让不确定案例得到进一步评估。本文提出TRACE保守路由层，结合函数身份校验、校准后的相关性评分和主智能体升级判断。结构化证据账本将源码检索、路由、实际送达与最终定位连接起来。在100道SWE-rebench任务的配对研究中，4B重排器直接处理652次评分请求中的323次，使主模型相关性判断token减少38.02%。两组函数Hit@5均为49/92。局部判别器没有直接剪除实际遇到的73次金标函数访问，这些访问覆盖117个金标身份中的57个。整体主模型token减少4.65%，平均在线时延增加14.85%。结果刻画了可量化的判断替代能力，并为面向可靠性的智能体集成建立了可审计的评测基础。",
+  "keywords": "代码定位；软件可靠性；选择性预测；证据路由；大语言模型智能体",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "1 引言"
+    },
+    {
+      "type": "p",
+      "text": "仓库级issue定位将问题描述缩小到需要修复的文件和函数，是软件故障定位这一长期研究问题的延伸{cite:wong2016survey}。语言模型智能体通过仓库搜索、代码检查和迭代推理完成这一任务{cite:cosil2025,swebench2024}。其效果取决于实际到达模型的证据。即使一个函数存在于仓库中，它仍可能因文件被遗漏、身份无法解析或相关性判断丢弃源码，而没有进入后续推理上下文。"
+    },
+    {
+      "type": "p",
+      "text": "相关性判断为较小模型提供了明确的接入位置：明确案例可以在局部直接判定，不确定案例则交给主智能体。这引出一个可靠性问题：较小模型实际接触了哪些证据，这些证据随后经历了什么？回答这一问题，需要将局部判断与智能体整个执行轨迹中的证据可用性联系起来。"
+    },
+    {
+      "type": "p",
+      "text": "为此，本文提出TRACE，即带保守升级机制的可追溯相关性评估（Traceable Relevance Assessment with Conservative Escalation），并将这一函数级证据路由层集成到CoSIL。该层将检索源码与仓库身份绑定，使用训练后的Qwen3-Reranker-4B评估issue与函数的相关性，再执行保留、剪除或升级判断。事件账本把这些决策与源码送达和最终预测关联起来。不确定性由此获得明确的操作含义：中间分数继续走原有Qwen3-8B判断路径。"
+    },
+    {
+      "type": "p",
+      "text": "本文贡献包括三个方面。第一，在迭代定位智能体中实现可复现的函数感知评分与保守升级集成，包括身份校验和训练、部署共用的输入渲染器。第二，构建证据链评估方法，将局部目标剪除与目标暴露、源码送达和最终定位一起报告。第三，给出100个仓库上的配对研究与离线阈值回放，量化判断替代、资源使用，以及定位机会在流程中的损失位置。这些设计使相关性分类器成为智能体系统中可检查的组成部分。"
+    },
+    {
+      "type": "p",
+      "text": "研究围绕三个问题展开：在保留已观察目标证据的同时，可以委托多少判断工作；这种委托如何改变定位与资源使用；证据在流程的何处丢失。实验中，小模型直接处理49.54%的已评分判断，主模型判断token减少38.02%，本次运行的总体函数Hit@5保持为49/92。"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "2 研究背景与设计依据"
+    },
+    {
+      "type": "p",
+      "text": "CoSIL通过迭代代码图搜索、相关性评估与反思，从文件定位逐步收敛到函数候选{cite:cosil2025}。源码是否进入搜索上下文构成一个独立决策点：本文基线由主模型完成这一判断，实验组则将明确的函数判断交给较小评分器。"
+    },
+    {
+      "type": "p",
+      "text": "ReAct将推理与环境交互结合起来{cite:react2023}，SWE-agent研究面向仓库级软件任务的智能体接口{cite:sweagent2024}，Agentless则采用相对简单的流程，将定位、修复和验证分为不同阶段{cite:agentless2024}。这些工作为考察定位流程中的中间决策与证据接口提供了依据。"
+    },
+    {
+      "type": "p",
+      "text": "Qwen3 Reranker通过yes/no的相对似然表达相关性{cite:qwen3embedding2025}，因此无需生成解释文本即可提取评分。本文使用既有冻结LoRA适配器；LoRA是一种参数高效的模型适配方法{cite:hu2021lora}。"
+    },
+    {
+      "type": "p",
+      "text": "温度缩放用于校准评分尺度{cite:guo2017calibration}。选择性分类研究风险与覆盖率之间的权衡{cite:geifman2017selective,geifman2019selectivenet}，学习何时交由专家处理（learning to defer）则将专家判断纳入预测流程{cite:mozannar2020defer}。大语言模型级联与路由研究如何在不同模型之间分配请求{cite:frugalgpt2023,routellm2024}。TRACE将这些方法应用到检索代码进入推理上下文的边界，将路由决策与源码暴露和实际送达连接起来。长上下文研究也表明，信息存在于输入中与模型有效使用该信息并不总是一致{cite:liu2024lostmiddle}，这进一步说明检查每一步实际获得的证据具有价值。"
+    },
+    {
+      "type": "p",
+      "text": "SWE-bench和SWE-rebench提供仓库问题及参考修复信息{cite:swebench2024,swerebench2025}。本文由隔离的评价器使用参考改动识别既有目标函数，两个智能体都只检查问题对应的base revision源码。"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "3 方法"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.1 函数感知的证据接口"
+    },
+    {
+      "type": "p",
+      "text": "图1展示了集成位置。定位步骤向base revision仓库库存请求文件、类或函数。对于函数请求，集成层解析由相对文件路径和函数限定名组成的规范身份，并在构造评分请求之前，将源码范围与身份头同库存进行校验。通用反馈帮助智能体修正不可用路径或错误归属，例如将模块级函数误当作类方法。两个实验条件共用这些工程检查。"
+    },
+    {
+      "type": "figure",
+      "image": "figures/fig_architecture_zh.png",
+      "caption": "图1 TRACE在源码准入边界的集成。主智能体继续负责搜索和排序；虚线表示证据记录，参考目标仅由离线评价器关联。基线使用相同工具和身份接口，但所有相关性判断均交给Qwen3-8B。"
+    },
+    {
+      "type": "p",
+      "text": "每个评分请求都绑定一个规范函数身份。模型实际输入包含issue、函数源码，以及根据base revision结构生成的直接调用者和被调用者摘要。共用渲染器将issue文本限制在8000个字符以内、函数文本限制在8192个字符以内，每个方向最多16个邻居。装箱过程将原生提示词限制在8128个token以内，优先移除邻居摘要，再按既定规则缩短文本。输入哈希记录实际被评分的表示。"
+    },
+    {
+      "type": "p",
+      "text": "类请求和身份绑定失败的请求走主模型路径。最终排名按模型原始输出评价，不利用金标纠正候选身份。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.2 校准后的三路判断"
+    },
+    {
+      "type": "p",
+      "text": "令x表示渲染后的issue—函数输入。适配后的重排器在提示词最后位置产生yes和no两个token的logit，两个符号的下标分别为yes和no。校准后的相关性评分为："
+    },
+    {
+      "type": "equation",
+      "key": "score",
+      "number": "(1)"
+    },
+    {
+      "type": "p",
+      "text": "温度T在既有验证集上拟合。路由策略定义为："
+    },
+    {
+      "type": "equation",
+      "key": "route",
+      "number": "(2)"
+    },
+    {
+      "type": "p",
+      "text": "保留与剪除替代原有相关性判断；升级则请求主Qwen3-8B判别器。被剪除的源码不加入搜索上下文，智能体收到选择其他节点而非继续探索其被调用者的提示。搜索继续，每题最多进行10次函数工具选择。局部评分器不生成解释token；分数、决策、函数身份和输入哈希共同落盘。"
+    },
+    {
+      "type": "p",
+      "text": "部署温度为T=2.9846201，上阈值为τ_hi=0.9。下阈值τ_lo约为0.129476，它是严格小于验证集金标函数最小校准分数的最大可表示浮点值："
+    },
+    {
+      "type": "equation",
+      "key": "threshold",
+      "number": "(3)"
+    },
+    {
+      "type": "p",
+      "text": "因此，直接剪除区间位于所有已观察验证目标评分之下。高分函数直接保留，中间分数交由主模型进一步评估。全部参数均在本次研究之前冻结。"
+    },
+    {
+      "type": "p",
+      "text": "既有适配器使用来自359个issue的8556个训练对，以及来自另外44个issue的487个验证对，来源为按issue隔离的SWE-bench Lite子集及额外Verified任务。正例由被修改函数和直接调用代理正例组成；负例遵循冻结的静态与运行时资格规则。加权yes/no交叉熵维持正负总权重1:2。LoRA的rank为16、缩放系数为32、dropout为0.05、学习率为5×10⁻⁵，有效批大小为8。本文沿用前期诊断训练保留的epoch 1检查点，其验证准确率为88.09%、AUROC为0.9470，没有在Rebench任务上继续适配。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3.3 基于证据链的可靠性评估"
+    },
+    {
+      "type": "p",
+      "text": "证据账本连接文件选择、源码检索、路由、源码送达和最终排序。每条记录关联任务、base revision、规范对象身份以及步骤或事件；输入哈希和源码引用将评分与送达连接起来。工具返回源码与主搜索智能体收到源码被记录为不同事件。参考目标只在离线评价阶段关联。"
+    },
+    {
+      "type": "p",
+      "text": "三个指标描述局部路由行为。自动决策覆盖率是已评分请求中直接保留或剪除的比例；已观察目标剪除率是已评分金标函数访问中被直接剪除的比例；目标暴露率是全部唯一参考函数身份中实际接受局部评分的比例。联合报告这三个指标，可以同时说明替代了多少判断，以及目标保护的观察覆盖了任务的哪些部分。重复访问在路由统计中按事件计数，在身份暴露统计中去重。"
+    },
+    {
+      "type": "p",
+      "text": "对于未成功定位的任务，账本识别可观察的缺口：目标文件未进入候选、文件已选但目标函数未检索、源码已送达但目标未进入Top-5，或者资源故障阻断流程。这种分解将后续工程改进对应到具体阶段。"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "4 实验设计"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.1 冻结任务与配对条件"
+    },
+    {
+      "type": "p",
+      "text": "本文使用冻结的SWE-rebench leaderboard快照，版本前缀为34d5a588，完整版本号记录在产物清单中。既有265题候选池采用四项Lite式条件：业务修复补丁至多修改一个文件、至多包含三个diff修改块、不新增或删除文件，且issue描述不少于40个词。既有仓库排除规则保持不变。"
+    },
+    {
+      "type": "p",
+      "text": "抽样种子为20261110，对种子、冒号和任务标识符组成的UTF-8字符串计算SHA256。按哈希、再按任务标识排序，对大小写折叠后的每个仓库只保留一题，取前100题。历史预测和函数可评价性均不参与抽样。这形成了包含100个仓库、100道题的预设开发诊断实验。"
+    },
+    {
+      "type": "p",
+      "text": "表1给出配对设计。两组主模型均为Qwen3-8B{cite:qwen3report2025}，显式关闭思考模式。基线使用原主模型相关性判断，TRACE组替换为三路局部判断。每道题的基线文件选择阶段均重新执行，并将本次结果共享给配对的TRACE运行。后续函数规划、探索和排序各自独立执行。因此，比较重点是固定文件阶段结果后，路由在函数搜索中的集成效果。"
+    },
+    {
+      "type": "table",
+      "caption": "表1 冻结的配对实验配置。产物清单保存完整模型版本与适配器哈希。",
+      "headers": [
+        "组件",
+        "配置"
+      ],
+      "rows": [
+        [
+          "两组主智能体",
+          "Qwen3-8B；BF16；非思考；temperature=0；seed=0；上下文65536 / 输出上限2048 token"
+        ],
+        [
+          "基线相关性判断",
+          "Qwen3-8B的True/False判断"
+        ],
+        [
+          "TRACE相关性判断",
+          "冻结的Qwen3-Reranker-4B LoRA；按式(2)路由；类请求和无法绑定的请求交给Qwen3"
+        ],
+        [
+          "共享控制项",
+          "base revision、文件阶段、工具身份校验、源码接口、评分口径"
+        ],
+        [
+          "局部输入",
+          "issue≤8000字符；函数≤8192字符；每方向≤16邻居；装箱后提示词≤8128 token"
+        ],
+        [
+          "硬件",
+          "两张RTX 3090；主模型张量并行；常驻评分器与主模型共用第二张GPU"
+        ],
+        [
+          "评价集合",
+          "固定100题；92题具有完整且非空的既有函数目标"
+        ]
+      ]
+    },
+    {
+      "type": "p",
+      "text": "99题完成两个条件的运行。另一题的仓库目录在首次模型请求前超过上下文上限，其资源失败及配对组的共享阶段阻塞仍保留在固定集合中。控制器只接续尚未执行的任务，保留此前全部记录。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.2 指标与资源记账"
+    },
+    {
+      "type": "p",
+      "text": "R2评价器通过精确补丁上下文偏移与AST范围，将参考改动映射到base revision函数。函数级指标纳入92道既有函数目标完整且非空的任务，另外8题记为函数级NA。文件级指标使用全部100题。失败任务保留在其适用的评价分母中。"
+    },
+    {
+      "type": "p",
+      "text": "对任务i，Gᵢ表示既有目标函数集合，Pᵢᵏ表示前k个原始输出排名槽内有效身份去重后的集合。相对路径和限定名严格一致才视为匹配；无效项、重复项和仅类级项占据的原始槽位不压缩。指标定义为："
+    },
+    {
+      "type": "equation",
+      "key": "metrics",
+      "number": "(4)–(5)"
+    },
+    {
+      "type": "p",
+      "text": "宏平均precision、recall和F1对逐题数值取平均。Hit的置信区间采用Wilson方法。配对Hit@5差值采用以任务为单位、种子20261110的5000次bootstrap抽样，并进行精确McNemar检验。"
+    },
+    {
+      "type": "p",
+      "text": "可比资源总量向两组均计入相同的共享文件阶段token与时间，而实际批次账本只计算该阶段一次。主模型与评分器token分别记录。在线时延包含相同99个完整配对中的渲染、调用与评分；准备和启动耗时另行记录。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4.3 离线阈值回放"
+    },
+    {
+      "type": "p",
+      "text": "固定τ_hi=0.9，在已冻结分数上回放不同下阈值，分别计算487个验证对和652次运行时请求的自动处理比例与目标访问剪除比例。该分析不增加模型调用，提供分数层面的敏感性结果。"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "5 实验结果"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.1 局部判断替代与目标暴露"
+    },
+    {
+      "type": "p",
+      "text": "652次评分请求中，TRACE直接保留219次、剪除104次、升级329次。因此，323/652次请求（49.54%）获得局部直接判断。另有12次身份绑定或渲染回退交给主模型，不计入652次评分的分母；类请求也始终由主模型判断。局部评分中位时延为0.185秒，95分位为0.513秒。"
+    },
+    {
+      "type": "figure",
+      "image": "figures/fig_routing_zh.png",
+      "caption": "图2 判断替代与目标暴露。路由计数采用已评分请求，暴露采用唯一金标身份，目标路由采用实际访问。不同分母分别说明各项测量的适用范围。"
+    },
+    {
+      "type": "p",
+      "text": "局部评分器实际遇到117个既有目标身份中的57个，共形成73次访问。其中60次直接保留、13次升级，直接剪除为0（图2）。这是局部决策边界观察到的证据保留行为。结合自动覆盖率可以看到：接近一半的已评分请求由局部处理，而全部已观察目标访问都被保留或得到原主模型进一步评估。"
+    },
+    {
+      "type": "p",
+      "text": "图3展示了运行点的权衡。在下阈值为0.6的回放条件下，验证目标中11/76被直接剪除，运行时目标访问中4/73被直接剪除。与0.6相比，部署阈值将已记录运行时决策中的125次由剪除转为升级，包括上述4次目标访问。自动处理比例相应从68.71%变为49.54%。这量化了在冻结轨迹上为不确定证据分配的额外评估机会。"
+    },
+    {
+      "type": "figure",
+      "image": "figures/fig_threshold_replay_zh.png",
+      "caption": "图3 上阈值固定为0.9时的离线下阈值回放。验证集与已观察运行时请求分别统计。部署点在运行前已冻结，曲线描述既有评分，不代表新的端到端运行。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.2 最终定位表现"
+    },
+    {
+      "type": "p",
+      "text": "表2列出最终结果。两组文件Hit@5均为68/100，因为文件阶段结果共享。函数Hit@5均为49/92（53.26%），Wilson 95%置信区间为43.14%–63.12%。TRACE的Hit@1与Hit@3各多命中一题；全部目标覆盖为39/92，基线为40/92。配对Hit@5四格中，两组均命中48题、仅基线命中1题、仅TRACE命中1题、两组均未命中42题。差值为0.00个百分点，配对95%区间为[−3.26, 3.26]个百分点，精确McNemar检验p=1.0。"
+    },
+    {
+      "type": "table",
+      "caption": "表2 固定样本上的定位结果。函数比例以92道合格任务为分母，宏平均指标也在相同92题上计算。",
+      "headers": [
+        "指标",
+        "CoSIL-Qwen3",
+        "CoSIL-TRACE"
+      ],
+      "rows": [
+        [
+          "文件Hit@1",
+          "48/100（48.00%）",
+          "48/100（48.00%）"
+        ],
+        [
+          "文件Hit@3",
+          "59/100（59.00%）",
+          "59/100（59.00%）"
+        ],
+        [
+          "文件Hit@5",
+          "68/100（68.00%）",
+          "68/100（68.00%）"
+        ],
+        [
+          "函数Hit@1",
+          "36/92（39.13%）",
+          "37/92（40.22%）"
+        ],
+        [
+          "函数Hit@3",
+          "47/92（51.09%）",
+          "48/92（52.17%）"
+        ],
+        [
+          "函数Hit@5",
+          "49/92（53.26%）",
+          "49/92（53.26%）"
+        ],
+        [
+          "Macro-Precision@5",
+          "11.74%",
+          "11.52%"
+        ],
+        [
+          "Macro-Recall@5",
+          "48.10%",
+          "47.55%"
+        ],
+        [
+          "Macro-F1@5",
+          "18.51%",
+          "18.20%"
+        ],
+        [
+          "全部既有目标覆盖@5",
+          "40/92（43.48%）",
+          "39/92（42.39%）"
+        ],
+        [
+          "函数MRR@10",
+          "0.4518",
+          "0.4592"
+        ]
+      ]
+    },
+    {
+      "type": "p",
+      "text": "小模型替代了相当一部分相关性判断，同时本次观察的总体Top-5结果保持相同。Recall与全部目标覆盖进一步区分了“找到一个目标”和“覆盖全部目标”。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.3 Token使用与在线时延"
+    },
+    {
+      "type": "p",
+      "text": "主模型判断token减少38.02%（表3），全流程可比主模型token减少386154个（4.65%）。4B评分器额外消耗764211个输入token，不生成输出token。实际批次主模型总用量为15623261个token，共享文件阶段只计入一次。"
+    },
+    {
+      "type": "table",
+      "caption": "表3 资源记账。可比总量向两组均计入同一文件阶段用量（617293 token），在线统计使用99个完整配对。",
+      "headers": [
+        "项目",
+        "CoSIL-Qwen3",
+        "CoSIL-TRACE"
+      ],
+      "rows": [
+        [
+          "可比主模型token",
+          "8,313,354",
+          "7,927,200"
+        ],
+        [
+          "主模型相关性判断token",
+          "964,727",
+          "597,941"
+        ],
+        [
+          "额外4B输入token",
+          "—",
+          "764,211"
+        ],
+        [
+          "完整任务平均主模型token",
+          "83,973.27",
+          "80,072.73"
+        ],
+        [
+          "平均在线时间（秒/题）",
+          "34.89",
+          "40.07"
+        ],
+        [
+          "在线时间中位数（秒/题）",
+          "33.77",
+          "38.87"
+        ],
+        [
+          "付费API支出",
+          "$0",
+          "$0"
+        ]
+      ]
+    },
+    {
+      "type": "p",
+      "text": "平均在线时间由34.89秒增加到40.07秒，增幅为14.85%。局部评分先于升级判断执行，评分器与主模型共用一张GPU。CPU缓存准备耗时255.47秒；两次服务会话中的评分器加载分别耗时4.80秒和7.82秒，不包含模块导入和主模型启动。"
+    },
+    {
+      "type": "p",
+      "text": "这一资源画像可用于部署规划：减少判断token与改善墙钟时间是两个不同目标。当前配置实现了可测量的主模型判断替代，时延结果则为批处理和调度优化提供了明确方向。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5.4 证据链分析"
+    },
+    {
+      "type": "p",
+      "text": "图4将最终准确率与可观察的缺失阶段联系起来。每组均有43道函数Hit@5未命中的任务。其中30题的目标文件未进入候选，且目标源码从未被检索；另有基线9题、TRACE 11题虽然选中目标文件，却没有检索目标函数。目标源码已送达但未进入最终Top-5的情况，基线有3题、TRACE有1题。剩余1题是共享的上下文上限失败。"
+    },
+    {
+      "type": "figure",
+      "image": "figures/fig_outcomes_zh.png",
+      "caption": "图4 最终定位与可观察的流程缺口。左侧以每组92道函数可评价任务为分母，右侧将每组43道未命中任务按阶段分解，为针对性的后续工程改进提供依据。"
+    },
+    {
+      "type": "p",
+      "text": "这种分解明确了组件能够发挥作用的位置：只有在源码检索后，评分才会开始。因此，证据记录将局部证据保留与文件选择、函数探索的改进机会区分开来。"
+    },
+    {
+      "type": "p",
+      "text": "在Strands SDK案例中，两组主判别器均拒绝了目标方法LiteLLMModel.structured_output。它的分数为0.3918，按配置进入升级判断路径。两组仍通过另一个目标函数实现Hit@5命中，但Recall@5只有0.5。证据账本揭示了成功命中背后的部分证据损失。"
+    },
+    {
+      "type": "p",
+      "text": "对于两道Hit@5结果不一致的任务，首个函数规划请求在两组之间完全相同，但回复在任何局部评分之前就已经不同。在仅基线命中的案例中，十次局部评分全部进入升级路径，未命中的目标函数始终没有被检索。在仅TRACE命中的案例中，两组都检索并接纳了目标源码，但最终排名不同。因此，证据记录能够区分路由事件与其他轨迹变化，而不是把所有配对胜负直接归因于剪枝。"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "6 可靠性启示与局限性"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6.1 证据路由的操作约定"
+    },
+    {
+      "type": "p",
+      "text": "三个要素使这一集成有助于可靠性评测。身份连续性将模型请求的对象与实际评分、实际送达的源码相连；保守升级使模糊分数能够沿原判别路径继续评估；考虑暴露范围的审计同时说明局部替代了多少工作，以及观察覆盖了哪些目标身份。这些要素构成了评估智能体内学习式组件的操作约定。"
+    },
+    {
+      "type": "p",
+      "text": "此前的工程过程进一步说明了这一约定的意义。在前期17道函数可评价开发任务中，共享的身份与路径修复使两组命中数均由10提高到12。该结果属于工具接口改进，而非小模型评分器的贡献。因此，本次配对研究向两组都提供修复后的接口，将共同工程收益与判断替代的作用区分开来。"
+    },
+    {
+      "type": "p",
+      "text": "证据账本也是可复用的诊断产物。它区分源码提取与送达，记录模型调用前发生的资源故障，并将局部判断关联到任务结果。独立核验检查了3440个主模型请求、1409条源码返回记录、4961次送达事件和652次评分路由；39项CPU测试覆盖集成与接续控制。这样的可追溯性支持对证据进入或离开流程的位置进行可复核检查。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6.2 适用范围与有效性威胁"
+    },
+    {
+      "type": "p",
+      "text": "这100题来自经过既有实验观察的开发候选池，每仓库一题，并采用四项明确的补丁与issue过滤条件，不能代表全部SWE-rebench任务。训练标签包含静态调用代理与经规则筛选的负例，因此验证准确率描述的是这些标签，而非完整的语义相关性。未修改的辅助函数也可能重要，104次非金标请求被剪除不能自动解释为104次已证实的正确排除。"
+    },
+    {
+      "type": "p",
+      "text": "温度与下阈值使用同一验证集。验证目标零直剪是阈值构造的结果，不能认证未来风险。运行时零直剪的观察条件是73次目标访问、57个目标身份，未接触的目标不在这一观察范围内。此前验证风险门没有认证该检查点，本次是对随后采用的保守运行点进行诊断评价。"
+    },
+    {
+      "type": "p",
+      "text": "每道任务的每个条件只运行一次。在99个完整配对中，即使temperature与seed设为0，完全相同的首个函数规划请求仍有83对产生不同回复。共享文件选择控制了一部分变异，后续轨迹仍可能分叉。配对区间和McNemar结果不能建立等效或非劣效结论，个别结果差异也不能唯一归因于局部路由。评分器和主智能体还属于相同模型家族。"
+    },
+    {
+      "type": "p",
+      "text": "4B输入渲染器可能为满足冻结的token限制而缩短源码。参考目标遵循评价器的既有函数定义与AST映射，而不是覆盖所有可能有效的修复策略。本研究没有执行修复测试。时延受固定的基线优先顺序、缓存与GPU共用影响；主模型token减少不直接等同于总能耗或硬件费用下降。离线阈值回放固定了已观察访问，不能预测改变策略后的在线准确率。"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "7 结论"
+    },
+    {
+      "type": "p",
+      "text": "TRACE结合函数感知评分、保守升级和证据账本，使代码定位智能体中的局部相关性判断可检查。在配对研究中，它直接处理49.54%的已评分请求，使主模型判断token减少38.02%，同时本次观察的总体函数Hit@5保持为49/92。考虑暴露范围的审计记录了73次已观察目标访问中的零局部直剪，并识别出上游搜索是目标证据缺失的主要位置。本文贡献在于建立了在代码证据入口集成和评估较小模型的明确操作方法。后续可以沿用这一记录约定，评价更好的候选检索与更高效的评分调度。"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "产物与辅助使用披露"
+    },
+    {
+      "type": "p",
+      "text": "代码、派生数据、图表及配置标识随本文提供，仓库为https://github.com/dantongwangwww/cosil_repro，对应目录为CoSIL/papers/csrse2026_pruning。AI辅助参与了代码、分析、可视化与初稿撰写。当前版本为作者审阅稿，作者核验及最终披露有待完成。"
+    }
+  ],
+  "references": [
+    {
+      "key": "swerebench2025",
+      "number": 1,
+      "text": "Badertdinov, I., Golubev, A., Nekrashevich, M., Shevtsov, A., Karasik, S., Andriushchenko, A., Trofimova, M., Litvintseva, D., Yangel, B.: SWE-rebench: An automated pipeline for task collection and decontaminated evaluation of software engineering agents. arXiv:2505.20411v2 (2025).",
+      "url": "https://arxiv.org/abs/2505.20411v2"
+    },
+    {
+      "key": "frugalgpt2023",
+      "number": 2,
+      "text": "Chen, L., Zaharia, M., Zou, J.: FrugalGPT: How to use large language models while reducing cost and improving performance. arXiv:2305.05176 (2023).",
+      "url": "https://arxiv.org/abs/2305.05176"
+    },
+    {
+      "key": "geifman2017selective",
+      "number": 3,
+      "text": "Geifman, Y., El-Yaniv, R.: Selective classification for deep neural networks. In: Advances in Neural Information Processing Systems, vol. 30 (2017).",
+      "url": "https://proceedings.neurips.cc/paper/2017/hash/4a8423d5e91fda00bb7e46540e2b0cf1-Abstract.html"
+    },
+    {
+      "key": "geifman2019selectivenet",
+      "number": 4,
+      "text": "Geifman, Y., El-Yaniv, R.: SelectiveNet: A deep neural network with an integrated reject option. In: Proceedings of the 36th International Conference on Machine Learning, Proceedings of Machine Learning Research, vol. 97, pp. 2151–2159. PMLR (2019).",
+      "url": "https://proceedings.mlr.press/v97/geifman19a.html"
+    },
+    {
+      "key": "guo2017calibration",
+      "number": 5,
+      "text": "Guo, C., Pleiss, G., Sun, Y., Weinberger, K.Q.: On calibration of modern neural networks. In: Proceedings of the 34th International Conference on Machine Learning, Proceedings of Machine Learning Research, vol. 70, pp. 1321–1330. PMLR (2017).",
+      "url": "https://proceedings.mlr.press/v70/guo17a.html"
+    },
+    {
+      "key": "hu2021lora",
+      "number": 6,
+      "text": "Hu, E.J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., Chen, W.: LoRA: Low-rank adaptation of large language models. arXiv:2106.09685v2 (2021).",
+      "url": "https://arxiv.org/abs/2106.09685v2"
+    },
+    {
+      "key": "cosil2025",
+      "number": 7,
+      "text": "Jiang, Z., Ren, X., Yan, M., Jiang, W., Li, Y., Liu, Z.: Issue localization via LLM-driven iterative code graph searching. arXiv:2503.22424v3 (2025). Accepted at ASE 2025",
+      "url": "https://arxiv.org/abs/2503.22424v3"
+    },
+    {
+      "key": "swebench2024",
+      "number": 8,
+      "text": "Jimenez, C.E., Yang, J., Wettig, A., Yao, S., Pei, K., Press, O., Narasimhan, K.R.: SWE-bench: Can language models resolve real-world GitHub issues? In: The Twelfth International Conference on Learning Representations (2024).",
+      "url": "https://openreview.net/forum?id=VTF8yNQM66"
+    },
+    {
+      "key": "liu2024lostmiddle",
+      "number": 9,
+      "text": "Liu, N.F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua, M., Petroni, F., Liang, P.: Lost in the middle: How language models use long contexts. Transactions of the Association for Computational Linguistics 12, 157–173 (2024). DOI: 10.1162/tacl_a_00638.",
+      "url": "https://aclanthology.org/2024.tacl-1.9/"
+    },
+    {
+      "key": "mozannar2020defer",
+      "number": 10,
+      "text": "Mozannar, H., Sontag, D.: Consistent estimators for learning to defer to an expert. In: Proceedings of the 37th International Conference on Machine Learning, Proceedings of Machine Learning Research, vol. 119, pp. 7076–7087. PMLR (2020).",
+      "url": "https://proceedings.mlr.press/v119/mozannar20b.html"
+    },
+    {
+      "key": "routellm2024",
+      "number": 11,
+      "text": "Ong, I., Almahairi, A., Wu, V., Chiang, W.L., Wu, T., Gonzalez, J.E., Kadous, M.W., Stoica, I.: RouteLLM: Learning to route LLMs with preference data. arXiv:2406.18665 (2024).",
+      "url": "https://arxiv.org/abs/2406.18665"
+    },
+    {
+      "key": "qwen3report2025",
+      "number": 12,
+      "text": "Qwen Team: Qwen3 technical report. arXiv:2505.09388v1 (2025).",
+      "url": "https://arxiv.org/abs/2505.09388v1"
+    },
+    {
+      "key": "wong2016survey",
+      "number": 13,
+      "text": "Wong, W.E., Gao, R., Li, Y., Abreu, R., Wotawa, F.: A survey on software fault localization. IEEE Transactions on Software Engineering 42(8), 707–740 (2016). DOI: 10.1109/TSE.2016.2521368.",
+      "url": "https://ieeexplore.ieee.org/document/7390282"
+    },
+    {
+      "key": "agentless2024",
+      "number": 14,
+      "text": "Xia, C.S., Deng, Y., Dunn, S., Zhang, L.: Agentless: Demystifying LLM-based software engineering agents. arXiv:2407.01489v2 (2024).",
+      "url": "https://arxiv.org/abs/2407.01489v2"
+    },
+    {
+      "key": "sweagent2024",
+      "number": 15,
+      "text": "Yang, J., Jimenez, C.E., Wettig, A., Lieret, K., Yao, S., Narasimhan, K., Press, O.: SWE-agent: Agent-computer interfaces enable automated software engineering. arXiv:2405.15793v3 (2024).",
+      "url": "https://arxiv.org/abs/2405.15793v3"
+    },
+    {
+      "key": "react2023",
+      "number": 16,
+      "text": "Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K., Cao, Y.: ReAct: Synergizing reasoning and acting in language models. In: The Eleventh International Conference on Learning Representations (2023).",
+      "url": "https://arxiv.org/abs/2210.03629v3"
+    },
+    {
+      "key": "qwen3embedding2025",
+      "number": 17,
+      "text": "Zhang, Y., Li, M., Long, D., Zhang, X., Lin, H., Yang, B., Xie, P., Yang, A., Liu, D., Lin, J., Huang, F., Zhou, J.: Qwen3 Embedding: Advancing text embedding and reranking through foundation models. arXiv:2506.05176v3 (2025).",
+      "url": "https://arxiv.org/abs/2506.05176v3"
+    }
+  ]
+}

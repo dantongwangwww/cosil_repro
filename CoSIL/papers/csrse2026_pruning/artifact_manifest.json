@@ -43,7 +43,7 @@
     "lora_rank": 16,
     "lora_alpha": 32,
     "dropout": 0.05,
-    "learning_rate": 0.00005,
+    "learning_rate": 5e-05,
     "effective_batch_size": 8,
     "training_epochs_available": 3,
     "issue_character_cap": 8000,
@@ -67,5 +67,14 @@
     "pdf": "bash build.sh",
     "public_artifacts": "LaTeX/code/docs/derived statistics; PDF and plots rebuild from source",
     "models_raw_logs_and_sealed_data_published": false
-  }
+  },
+  "manuscript_languages": [
+    "en",
+    "zh-CN"
+  ],
+  "bibliography_items": 17,
+  "chinese_word_file": "论文_中文版_17篇参考文献.docx",
+  "english_pdf_pages": 12,
+  "chinese_word_preview_pages": 11,
+  "reference_translation_prechange_commit": "1ab83272f4abf8b7702c99a061c844bfb57222bf"
 }

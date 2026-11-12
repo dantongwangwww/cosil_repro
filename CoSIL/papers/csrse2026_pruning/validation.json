@@ -1,10 +1,10 @@
 {
-  "checked_at": "2026-11-12T17:12:42.203740+08:00",
+  "checked_at": "2026-11-12T18:33:20.824173+08:00",
   "paper_pages": 12,
   "abstract_whitespace_words": 141,
   "figures": 4,
   "tables": 3,
-  "bibliography_items": 9,
+  "bibliography_items": 17,
   "cpu_analysis_tests": {
     "passed": 7,
     "failed": 0
@@ -19,7 +19,7 @@
   "upstream_head_unchanged": "86dacd7d18c1198ff20da64595b7f1222d93281e",
   "tex_overfull_boxes": 0,
   "unresolved_references": 0,
-  "pdf_sha256": "79f660ad022ecdb3e21b986e3f3b40e83facf8a76b8bce387ce344032546e290",
+  "pdf_sha256": "b8d41bac4c7a4f3f190b3f25789607823bcbb60aff79d9c19633fdc1db6380b9",
   "new_model_calls": 0,
   "new_training_runs": 0,
   "sealed_test_read": false,
