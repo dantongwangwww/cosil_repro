@@ -5,7 +5,7 @@
 \usepackage{xcolor,tikz,url}
 \usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
 \usepackage[hidelinks]{hyperref}
-\hypersetup{pdftitle={Conservative Evidence Routing for Code Localization Agents},pdfsubject={CSRSE 2026 author-review draft},pdfkeywords={code localization, reliability, conservative pruning, evidence routing}}
+\hypersetup{pdftitle={Collaborative Pruning with Primary and Auxiliary Models for Code Localization Agents: A Reliability Evaluation},pdfsubject={CSRSE 2026 author-review draft},pdfkeywords={code localization, reliability, collaborative pruning, auxiliary model}}
 \definecolor{navy}{HTML}{244A73}
 \definecolor{teal}{HTML}{188477}
 \definecolor{amber}{HTML}{D78A32}
@@ -24,33 +24,33 @@
 
 \begin{document}
 \mainmatter
-\title{Conservative Evidence Routing for Code Localization Agents}
-\titlerunning{Conservative Evidence Routing for Code Localization}
+\title{Collaborative Pruning with Primary and Auxiliary Models for Code Localization Agents: A Reliability Evaluation}
+\titlerunning{Collaborative Pruning for Code Localization Agents}
 \author{Author Names to Be Supplied}
 \authorrunning{Author Names to Be Supplied}
 \institute{Affiliation and corresponding-author details to be supplied}
 \maketitle
 
 \begin{abstract}
-Code localization agents repeatedly decide which retrieved functions deserve further attention. These decisions offer an opportunity for smaller models, provided that evidence removal remains observable and uncertain cases receive further assessment. We present TRACE, a conservative routing layer combining function identity checks, calibrated relevance scoring, and escalation to the main agent. A structured evidence ledger connects retrieval, routing, source delivery, and final localization. In a paired study of 100 SWE-rebench tasks, a 4B reranker directly handles 323 of 652 scored requests and reduces main-model relevance-judgment tokens by 38.02\%. Both conditions achieve function Hit@5 of 49/92. No local rejection affects the 73 observed gold-function visits; these visits cover 57 of 117 gold identities. Total main-model tokens decrease by 4.65\%, while mean online latency increases by 14.85\%. The results characterize a measurable decision-substitution capability and establish an auditable basis for reliability-oriented agent integration.
-\keywords{code localization, software reliability, selective prediction, evidence routing, language model agents}
+Code localization agents must allocate limited search steps and context to relevant repository evidence. Function pruning serves two connected purposes: steering exploration away from unpromising branches and controlling which source code enters subsequent reasoning. Repeated relevance judgments create an opportunity for collaboration between a primary agent and a specialized auxiliary model. We present TRACE, which integrates an adapted Qwen3-Reranker-4B into the CoSIL function-inspection workflow. A calibrated policy retains or rejects clear cases and sends uncertain cases to the primary Qwen3-8B model. Function identity checks and an evidence ledger connect retrieval, pruning, source delivery, and final ranking, making the collaboration auditable. In a paired development study of 100 SWE-rebench tasks, TRACE reduces primary-model relevance-judgment tokens by 38.02\%, while both conditions obtain function Hit@5 of 49/92. The method provides a reproducible interface for collaborative pruning and a reliability assessment grounded in the evidence actually encountered by the agent.
+\keywords{code localization, software reliability, collaborative pruning, auxiliary models, language model agents}
 \end{abstract}
 
 \section{Introduction}
-Repository-level issue localization narrows an issue report to files and functions for repair, extending a long-standing software fault-localization problem~\cite{wong2016survey}. Language-model agents combine repository search, code inspection, and iterative reasoning for this task~\cite{cosil2025,swebench2024}. Their effectiveness depends on the evidence reaching the model. A function can be present in the repository yet absent from the reasoning context because its file was overlooked, its identity was unresolved, or a relevance decision discarded its source.
+Repository-level issue localization identifies files and functions for repair, extending software fault localization~\cite{wong2016survey}. Language-model agents combine search, code inspection, and reasoning~\cite{cosil2025,swebench2024}. Their evidence may omit a repository function because its file was overlooked, its identity was unresolved, or a relevance decision discarded its source.
 
-Relevance judgments offer an integration point for smaller models: clear cases can be decided locally and uncertain ones sent to the main agent. This introduces a reliability question: \emph{which evidence was exposed to the smaller model, and what happened to it afterwards?} Answering it requires connecting local judgments to the evidence available throughout an agent trajectory.
+An auxiliary model can decide clear relevance cases and defer uncertain ones. The resulting reliability question is: \emph{which evidence reached the auxiliary model, and what happened to it afterwards?}
 
 \trace{} (Traceable Relevance Assessment with Conservative Escalation) binds retrieved code to repository identities, scores issue--function relevance with an adapted Qwen3-Reranker-4B, and applies a retain/reject/escalate policy within CoSIL. A ledger links decisions to source delivery and predictions; intermediate scores preserve access to the original Qwen3-8B judge.
 
-The contributions are: (1) a reproducible function-scoring and escalation interface with identity checks and a shared renderer; (2) evidence-chain assessment connecting target rejection, exposure, delivery, and localization; and (3) a paired 100-repository study with offline threshold replay, quantifying judgment substitution, resource use, and workflow gaps. Together these make the classifier inspectable within its host agent.
+The contributions are: (1) a reproducible scoring/escalation interface with identity checks and a shared renderer; (2) assessment linking target rejection, exposure, delivery, and localization; and (3) a paired 100-repository study and threshold replay quantifying substitution, resources, and workflow gaps.
 
-We investigate three questions: how much judgment work can be delegated while preserving observed target evidence; how this changes localization and resource use; and where evidence is lost along the workflow. The smaller model handles 49.54\% of scored decisions directly, judgment tokens fall by 38.02\%, and aggregate function Hit@5 remains 49/92 in the observed run.
+We examine judgment delegation, localization and resource outcomes, and where target evidence is lost along the workflow.
 
 \section{Background and Design Rationale}
 CoSIL moves from file localization to function candidates through iterative code-graph search, relevance assessment, and reflection~\cite{cosil2025}. Source admission is a distinct decision point: our baseline uses the main model, while the proposed condition delegates clear function judgments to a smaller scorer.
 
-ReAct connects reasoning with environment interaction~\cite{react2023}, and SWE-agent studies interfaces for repository-level software tasks~\cite{sweagent2024}. Agentless separates localization, repair, and validation in a comparatively simple workflow~\cite{agentless2024}. These systems motivate examining intermediate decisions and evidence interfaces within a localization pipeline.
+ReAct connects reasoning with environment interaction~\cite{react2023}; SWE-agent studies repository-task interfaces~\cite{sweagent2024}; Agentless separates localization, repair, and validation~\cite{agentless2024}. These systems motivate examining intermediate evidence interfaces.
 
 Qwen3 Reranker models express relevance through \texttt{yes}/\texttt{no} likelihoods~\cite{qwen3embedding2025}, enabling score extraction without rationale generation. We use an existing frozen LoRA adapter, a parameter-efficient adaptation method~\cite{hu2021lora}.
 
@@ -65,7 +65,7 @@ Figure~\ref{fig:architecture} shows the interface. File, class, and function req
 \begin{figure}[t]
 \centering
 \input{architecture.tex}
-\caption{\trace{} at the source-admission boundary. The main agent retains control of search and ranking. Dashed links record evidence; reference targets are joined only by the offline evaluator. The baseline uses the same tool and identity interface, with every relevance judgment routed to Qwen3-8B.}
+\caption{\trace{} at the source-admission boundary. The main agent controls search and ranking; dashed links record evidence. Targets are joined offline. The baseline shares this tool/identity interface and routes every relevance judgment to Qwen3-8B.}
 \label{fig:architecture}
 \end{figure}
 
@@ -89,7 +89,9 @@ The temperature $T$ is fitted on the existing validation split. The routing poli
  \end{cases}
  \label{eq:route}
 \end{equation}
-Retention and rejection substitute for the original relevance decision; escalation asks the main Qwen3-8B judge. Rejected source is withheld, and the agent is prompted to select another node rather than explore its callees. Search continues, with up to ten function-tool selections. The scorer generates no explanation tokens. Scores, decisions, identities, and input hashes are logged together.
+Retention and rejection substitute for the original relevance decision; escalation asks the main Qwen3-8B judge. The controller invokes this policy after function retrieval, while the search agent continues to select tools and produce the final ranking. Scores, decisions, identities, and input hashes are logged together.
+
+Pruning has two complementary roles. \emph{Search-direction control}: rejection feedback asks the agent to choose another node and avoid exploring the rejected function's callees, aiming to preserve the ten available function-tool selections for promising branches. This is feedback to the agent, not deletion of graph edges. \emph{Context management}: rejected source is withheld from the search context, aiming to prevent unrelated code from diluting useful evidence. Thus one relevance decision influences both subsequent exploration and the information available for reasoning; uncertain cases retain the main-model judgment path.
 
 We deploy $T=2.9846201$ and $\high=0.9$. The lower threshold, $\low\approx0.129476$, is the largest representable value strictly below the minimum calibrated validation gold-function score:
 \begin{equation}
@@ -98,10 +100,15 @@ We deploy $T=2.9846201$ and $\high=0.9$. The lower threshold, $\low\approx0.1294
 \end{equation}
 Direct rejection therefore starts below every observed validation target score. The upper threshold retains high-confidence functions, and intermediate scores receive main-model assessment. All values are frozen before the study.
 
-The existing adapter uses 8,556 training pairs from 359 issues and 487 validation pairs from 44 different issues, drawn from issue-disjoint subsets of SWE-bench Lite and additional Verified tasks. Positives combine modified functions and direct-call proxies; negatives follow frozen static and runtime qualification rules. Weighted yes/no cross-entropy preserves a 1:2 positive-to-negative total weight. LoRA uses rank 16, scaling 32, dropout 0.05, learning rate $5\!\times\!10^{-5}$, and effective batch size 8. We retain epoch 1 from the preceding diagnostic training study (validation accuracy 88.09\%, AUROC 0.9470), without adaptation on Rebench.
+\subsection{Training Data and Auxiliary-Model Adaptation}
+The frozen training set contains 8,556 issue--function pairs from 359 issues: 3,029 pairs from 217 SWE-bench Lite issues and 5,527 pairs from 142 additional SWE-bench Verified issues, excluding the Lite overlap. Validation contains 487 pairs from 44 other issues: 311 pairs from 27 Lite issues and 176 pairs from 17 additional Verified issues. Splitting is by issue, so functions from one issue cannot cross training and validation. SWE-rebench tasks are not used for this adaptation, and the reserved test split remains sealed.
+
+Each example pairs an issue with base-revision function source and call-neighbor summaries using the deployment renderer. Training positives comprise 574 patch-mapped targets and 3,899 direct-call proxies. The D-only and E negative strata contain 2,339 and 1,744 pairs, respectively, requiring static exclusion and absence from qualified failing-test runtime coverage. These proxy labels have the limitations discussed in Sect.~6. The objective is weighted binary yes/no cross-entropy. Weights produce a 1:2 positive-to-negative total weight, rather than a 1:2 row count.
+
+We train Qwen3-Reranker-4B adapters with PyTorch, Transformers, and PEFT, freezing base weights and applying LoRA to all linear layers. Settings are rank 16, scaling 32, dropout 0.05, AdamW with learning rate $5\!\times\!10^{-5}$ and zero weight decay, BF16, microbatch 1, effective batch 8, seed 0, and three epochs. The preceding diagnostic study selects epoch 1 using validation criteria prioritizing target-rejection risk; its validation accuracy is 88.09\% and AUROC 0.9470. We reuse that checkpoint without retraining. Software versions, group weights, and checkpoint hashes are recorded in the artifact manifest.
 
 \subsection{Evidence-Chain Reliability Assessment}
-The ledger links file selection, source retrieval, routing, source delivery, and ranking. Each record is associated with its task, base revision, canonical object identity, and step/event; input hashes and source references connect scoring and delivery. A tool returning source and the search agent receiving it are separate events. Reference targets are joined only during offline evaluation.
+The ledger links selection, retrieval, routing, delivery, and ranking through task/revision identifiers, canonical identities, events, and input hashes. Tool retrieval and agent receipt are separate events. Reference targets are joined only during offline evaluation.
 
 Three measures describe routing: \emph{automatic coverage}, the scored-request fraction directly retained or rejected; \emph{target rejection}, the scored-gold-visit fraction directly rejected; and \emph{target exposure}, the unique-reference-identity fraction locally scored. Together they describe judgment substitution and the scope of observed target protection. Repeated visits count as routing events but are deduplicated for exposure.
 
@@ -164,7 +171,7 @@ Of 652 scored requests, \trace{} directly retains 219, rejects 104, and escalate
 \label{fig:routing}
 \end{figure}
 
-The local scorer encounters 57 of the 117 unique existing target identities, represented by 73 visits. It directly retains 60 visits and escalates 13, with zero direct target rejections (Fig.~\ref{fig:routing}). This is the observed evidence-preservation behavior at the local decision boundary. It is particularly useful alongside automatic coverage: nearly half the scored requests are handled locally while every observed target visit is either retained or receives the original model's assessment.
+The scorer encounters 57 of 117 unique target identities across 73 visits: 60 are directly retained, 13 escalated, and none directly rejected (Fig.~\ref{fig:routing}). These exposure counts delimit the observed target-preservation result alongside automatic coverage.
 
 Figure~\ref{fig:thresholds} makes the operating trade-off explicit. At a lower threshold of 0.6, replay rejects 11/76 validation target examples and 4/73 runtime target visits. Compared with 0.6, the deployed threshold transfers 125 of the recorded runtime decisions from rejection to escalation, including those four target visits. Automatic coverage changes from 68.71\% to 49.54\%. This quantifies the additional assessment allocated to uncertain evidence on the frozen traces.
 
@@ -176,7 +183,7 @@ Figure~\ref{fig:thresholds} makes the operating trade-off explicit. At a lower t
 \end{figure}
 
 \subsection{Localization Outcomes}
-Table~\ref{tab:outcomes} reports the endpoint results. File Hit@5 is 68/100 in both conditions because the file phase is shared. Function Hit@5 is 49/92 (53.26\%) in both, with a Wilson 95\% interval of 43.14--63.12\%. \trace{} has one additional Hit@1 and Hit@3; full-target coverage is 39/92 compared with 40/92 for the baseline. The paired Hit@5 table contains 48 joint hits, one baseline-only hit, one \trace{}-only hit, and 42 joint misses. The difference is 0.00 percentage points, with paired 95\% interval $[-3.26,3.26]$ and exact McNemar $p=1.0$.
+Table~\ref{tab:outcomes} reports function localization. Function Hit@5 is 49/92 (53.26\%) in both conditions, with a Wilson 95\% interval of 43.14--63.12\%. \trace{} has one additional Hit@1 and Hit@3. The paired Hit@5 table contains 48 joint hits, one baseline-only hit, one \trace{}-only hit, and 42 joint misses. The difference is 0.00 percentage points, with paired 95\% interval $[-3.26,3.26]$ and exact McNemar $p=1.0$.
 
 \begin{table}[t]
 \caption{Localization outcomes on the fixed sample. Function proportions use the 92 eligible tasks; macro metrics are averages over the same 92 tasks.}
@@ -186,26 +193,20 @@ Table~\ref{tab:outcomes} reports the endpoint results. File Hit@5 is 68/100 in b
 \toprule
 Metric & \base{} & \hyb{} \\
 \midrule
-File Hit@1 & 48/100 (48.00\%) & 48/100 (48.00\%) \\
-File Hit@3 & 59/100 (59.00\%) & 59/100 (59.00\%) \\
-File Hit@5 & 68/100 (68.00\%) & 68/100 (68.00\%) \\
-\midrule
 Function Hit@1 & 36/92 (39.13\%) & 37/92 (40.22\%) \\
 Function Hit@3 & 47/92 (51.09\%) & 48/92 (52.17\%) \\
 \textbf{Function Hit@5} & \textbf{49/92 (53.26\%)} & \textbf{49/92 (53.26\%)} \\
 Macro Precision@5 & 11.74\% & 11.52\% \\
 Macro Recall@5 & 48.10\% & 47.55\% \\
 Macro F1@5 & 18.51\% & 18.20\% \\
-All existing targets@5 & 40/92 (43.48\%) & 39/92 (42.39\%) \\
-Function MRR@10 & 0.4518 & 0.4592 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The smaller model substitutes for a substantial share of judgments while the observed aggregate top-five endpoint is maintained. Recall and all-target coverage additionally distinguish finding one target from covering all targets.
+The auxiliary model substitutes for a substantial share of judgments while the observed aggregate top-five endpoint is maintained. Macro precision, recall, and F1 describe the breadth and concentration of target retrieval within the emitted top five.
 
 \subsection{Token Use and Online Latency}
-Main-model judgment tokens decrease by 38.02\% (Table~\ref{tab:resources}). Full-pipeline main-model tokens decrease by 386,154 (4.65\%). The 4B scorer consumes 764,211 input tokens and generates no output tokens. Actual batch main-model usage is 15,623,261 tokens, with the shared file phase counted once.
+Main-model judgment tokens decrease by 38.02\% (Table~\ref{tab:resources}). Full-pipeline main-model tokens decrease by 386,154 (4.65\%). Actual batch main-model usage is 15,623,261 tokens, with the shared file phase counted once.
 
 \begin{table}[t]
 \caption{Resource accounting. Comparable totals include the same file-phase charge (617,293 tokens) for each arm. Online statistics use 99 completed pairs.}
@@ -217,7 +218,6 @@ Quantity & \base{} & \hyb{} \\
 \midrule
 Comparable main-model tokens & 8,313,354 & 7,927,200 \\
 Main relevance-judgment tokens & 964,727 & 597,941 \\
-Additional 4B input tokens & --- & 764,211 \\
 Mean main tokens per completed task & 83,973.27 & 80,072.73 \\
 Mean online time (s/task) & 34.89 & 40.07 \\
 Median online time (s/task) & 33.77 & 38.87 \\
@@ -228,7 +228,7 @@ Paid API expenditure & \$0 & \$0 \\
 
 Mean online time increases from 34.89 to 40.07 seconds (14.85\%). Local scoring precedes escalation, with the scorer sharing a GPU with the main model. CPU cache preparation takes 255.47 seconds; scorer loading takes 4.80 and 7.82 seconds in the two service sessions, excluding imports and main-model startup.
 
-The resulting resource profile is useful for deployment planning: judgment-token reduction and wall-clock improvement are separate objectives. The current configuration provides measured main-model substitution, with latency identifying batching and scheduling as concrete optimization targets.
+Judgment-token reduction and wall-clock improvement are separate objectives; the measured latency identifies batching and scheduling as optimization targets.
 
 \subsection{Evidence-Chain Findings}
 Figure~\ref{fig:outcomes} connects endpoint accuracy to the stage of the observable miss. Each arm has 43 function Hit@5 misses. In 30 of these, the target file is absent from the selected set and target source is never retrieved. Another nine baseline and eleven \trace{} misses select a target file without retrieving its target function. Target source is delivered but absent from the final top five in three baseline and one \trace{} cases. The remaining case is the shared context-limit failure.
@@ -240,7 +240,7 @@ Figure~\ref{fig:outcomes} connects endpoint accuracy to the stage of the observa
 \label{fig:outcomes}
 \end{figure}
 
-The decomposition identifies where the component can act: scoring begins only after retrieval. The trace accordingly separates local evidence preservation from opportunities to improve file selection and function exploration.
+Scoring begins after retrieval; this decomposition separates local preservation from upstream search opportunities.
 
 In the Strands SDK, both judges reject the target \nolinkurl{LiteLLMModel.structured_output}. Its score of 0.3918 follows the configured escalation route. Both arms achieve Hit@5 through another target, but Recall@5 is 0.5. The ledger exposes this partial evidence loss behind a successful hit.
 
@@ -261,7 +261,7 @@ Temperature and the lower threshold share a validation split; zero validation ta
 
 Each condition is executed once per task. Identical first function-planning requests yield different replies in 83/99 pairs despite zero temperature and seed. Later trajectories can diverge even with a shared file stage. The statistics do not establish equivalence or non-inferiority, and local routing cannot uniquely explain individual changes. Both models share a model family.
 
-Packing may shorten scorer inputs. AST-defined existing targets do not cover every valid repair strategy, and no repair tests are run. Timing depends on baseline-first order, caching, and shared GPUs; main-model tokens do not measure total energy or hardware cost. Fixed-visit threshold replay cannot predict a changed policy's online accuracy.
+Packing may shorten scorer inputs. AST-defined existing targets do not cover every valid repair strategy, and no repair tests are run. Timing depends on baseline-first order, caching, and shared GPUs. The auxiliary scorer adds 764,211 input tokens and no generated output tokens; primary-model token savings therefore do not establish a reduction in total computation, energy, or hardware cost. Fixed-visit threshold replay cannot predict a changed policy's online accuracy.
 
 \section{Conclusion}
 \trace{} makes local relevance decisions inspectable through function-aware scoring, conservative escalation, and an evidence ledger. It handles 49.54\% of scored requests directly and reduces main-model judgment tokens by 38.02\%, with observed function Hit@5 maintained at 49/92. Zero local rejection across 73 observed target visits and the upstream coverage gaps clarify its operational scope. The same trace contract can support future retrieval and scoring-schedule improvements.

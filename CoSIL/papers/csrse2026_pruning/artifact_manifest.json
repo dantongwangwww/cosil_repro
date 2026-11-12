@@ -1,5 +1,5 @@
 {
-  "paper_title": "Conservative Evidence Routing for Code Localization Agents",
+  "paper_title": "Collaborative Pruning with Primary and Auxiliary Models for Code Localization Agents: A Reliability Evaluation",
   "draft_date": "2026-11-12",
   "scope": "Offline paper analysis of completed paired development experiment; no new inference or training",
   "dataset": {
@@ -49,7 +49,52 @@
     "issue_character_cap": 8000,
     "function_character_cap": 8192,
     "neighbors_per_direction": 16,
-    "native_prompt_token_cap": 8128
+    "native_prompt_token_cap": 8128,
+    "training_sources": {
+      "train": {
+        "lite": {
+          "issues": 217,
+          "pairs": 3029
+        },
+        "verified_excluding_lite": {
+          "issues": 142,
+          "pairs": 5527
+        }
+      },
+      "val": {
+        "lite": {
+          "issues": 27,
+          "pairs": 311
+        },
+        "verified_excluding_lite": {
+          "issues": 17,
+          "pairs": 176
+        }
+      },
+      "split_unit": "instance_id",
+      "train_val_issue_overlap": 0,
+      "rebench_used_for_finetuning": false
+    },
+    "training_implementation": {
+      "torch": "2.13.0+cu130",
+      "transformers": "5.18.0",
+      "peft": "0.21.2",
+      "method": "frozen base model; all-linear LoRA; weighted binary yes/no cross entropy",
+      "optimizer": "AdamW",
+      "weight_decay": 0,
+      "microbatch": 1,
+      "gradient_accumulation": 8,
+      "gradient_checkpointing": true,
+      "dtype": "bfloat16",
+      "seed": 0,
+      "sample_weights": {
+        "gold_AB": 1.58662489,
+        "C": 0.49789108,
+        "D_only": 0.32319445,
+        "E": 2.8371836
+      },
+      "checkpoint_rule": "previous risk-prioritized diagnostic selection; epoch 1; not certified by earlier risk gates"
+    }
   },
   "read_only_evidence": [
     "results/qwen3_rr4_rebench100_20261110/paired_results.json",
@@ -75,6 +120,8 @@
   "bibliography_items": 17,
   "chinese_word_file": "论文_中文版_17篇参考文献.docx",
   "english_pdf_pages": 12,
-  "chinese_word_preview_pages": 11,
-  "reference_translation_prechange_commit": "1ab83272f4abf8b7702c99a061c844bfb57222bf"
+  "chinese_word_preview_pages": 12,
+  "reference_translation_prechange_commit": "1ab83272f4abf8b7702c99a061c844bfb57222bf",
+  "paper_title_zh": "面向代码定位智能体的主辅模型协同剪枝方法与可靠性评测",
+  "title_training_revision_prechange_commit": "ed85fcf5a8c0175e6d588babd4ebdcced77f8c0a"
 }

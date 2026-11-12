@@ -1,9 +1,9 @@
 {
-  "checked_at": "2026-11-12T18:34:38.001599+08:00",
+  "checked_at": "2026-11-12T21:08:46.274962+08:00",
   "word_file": "论文_中文版_17篇参考文献.docx",
-  "docx_sha256": "80fecf9d113082c530551ab432fa14f9724dad5462ac88442365ef108a51018a",
-  "preview_pdf_sha256": "31de558e77ccf1b98fe0a6eeaa39a7d751ec6e168ddd72e8a83310a2c6712da2",
-  "libreoffice_preview_pages": 11,
+  "docx_sha256": "8c14ddc5800c9443601bc26f3db770371e55b5dcbd76a591a27ccb7718546715",
+  "preview_pdf_sha256": "db24a06584298b28701d5f809ba0beba9c19d89f9699daa7d82c1d4d1b6563f5",
+  "libreoffice_preview_pages": 12,
   "references": 17,
   "all_references_cited_in_both_languages": true,
   "figures_embedded": 4,
@@ -22,7 +22,9 @@
     "0.129476": true,
     "0.9470": true
   },
-  "visual_review": "Final Word opened/exported with isolated LibreOffice profile; title, workflow, equations, tables and references inspected at readable resolution.",
+  "visual_review": "Revised Word exported with isolated LibreOffice profile. Title/abstract, training section and six-row localization table inspected at readable resolution.",
   "original_experiment_inputs_changed": 0,
-  "independent_translation_review": "17 citations complete; methods, outcomes, denominators and limits consistent; time/token terminology corrected."
+  "independent_translation_review": "Training evidence and primary outcomes cross-checked in both languages; six localization metrics; auxiliary token cost retained in limitations; title synchronized.",
+  "localization_table_metric_rows": 6,
+  "prechange_backup_commit": "ed85fcf5a8c0175e6d588babd4ebdcced77f8c0a"
 }

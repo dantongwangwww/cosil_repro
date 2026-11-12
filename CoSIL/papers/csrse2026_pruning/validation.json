@@ -1,7 +1,7 @@
 {
-  "checked_at": "2026-11-12T18:33:20.824173+08:00",
+  "checked_at": "2026-11-12T21:08:46.274962+08:00",
   "paper_pages": 12,
-  "abstract_whitespace_words": 141,
+  "abstract_whitespace_words": 146,
   "figures": 4,
   "tables": 3,
   "bibliography_items": 17,
@@ -10,25 +10,27 @@
     "failed": 0
   },
   "template_byte_identity": {
-    "svproc.cls": true,
-    "aliascnt.sty": true,
+    "spmpsci.bst": true,
     "remreset.sty": true,
-    "spmpsci.bst": true
+    "aliascnt.sty": true,
+    "svproc.cls": true
   },
   "historical_analysis_sources_unchanged": 104,
   "upstream_head_unchanged": "86dacd7d18c1198ff20da64595b7f1222d93281e",
   "tex_overfull_boxes": 0,
   "unresolved_references": 0,
-  "pdf_sha256": "b8d41bac4c7a4f3f190b3f25789607823bcbb60aff79d9c19633fdc1db6380b9",
+  "pdf_sha256": "b08d82790b3b3bbfbd284a84011700bd978771d7295aa1f7fd433af4144ef2e1",
   "new_model_calls": 0,
   "new_training_runs": 0,
   "sealed_test_read": false,
-  "visual_review": "12-page contact sheet plus full-size workflow, threshold and table pages reviewed; graphs independently inspected",
+  "visual_review": "Revised title/abstract, training details and reduced results table inspected at readable resolution; 12 pages compiled with unchanged template.",
   "remaining_author_fields": [
     "names",
     "affiliations",
     "corresponding contact",
     "actual funding if any",
     "author verification and final AI-use disclosure"
-  ]
+  ],
+  "prechange_backup_commit": "ed85fcf5a8c0175e6d588babd4ebdcced77f8c0a",
+  "localization_table_metric_rows": 6
 }
