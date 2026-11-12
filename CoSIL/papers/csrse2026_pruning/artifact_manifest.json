@@ -1,0 +1,71 @@
+{
+  "paper_title": "Conservative Evidence Routing for Code Localization Agents",
+  "draft_date": "2026-11-12",
+  "scope": "Offline paper analysis of completed paired development experiment; no new inference or training",
+  "dataset": {
+    "name": "nebius/SWE-rebench-leaderboard",
+    "revision": "34d5a58864acf91613740a09ec5d205228dcfa39",
+    "frozen_filtered_pool": 265,
+    "sample_seed": 20261110,
+    "algorithm": "SHA256(UTF8('20261110:' + instance_id)); sort(hash,id); first per repo.casefold(); first 100",
+    "tasks": 100,
+    "repositories": 100,
+    "function_evaluable": 92,
+    "complete_pairs": 99,
+    "shared_stage_resource_failure": 1,
+    "evaluation": "r2_exact_context_offsets; complete nonempty existing-function targets; strict path::qualified_name, original prediction slots"
+  },
+  "main_model": {
+    "name": "Qwen/Qwen3-8B",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "dtype": "bfloat16",
+    "enable_thinking": false,
+    "temperature": 0,
+    "seed": 0,
+    "context_tokens": 65536,
+    "max_output_tokens": 2048,
+    "tensor_parallel_size": 2
+  },
+  "judge": {
+    "name": "Qwen/Qwen3-Reranker-4B",
+    "base_revision": "22e683669bc0f0bd69640a1354a6d0aebcfeede5",
+    "adapter_sha256": "903cf41341d5455381d8b713e6505b696be62d4a7d9a2a386421642985c30736",
+    "epoch": 1,
+    "temperature": 2.9846201034621833,
+    "low": 0.12947567721292427,
+    "high": 0.9,
+    "low_construction": "nextafter(min calibrated validation gold p,-inf)",
+    "training_pairs": 8556,
+    "training_issues": 359,
+    "validation_pairs": 487,
+    "validation_issues": 44,
+    "weighted_positive_negative_ratio": "1:2",
+    "lora_rank": 16,
+    "lora_alpha": 32,
+    "dropout": 0.05,
+    "learning_rate": 0.00005,
+    "effective_batch_size": 8,
+    "training_epochs_available": 3,
+    "issue_character_cap": 8000,
+    "function_character_cap": 8192,
+    "neighbors_per_direction": 16,
+    "native_prompt_token_cap": 8128
+  },
+  "read_only_evidence": [
+    "results/qwen3_rr4_rebench100_20261110/paired_results.json",
+    "results/qwen3_rr4_rebench100_20261110/delivery_analysis.json",
+    "results/qwen3_rr4_rebench100_20261110/continuation_independent_audit.json",
+    "results/v6_pruner/20261016/T3_round1_exploratory/reranker4B/val_epoch_1.jsonl"
+  ],
+  "historical_report": "docs/qwen3-reranker4b-rebench100/实验报告_Rebench100_总览.md",
+  "prechange_github_commit": "6e60fba4928569cac4d182ef207c523c60d99689",
+  "native_upstream_git_head": "86dacd7d18c1198ff20da64595b7f1222d93281e",
+  "template": "User-supplied Springer SVProc 2016/07/20 v1.3, unmodified",
+  "reproduction": {
+    "figures": "python scripts/analyze.py",
+    "tests": "python -B -m unittest discover -s tests -v",
+    "pdf": "bash build.sh",
+    "public_artifacts": "LaTeX/code/docs/derived statistics; PDF and plots rebuild from source",
+    "models_raw_logs_and_sealed_data_published": false
+  }
+}

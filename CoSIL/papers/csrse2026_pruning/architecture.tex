@@ -1,0 +1,28 @@
+\begin{tikzpicture}[
+  font=\small, >=Latex,
+  box/.style={draw=navy!60,rounded corners=2pt,fill=pale,align=center,inner sep=5pt,minimum height=0.8cm},
+  route/.style={box,text width=2.5cm,minimum height=0.85cm},
+  link/.style={->,semithick,draw=navy},
+  audit/.style={->,dashed,draw=gray!80,thin}]
+  \node[box,text width=10.8cm] (agent) at (0,0) {\textbf{Qwen3-8B localization agent}\\Issue + base repository $\rightarrow$ files $\rightarrow$ function search};
+  \node[box,text width=10.8cm] (identity) at (0,-1.2) {\textbf{Shared source interface}\\Retrieve source $\cdot$ bind path and qualified name $\cdot$ verify identity};
+  \draw[link] (agent)--(identity);
+  \node[box,fill=teal!8,draw=teal,text width=6.8cm] (score) at (-1.4,-2.65) {\textbf{4B scorer + temperature calibration}\\Issue, source, caller/callee summaries\\$p=\sigma((z_{\mathrm{yes}}-z_{\mathrm{no}})/T)$};
+  \draw[link] (identity.south -| score.north)--node[right,font=\scriptsize]{bound function}(score.north);
+  \node[route,fill=teal!12,draw=teal] (keep) at (-4,-4.15) {\textbf{Retain}\\$p\geq0.9$};
+  \node[route,fill=gray!10,draw=gray!75] (defer) at (0,-4.15) {\textbf{Escalate}\\$\tau_{\mathrm{lo}}<p<0.9$};
+  \node[route,fill=amber!12,draw=amber] (drop) at (4,-4.15) {\textbf{Reject}\\$p\leq\tau_{\mathrm{lo}}$};
+  \draw[link] (score.south)--++(0,-.23)-|(keep.north);
+  \draw[link] (score.south)--++(0,-.23)-|(defer.north);
+  \draw[link] (score.south)--++(0,-.23)-|(drop.north);
+  \node[box,text width=2.5cm] (qwen) at (0,-5.5) {Main Qwen judge\\True / False};
+  \draw[link] (defer)--(qwen);
+  \draw[link] (identity.east)--++(.18,0)--(5.9,-5.5)--node[above,font=\scriptsize,near end]{class / unbound}(qwen.east);
+  \node[box,text width=10.8cm] (delivery) at (0,-6.8) {\textbf{Existing CoSIL decision handling}\\Admit / withhold source $\rightarrow$ continue search $\rightarrow$ final ranking};
+  \draw[link] (keep.south)--(keep.south|-delivery.north);
+  \draw[link] (drop.south)--(drop.south|-delivery.north);
+  \draw[link] (qwen)--(delivery);
+  \node[box,text width=10.8cm,fill=gray!7,draw=gray!65] (ledger) at (0,-8) {\textbf{Evidence ledger + isolated offline evaluation}\\Identity $\cdot$ input hash $\cdot$ route $\cdot$ delivery $\cdot$ target exposure $\cdot$ rank};
+  \draw[audit] (delivery)--(ledger);
+  \draw[audit] (identity.west)--++(-.18,0)--(-5.9,-8)--(ledger.west);
+\end{tikzpicture}

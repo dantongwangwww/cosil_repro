@@ -1,0 +1,34 @@
+{
+  "checked_at": "2026-11-12T17:12:42.203740+08:00",
+  "paper_pages": 12,
+  "abstract_whitespace_words": 141,
+  "figures": 4,
+  "tables": 3,
+  "bibliography_items": 9,
+  "cpu_analysis_tests": {
+    "passed": 7,
+    "failed": 0
+  },
+  "template_byte_identity": {
+    "svproc.cls": true,
+    "aliascnt.sty": true,
+    "remreset.sty": true,
+    "spmpsci.bst": true
+  },
+  "historical_analysis_sources_unchanged": 104,
+  "upstream_head_unchanged": "86dacd7d18c1198ff20da64595b7f1222d93281e",
+  "tex_overfull_boxes": 0,
+  "unresolved_references": 0,
+  "pdf_sha256": "79f660ad022ecdb3e21b986e3f3b40e83facf8a76b8bce387ce344032546e290",
+  "new_model_calls": 0,
+  "new_training_runs": 0,
+  "sealed_test_read": false,
+  "visual_review": "12-page contact sheet plus full-size workflow, threshold and table pages reviewed; graphs independently inspected",
+  "remaining_author_fields": [
+    "names",
+    "affiliations",
+    "corresponding contact",
+    "actual funding if any",
+    "author verification and final AI-use disclosure"
+  ]
+}
