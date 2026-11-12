@@ -1,5 +1,5 @@
 {
-  "paper_title": "Collaborative Pruning with Primary and Auxiliary Models for Code Localization Agents: A Reliability Evaluation",
+  "paper_title": "Function Pruning for Code Localization Agents: Design and Reliability Evaluation",
   "draft_date": "2026-11-12",
   "scope": "Offline paper analysis of completed paired development experiment; no new inference or training",
   "dataset": {
@@ -122,6 +122,13 @@
   "english_pdf_pages": 12,
   "chinese_word_preview_pages": 12,
   "reference_translation_prechange_commit": "1ab83272f4abf8b7702c99a061c844bfb57222bf",
-  "paper_title_zh": "面向代码定位智能体的主辅模型协同剪枝方法与可靠性评测",
-  "title_training_revision_prechange_commit": "ed85fcf5a8c0175e6d588babd4ebdcced77f8c0a"
+  "paper_title_zh": "面向代码定位智能体的函数剪枝方法与可靠性评测",
+  "title_training_revision_prechange_commit": "ed85fcf5a8c0175e6d588babd4ebdcced77f8c0a",
+  "method_name": "SpecPrune",
+  "method_expansion": "Specialized Function Pruning",
+  "specprune_revision_prechange_commit": "032d7221f5e8c6f8587bd2679ff230458607dc66",
+  "display_arm_names": {
+    "baseline": "CoSIL-Qwen3",
+    "hybrid_safe": "CoSIL-SpecPrune"
+  }
 }

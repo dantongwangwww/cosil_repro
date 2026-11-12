@@ -272,7 +272,7 @@ def draw_outcomes(summary):
     fig, (ax,bx) = plt.subplots(1,2, figsize=(4.80, 2.72), gridspec_kw={'width_ratios':[.86,1.14]})
     fig.subplots_adjust(left=.10, right=.99, top=.78, bottom=.28, wspace=.63)
     xs=np.arange(3); width=.32
-    for offset, arm, label, color in ((-width/2,'baseline','CoSIL-Qwen3',BLUE),(width/2,'hybrid_safe','CoSIL-TRACE',TEAL)):
+    for offset, arm, label, color in ((-width/2,'baseline','CoSIL-Qwen3',BLUE),(width/2,'hybrid_safe','CoSIL-SpecPrune',TEAL)):
         vals=[summary['paired_summary']['metrics'][arm]['function'][f'hit{k}']*100 for k in (1,3,5)]
         bars=ax.bar(xs+offset,vals,width=width,color=color,label=label)
         for bar, k in zip(bars, (1,3,5)):

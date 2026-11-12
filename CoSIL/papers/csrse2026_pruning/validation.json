@@ -1,7 +1,7 @@
 {
-  "checked_at": "2026-11-12T21:08:46.274962+08:00",
+  "checked_at": "2026-11-12T21:46:51.400113+08:00",
   "paper_pages": 12,
-  "abstract_whitespace_words": 146,
+  "abstract_whitespace_words": 145,
   "figures": 4,
   "tables": 3,
   "bibliography_items": 17,
@@ -19,11 +19,11 @@
   "upstream_head_unchanged": "86dacd7d18c1198ff20da64595b7f1222d93281e",
   "tex_overfull_boxes": 0,
   "unresolved_references": 0,
-  "pdf_sha256": "b08d82790b3b3bbfbd284a84011700bd978771d7295aa1f7fd433af4144ef2e1",
+  "pdf_sha256": "c83e57cca1776bf1943361bc9246e82fdd365d8d0e2f614683f3df20b720aa00",
   "new_model_calls": 0,
   "new_training_runs": 0,
   "sealed_test_read": false,
-  "visual_review": "Revised title/abstract, training details and reduced results table inspected at readable resolution; 12 pages compiled with unchanged template.",
+  "visual_review": "SpecPrune title/abstract, updated workflow and six-metric results table inspected at readable resolution; 12 pages compiled with unchanged template.",
   "remaining_author_fields": [
     "names",
     "affiliations",
@@ -31,6 +31,6 @@
     "actual funding if any",
     "author verification and final AI-use disclosure"
   ],
-  "prechange_backup_commit": "ed85fcf5a8c0175e6d588babd4ebdcced77f8c0a",
+  "prechange_backup_commit": "032d7221f5e8c6f8587bd2679ff230458607dc66",
   "localization_table_metric_rows": 6
 }

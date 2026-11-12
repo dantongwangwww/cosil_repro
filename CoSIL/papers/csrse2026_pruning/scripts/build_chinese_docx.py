@@ -420,7 +420,7 @@ class WordBuilder:
 
     def header(self):
         node = element('w:hdr')
-        p = self.paragraph('TRACE · 主辅模型协同剪枝与可靠性评测', parent=node,
+        p = self.paragraph('SpecPrune · 函数剪枝与可靠性评测', parent=node,
                            align='right', size=17, color='52677A', after=40, first_line=0)
         borders = sub(p.find(q('w:pPr')), 'w:pBdr')
         sub(borders, 'w:bottom', {'w:val': 'single', 'w:sz': 4, 'w:space': 5, 'w:color': 'CBD5DE'})
@@ -494,7 +494,7 @@ class WordBuilder:
         sub(core, 'dc:title', text=self.content['title'])
         sub(core, 'dc:subject', text='中文全文翻译；17篇参考文献；作者审阅稿')
         sub(core, 'dc:creator', text=self.content.get('author', '作者待填写'))
-        sub(core, 'cp:keywords', text='代码定位智能体;可靠性;主辅模型协同剪枝;TRACE')
+        sub(core, 'cp:keywords', text='代码定位智能体;可靠性;函数剪枝;SpecPrune')
         sub(core, 'dcterms:created', {'xsi:type': 'dcterms:W3CDTF'},
             datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'))
         app = ET.Element('Properties', {'xmlns': 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties'})

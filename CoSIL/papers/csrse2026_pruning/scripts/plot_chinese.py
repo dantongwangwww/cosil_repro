@@ -148,7 +148,7 @@ def outcomes(summary):
     fig.subplots_adjust(left=.10, right=.99, top=.78, bottom=.28, wspace=.65)
     xs = np.arange(3); width = .32
     for offset, arm, label, color in ((-width/2,'baseline','CoSIL-Qwen3',BLUE),
-                                      (width/2,'hybrid_safe','CoSIL-TRACE',TEAL)):
+                                      (width/2,'hybrid_safe','CoSIL-SpecPrune',TEAL)):
         vals = [summary['paired_summary']['metrics'][arm]['function'][f'hit{k}']*100 for k in (1,3,5)]
         bars = ax.bar(xs+offset, vals, width=width, color=color, label=label)
         for bar, k in zip(bars, (1,3,5)):
@@ -192,10 +192,10 @@ def architecture():
             ax.plot([a[0],b[0]],[a[1],b[1]],color=color,lw=.8,ls='--' if dashed else '-',zorder=1)
         ax.add_patch(FancyArrowPatch(points[-2],points[-1],arrowstyle='-|>',mutation_scale=8,
                                     color=color,linewidth=.8,linestyle='--' if dashed else '-',zorder=1))
-    box(0,0,10.7,.80,'Qwen3-8B 定位智能体','issue＋base仓库 → 文件选择 → 迭代函数搜索')
+    box(0,0,10.7,.80,'CoSIL定位智能体（Qwen3-8B）','issue＋base仓库 → 文件选择 → 迭代函数搜索')
     box(0,-1.23,10.7,.80,'两组共享的源码接口','提取源码 · 绑定相对路径与限定名 · 校验base源码身份')
     arrow([(0,-.43),(0,-.80)])
-    box(-1.25,-2.75,7.2,1.02,'4B相关性评分与温度校准',
+    box(-1.25,-2.75,7.2,1.02,'SpecPrune相关性剪枝判别器（4B）',
         'issue、函数源码、调用方／被调用方摘要\n'+r'$p=\sigma((z_{\mathrm{yes}}-z_{\mathrm{no}})/T)$',
         edge=TEAL,face='#EDF7F4',fs=9)
     arrow([(-1.25,-1.66),(-1.25,-2.20)])
@@ -205,7 +205,7 @@ def architecture():
                                   (3.95,'剪除',r'$p\leq\tau_{\mathrm{lo}}$',ORANGE,'#FBF0E3')]:
         box(x,-4.25,2.55,.80,title,body,edge=color,face=face)
         arrow([(-1.25,-3.30),(-1.25,-3.58),(x,-3.58),(x,-3.81)])
-    box(0,-5.55,2.7,.80,'主Qwen模型判断','True / False')
+    box(0,-5.55,2.7,.80,'CoSIL原有剪枝判断','True / False')
     arrow([(0,-4.68),(0,-5.11)])
     arrow([(5.39,-1.23),(5.8,-1.23),(5.8,-5.55),(1.40,-5.55)])
     ax.text(2.25,-5.42,'类请求／无法绑定',fontsize=7.7)
