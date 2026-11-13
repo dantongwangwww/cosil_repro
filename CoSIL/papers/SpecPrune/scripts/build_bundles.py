@@ -14,7 +14,7 @@ from freeze_artifact import distributable_files
 
 def archive(path, files):
     with path.open('xb') as raw:
-        with gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0) as gz:
+        with gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0, compresslevel=3) as gz:
             with tarfile.open(mode='w', fileobj=gz) as tf:
                 for source in files:
                     rel = source.relative_to(ROOT).as_posix()
@@ -34,13 +34,22 @@ def main():
     if a.output.resolve().is_relative_to(ROOT):
         p.error('--output must be outside artifact directory')
     manifest_path = ROOT/'provenance/artifact_manifest.json'
-    check = check_manifest(ROOT, json.loads(manifest_path.read_text()), require_assets=True)
+    manifest = json.loads(manifest_path.read_text())
+    check = check_manifest(ROOT, manifest, require_assets=True)
     if not check['ok']:
         raise SystemExit(json.dumps(check, ensure_ascii=False))
     a.output.mkdir(parents=True, exist_ok=False)
     code, assets = [], []
     for f in distributable_files():
         (assets if f.relative_to(ROOT).parts[0] in {'assets', 'checkpoints'} else code).append(f)
+    expected_assets = {r['path'] for r in manifest['files'] if r['distribution'] == 'local_assets'}
+    for group in manifest.get('asset_groups', []):
+        expected_assets.update(p.relative_to(ROOT).as_posix() for p in (ROOT/group['path']).rglob('*')
+                               if p.is_file() and '__pycache__' not in p.parts)
+    actual_assets = {p.relative_to(ROOT).as_posix() for p in assets}
+    if actual_assets != expected_assets:
+        raise ValueError('Asset packaging inventory differs from frozen manifest: '
+                         + repr(sorted(actual_assets ^ expected_assets)[:20]))
     code.append(manifest_path)
     receipt = {'code': archive(a.output/'SpecPrune-code.tar.gz', sorted(code)),
                'local_assets': archive(a.output/'SpecPrune-assets.tar.gz', sorted(assets)),

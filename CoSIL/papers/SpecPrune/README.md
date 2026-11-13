@@ -18,7 +18,7 @@
 
 详细操作：[训练说明](docs/TRAINING.md) · [运行说明](docs/RUNTIME.md) · [评测说明](docs/EVALUATION.md) · [交付范围与历史对应](docs/REPRODUCIBILITY.md)。
 
-整理验证：整个目录搬到原仓库之外后，36 项工程测试和 7 项论文统计测试通过；20 题剪枝输入与原实现逐字一致；原 100 题指标重算一致。详情见 [VALIDATION.md](docs/VALIDATION.md)。这不替代一次新的 GPU 训练或真实推理实验。
+整理验证：整个目录搬到原仓库之外后，37 项工程测试和 7 项论文统计测试通过；20 题剪枝输入与原实现逐字一致；原 100 题指标重算一致。详情见 [VALIDATION.md](docs/VALIDATION.md)。这不替代一次新的 GPU 训练或真实推理实验。
 
 ## 1. 环境与完整性
 

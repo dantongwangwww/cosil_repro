@@ -14,7 +14,10 @@ SKIP = {'provenance/artifact_manifest.json', 'publication_receipt.local.json'}
 def distributable_files():
     for p in sorted(ROOT.rglob('*')):
         parts = p.relative_to(ROOT).parts
-        if any(x in EXCLUDED or x.startswith('.venv') or x.endswith('.egg-info') for x in parts):
+        # Ignore packaging/build artifacts only at this package's top level.
+        # A task's base source can legitimately contain pkg/models or build/.
+        if (parts[0] in EXCLUDED or parts[0].startswith('.venv') or parts[0].endswith('.egg-info')
+                or '__pycache__' in parts):
             continue
         if p.is_symlink():
             raise ValueError(f'Cannot freeze symlink: {p}')

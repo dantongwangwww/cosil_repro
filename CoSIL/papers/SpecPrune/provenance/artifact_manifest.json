@@ -17,7 +17,7 @@
     {
       "path": "README.md",
       "bytes": 9917,
-      "sha256": "768f8155ccff3124f2a9bf73b3082a26ae13b0cd98c46d1527e2c2411f00f3fb",
+      "sha256": "592d1de2367ce67caedce124ff7ac9455a82f6700276b98d8ccaa0e909495664",
       "distribution": "code_docs_derived"
     },
     {
@@ -220,8 +220,8 @@
     },
     {
       "path": "docs/VALIDATION.md",
-      "bytes": 2889,
-      "sha256": "5399952cce31f8fc8fdb67213ac9a68e138527dd27d3fb9b0f8cfee1292b8d00",
+      "bytes": 3234,
+      "sha256": "d0c4de2652db20264c9654b5f78c6e2f7d573a35c48f747482cd8646c84db47f",
       "distribution": "code_docs_derived"
     },
     {
@@ -358,8 +358,8 @@
     },
     {
       "path": "scripts/build_bundles.py",
-      "bytes": 2278,
-      "sha256": "cf45a44bb3dca3eb0870f6bd0d66fe7688a148a67c76dbe8658cbb3732e57523",
+      "bytes": 2926,
+      "sha256": "72f76e69d2b452fcff3819683d9faf6fc55eb6b2ec3705696d3688f292491496",
       "distribution": "code_docs_derived"
     },
     {
@@ -382,8 +382,8 @@
     },
     {
       "path": "scripts/freeze_artifact.py",
-      "bytes": 1957,
-      "sha256": "03240010b04cc21cdd3e171b8d76a349da72f03168de4f2e8e7b7d44c4ed673b",
+      "bytes": 2157,
+      "sha256": "0bff6400a4ded68a004e18f037e8cf53898e25c57f28474d9310f72324556708",
       "distribution": "code_docs_derived"
     },
     {
@@ -634,8 +634,8 @@
     },
     {
       "path": "tests/test_artifact_manifest.py",
-      "bytes": 1036,
-      "sha256": "07bff9442dbbf9270faa4fdf7d3f8c70f19204986d07918e7a6510ed9842410f",
+      "bytes": 2149,
+      "sha256": "09c15644ea13fadc44ab0d80b6967dd7b2e449f18409476dd7df66ff3ce5b31e",
       "distribution": "code_docs_derived"
     },
     {
