@@ -1,0 +1,181 @@
+{
+  "repository": "https://github.com/dantongwangwww/cosil_repro",
+  "verified_source_commit": "aef72a9c",
+  "files": [
+    {
+      "path": "code_rebench_qwen/common.py",
+      "original_path": "code_rebench_qwen/common.py",
+      "sha256": "127beb93d5682315b4931870435d7dc4784a56cfdc948f2a395540a5f32c8348",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_rebench_qwen/runner.py",
+      "original_path": "code_rebench_qwen/runner.py",
+      "sha256": "f15db7be8bd2d01b77f5071f592f80bb6e34268f40a548ce313db0ffbae9a880",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_rebench_qwen/local_provider.py",
+      "original_path": "code_rebench_qwen/local_provider.py",
+      "sha256": "b74c735acb1ea39c69868bd6e599f458996fdad58224fd8d95d4c791495a035a",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_rebench_qwen/prepare.py",
+      "original_path": "code_rebench_qwen/prepare.py",
+      "sha256": "c260c299234e0acddbea4d74b7757b3390f51b3964d200fd1b7aea643556fd7f",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_rebench_qwen_repair/compat.py",
+      "original_path": "code_rebench_qwen_repair/compat.py",
+      "sha256": "2a94aefa4792438829ee1b232aae378932523a90696ffcd3c49cf841e472b468",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_v3b/fixed_search.py",
+      "original_path": "code_v3b/fixed_search.py",
+      "sha256": "6726903808880f2aa737b041da32dc0fae3d74c880864bb5234f64dbdd58103c",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_v3b/AFL_插桩版.py",
+      "original_path": "code_v3b/AFL_插桩版.py",
+      "sha256": "f767220c0ea53850ac299d250f611b0fd2aac1b08f51bfda7803c0f44be36e43",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_v3b/FL_tools_注入版.py",
+      "original_path": "code_v3b/FL_tools_注入版.py",
+      "sha256": "289a4b2c0a94a5059b7380bcd676bd8e8fdc7a10304096246e9f0c25f6251c63",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_v3b/tool_dispatch.py",
+      "original_path": "code_v3b/tool_dispatch.py",
+      "sha256": "8c185bfb2bbebaf786aeb857a9655df8030ef23c447890153093a6aeef0f0fa6",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_v3b/qwen_model.py",
+      "original_path": "code_v3b/qwen_model.py",
+      "sha256": "fed64e1667ae37630aeb37e8a685d84f7347880105e241933ead9d4e27c92427",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4/config.py",
+      "original_path": "code_qwen3_rr4/config.py",
+      "sha256": "69978b42e002f300ec8eb6cdcd07bebd908742c83b563f678e83b7a31a6fe4e1",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4/worker.py",
+      "original_path": "code_qwen3_rr4/worker.py",
+      "sha256": "97b24114124d8585bbed99c4781649581aba199a3d887c153705d6d4c79c35a1",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4/judge.py",
+      "original_path": "code_qwen3_rr4/judge.py",
+      "sha256": "80b817460e4ab6f3f7dfc939d626a9ea637b53c2e3033a1e1166c9fa3265e667",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4_rebench100/config.py",
+      "original_path": "code_qwen3_rr4_rebench100/config.py",
+      "sha256": "e3fda9b4e3f8f0b34ae5abd6c28def05420b8209581e236a5f723b2ad1de26e7",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4_rebench100/worker.py",
+      "original_path": "code_qwen3_rr4_rebench100/worker.py",
+      "sha256": "747af66a1469e7e04084c4876d3a0f080cc1c6e3f5e4db9239fe8d850b9be676",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4_rebench100/identity.py",
+      "original_path": "code_qwen3_rr4_rebench100/identity.py",
+      "sha256": "384aef0a8188ebf306c9f8f14e903692bb0103d2b4bc6bc4fa801b96a462bc33",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4_rebench100/render_cache.py",
+      "original_path": "code_qwen3_rr4_rebench100/render_cache.py",
+      "sha256": "37b7bc6226dfd6f5bf45c237d3f5af5655e6bdacf3f316ec762fc4e14896cfe4",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_qwen3_rr4_rebench100/rpc.py",
+      "original_path": "code_qwen3_rr4_rebench100/rpc.py",
+      "sha256": "ac472fb0c321264b4d9d787eebd73b6de76aaba9d00b99a21dac7f51657d4489",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "code_v5/static_calls.py",
+      "original_path": "code_v5/static_calls.py",
+      "sha256": "06abfb41ac155fcb5a04331c6ce9ff34e43758046a87b32de811206ac8a3f4c7",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/fl/FL_prompt.py",
+      "original_path": "afl/fl/FL_prompt.py",
+      "sha256": "245ca39dfb35ebddf3b9702c11ed8c70c11284a61173f650d711a1808b44954e",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/fl/FL_tools.py",
+      "original_path": "afl/fl/FL_tools.py",
+      "sha256": "2725c3799795defdc939d4514ece551d4525d0a9562f03c246c4c5d85422aa81",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/util/api_requests.py",
+      "original_path": "afl/util/api_requests.py",
+      "sha256": "5570564873d722274c7a052747e67d736a3129ef665bf0d50c344fd38754f7c6",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/util/model.py",
+      "original_path": "afl/util/model.py",
+      "sha256": "7f09f5e4f2444ed87b880de563606ff61f8457323e69b911d0f3d9cab7736172",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/util/preprocess_data.py",
+      "original_path": "afl/util/preprocess_data.py",
+      "sha256": "06094e03c59666d7248dffdd6373aaef842436220e8dca7dffa28b93307d5a25",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/util/postprocess_data.py",
+      "original_path": "afl/util/postprocess_data.py",
+      "sha256": "7a0c26a41f6e443661f5498b95d83dcdd3ca0488ed972de9b2cd3330f8aee0b7",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/util/parse_global_var.py",
+      "original_path": "afl/util/parse_global_var.py",
+      "sha256": "019c168505ff47d54f395d46b287f57048f521d603dde2a8beb69c1895abe115",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "afl/util/utils.py",
+      "original_path": "afl/util/utils.py",
+      "sha256": "de3313b609ff87dfdaf02c8a9d1cf99f32a83f7e80c818b37e96128556d88e77",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "get_repo_structure/get_repo_structure.py",
+      "original_path": "get_repo_structure/get_repo_structure.py",
+      "sha256": "48dbabe5009edf16cca50acd8c79c54b6bf09b8ef7f2e6f89eb300cfdabf3bb4",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    },
+    {
+      "path": "get_repo_structure/get_patch_info.py",
+      "original_path": "get_repo_structure/get_patch_info.py",
+      "sha256": "a9d57e74ff2f63b1d62ccd62f03d440c4642bec3498e9d71157b3faefc1b79bf",
+      "policy": "byte-for-byte source copy; executable path configuration supplied by specprune wrappers"
+    }
+  ],
+  "additional_files": "Empty package markers only; wrappers are outside vendor."
+}

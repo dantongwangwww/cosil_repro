@@ -1,0 +1,555 @@
+{
+  "date": "2026-11-13",
+  "scope": "CPU-only migration equivalence, no model forward/generation",
+  "selection": "First 20 records in assets/runtime/manifest.json, then first renderable function by sorted graph function id per task; independent of labels/predictions",
+  "original_renderer": "code_qwen3_rr4_rebench100.render_cache.Renderer",
+  "portable_renderer": "specprune.runtime_renderer.Renderer",
+  "process_isolation": "Two separate Python processes to avoid vendor/original package import collisions",
+  "python": "3.11.17",
+  "gpu_used": false,
+  "api_calls": 0,
+  "gold_or_patch_read": false,
+  "sealed_test_opened": false,
+  "runtime_manifest_sha256": "d5fea7b513c7e454816e8900f6cc167aaf7a396ad49b1d0e6da8c734a22bb44e",
+  "worker_sha256": "7de1fd4edc5b792e012df2d42291eaf54fb4c08b46d342da900a53088c037c25",
+  "comparison": "Entire returned renderer dict equals, including full model_input string, issue/function/neighbors strings, token counts, trimming flags, IDs and SHA; no normalization before comparison",
+  "n": 20,
+  "exact_matches": 20,
+  "mismatches": 0,
+  "fields_checked": [
+    "full_source_characters",
+    "function",
+    "function_id",
+    "input_sha256",
+    "input_version",
+    "issue",
+    "model_input",
+    "neighbors",
+    "neighbors_selected",
+    "source_sha256",
+    "token_budget_trimmed",
+    "token_counts"
+  ],
+  "records": [
+    {
+      "instance_id": "matthewwithanm__python-markdownify-230",
+      "base_commit": "9b1412aa5b5bca345806068b66d35086cbc88b25",
+      "function_id": "markdownify/__init__.py::MarkdownConverter.__init__@201",
+      "file": "markdownify/__init__.py",
+      "qualified_name": "MarkdownConverter.__init__",
+      "input_sha256": "0c6b7958be2ae19e472daabdae503c5c0f667a1af1b1c311e2a557a686375db8",
+      "source_sha256": "015496d400032f252d67fb9e9478242d586cb12e9c96640a9f5f5c9b47e8330a",
+      "rendered_row_sha256": "cec7ac557fc371b4bd7b937f0c02532c1c7f7b5be6c0d0933676285c372cd24b",
+      "model_input_characters": 2559,
+      "full_source_characters": 845,
+      "neighbors_selected": 5,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 631,
+          "native_prompt": 718
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 631,
+          "native_prompt": 680
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "icloud-photos-downloader__icloud_photos_downloader-1060",
+      "base_commit": "337ea77aefb5c1189681a2971c037caeeec43f51",
+      "function_id": "scripts/compile_compatibility.py::content_checker@10",
+      "file": "scripts/compile_compatibility.py",
+      "qualified_name": "content_checker",
+      "input_sha256": "9267b8a5b2b03488c16094826b5048155269a0e85311d55bcef7760be7d521fe",
+      "source_sha256": "438ca67b5abba83e8d2dd390d58fdf54a161fb451c1d3479c3779d70a3c2347c",
+      "rendered_row_sha256": "cc90372f3411571bbe0dbfe835b2e737b6de9fe3b08640694000da7670219557",
+      "model_input_characters": 3356,
+      "full_source_characters": 72,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 1327,
+          "native_prompt": 1414
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 1327,
+          "native_prompt": 1376
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "jlowin__fastmcp-1425",
+      "base_commit": "19a4dd85d43d01f705227c4c96fc3c3832b859ef",
+      "function_id": "examples/atproto_mcp/demo.py::main@20",
+      "file": "examples/atproto_mcp/demo.py",
+      "qualified_name": "main",
+      "input_sha256": "768df777568d74f1085c269ff737d80ac04f02ebf86bbd94d375e4b5ad23c1a9",
+      "source_sha256": "857f554a6caf47c2691450d32ecc37df33f6bf711715dd8201fc3d3bea2a3281",
+      "rendered_row_sha256": "6440c631c10f01b6d0e5357f898dd00b57edc8453c809ea958a226e0556efbe7",
+      "model_input_characters": 13495,
+      "full_source_characters": 9317,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 2852,
+          "native_prompt": 2939
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 2852,
+          "native_prompt": 2901
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "nolar__kopf-1225",
+      "base_commit": "5c55b89a16354595239234a12fb439db4195f9e0",
+      "function_id": "_importlinter_conditional.py::ConditionalImportContract._check_secured_import@83",
+      "file": "_importlinter_conditional.py",
+      "qualified_name": "ConditionalImportContract._check_secured_import",
+      "input_sha256": "e0a8354b30c0a6e7d249885b462294e232455d0bd6fd41bc70cf69576eeaefc0",
+      "source_sha256": "d6ade7da3dd5b46879cb26319dea681435d45c756d59ae0e5b4fea0acc508952",
+      "rendered_row_sha256": "a9b48be69ad6ae6819e530d4c9977a15f7323783b9b1d9f7964a7a228352ebe5",
+      "model_input_characters": 5743,
+      "full_source_characters": 772,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 1557,
+          "native_prompt": 1644
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 1557,
+          "native_prompt": 1606
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "holoviz__holoviews-6783",
+      "base_commit": "776ba030b46ad2f140619ff461dd0e64d0b8ad8a",
+      "function_id": "examples/conftest.py::pytest_runtest_makereport@81",
+      "file": "examples/conftest.py",
+      "qualified_name": "pytest_runtest_makereport",
+      "input_sha256": "d1dc9704200ad754b89f0fb74c59f5b16f412139c1cf54de95a7aba5852b2813",
+      "source_sha256": "fc997f5148d4c0a4614ce8a1c904582ac686c49860fc14f7f876cd084c289e60",
+      "rendered_row_sha256": "3dc4d0e77e12a2af755e741df911a3a3e29904aa3ea671a65ca1f131f0d9b512",
+      "model_input_characters": 8907,
+      "full_source_characters": 761,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 2726,
+          "native_prompt": 2813
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 2726,
+          "native_prompt": 2775
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "raullenchai__rapid-mlx-228",
+      "base_commit": "85f2b2f429556cb59458452119ab657ada8b705c",
+      "function_id": "benchmark_all_prompt_lookup.py::apply_chat_template@131",
+      "file": "benchmark_all_prompt_lookup.py",
+      "qualified_name": "apply_chat_template",
+      "input_sha256": "f8f04b7efb8119af94b8f2e1a957cc6a5b2ae822d06efed96dcfa00b9698af25",
+      "source_sha256": "e61a5fba6c21f8eefb905fa45f8f441893212b61ae39d8757812b1950af49a1c",
+      "rendered_row_sha256": "9d645f062076e402338236a2c20e94ff166344eaa1dacaf788f4fb44043b17db",
+      "model_input_characters": 1498,
+      "full_source_characters": 389,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 369,
+          "native_prompt": 456
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 370,
+          "native_prompt": 419
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "GoogleCloudPlatform__cloud-sql-python-connector-1221",
+      "base_commit": "dde235b0207b861e2a262964f35e7141885384ed",
+      "function_id": "google/cloud/sql/connector/asyncpg.py::connect@26",
+      "file": "google/cloud/sql/connector/asyncpg.py",
+      "qualified_name": "connect",
+      "input_sha256": "f9163441ca85c8b627e607bb1665a1179eb17e53dcc46f44f402bf21fbc3c98b",
+      "source_sha256": "a70e2fd5b740e5f7516ffbdbc331370640283458825e38ccc24496d7f9b27d37",
+      "rendered_row_sha256": "07748e5b6da8d962154cd30ab19e14150640b592d901c7917deb7966039784f8",
+      "model_input_characters": 1870,
+      "full_source_characters": 1165,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 445,
+          "native_prompt": 532
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 445,
+          "native_prompt": 494
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "zarr-developers__zarr-python-2629",
+      "base_commit": "372995e42dee6f06c69d146d887be0db5b5bfe7b",
+      "function_id": "docs/conf.py::setup@196",
+      "file": "docs/conf.py",
+      "qualified_name": "setup",
+      "input_sha256": "105f88ab38944668950903feda85580c3a1dddd36e0cd5e6397fbc3c555a359b",
+      "source_sha256": "41ae65817e7711897e625f48255693c7e7c5ef53aff59923f5bd56cbf0fe37d4",
+      "rendered_row_sha256": "91e7498a4e92739bcaa34771f195c24032181f1b4607b7f133ee53dc8ad35450",
+      "model_input_characters": 1362,
+      "full_source_characters": 142,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 436,
+          "native_prompt": 523
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 436,
+          "native_prompt": 485
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "lincc-frameworks__nested-pandas-247",
+      "base_commit": "c771a8b712f14c7721b8b375b1fdf4df338d0a68",
+      "function_id": "benchmarks/benchmarks.py::AssignSingleDfToNestedSeries.peakmem_run@51",
+      "file": "benchmarks/benchmarks.py",
+      "qualified_name": "AssignSingleDfToNestedSeries.peakmem_run",
+      "input_sha256": "9baa358e3458ca52a175356f839644770ec627600c4274b614fe088e851aca2f",
+      "source_sha256": "e91842e96955e2565e652e1b0efe558942b99fa1aeeedf8b47086cbb5a9981a7",
+      "rendered_row_sha256": "9ebb69885ffadeed8a225363c10f02762ff1135a76ebfb1afa121498e2400c8b",
+      "model_input_characters": 1892,
+      "full_source_characters": 131,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 430,
+          "native_prompt": 517
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 430,
+          "native_prompt": 479
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "koxudaxi__datamodel-code-generator-2389",
+      "base_commit": "4fa8ea313b82c649088d73f304ec44ce3e347f20",
+      "function_id": "scripts/update_command_help_on_markdown.py::get_help@31",
+      "file": "scripts/update_command_help_on_markdown.py",
+      "qualified_name": "get_help",
+      "input_sha256": "bb97628ae8281d9160adb20a0419a01ea848c0c25da4b090a6d63279b1dfa717",
+      "source_sha256": "826b5410f4a71c223484b53fe1fb9040f48111272e08796537c11cc444caab7b",
+      "rendered_row_sha256": "a8a118d5b617bccb941b8f446a2993a7ba1decbc8f7745d331861de69583680b",
+      "model_input_characters": 2167,
+      "full_source_characters": 285,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 627,
+          "native_prompt": 714
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 627,
+          "native_prompt": 676
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "getsentry__sentry-python-4179",
+      "base_commit": "5715734eac1c5fb4b6ec61ef459080c74fa777b5",
+      "function_id": "scripts/build_aws_lambda_layer.py::LayerBuilder.__init__@18",
+      "file": "scripts/build_aws_lambda_layer.py",
+      "qualified_name": "LayerBuilder.__init__",
+      "input_sha256": "272426a3dc0508e8c338d60168aacffbd1d6094dc2d382eb4de5b0ef79b38bb2",
+      "source_sha256": "fccd058864f3cf88d090df8e4e868a993431ac3fd1cb24772b0f6fe797fc1a9e",
+      "rendered_row_sha256": "be215744b9a74cd504c3421ec10352d1a08223ed311ea2583e9b7e06c6c62212",
+      "model_input_characters": 2035,
+      "full_source_characters": 449,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 527,
+          "native_prompt": 614
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 527,
+          "native_prompt": 576
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "psd-tools__psd-tools-551",
+      "base_commit": "3b96d5344e8ffd5d3bf49022c10b43d1cbc75084",
+      "function_id": "docs/conf.py::no_namedtuple_attrib_docstring@195",
+      "file": "docs/conf.py",
+      "qualified_name": "no_namedtuple_attrib_docstring",
+      "input_sha256": "6934d9e11a57f61e17515dd0ae455f2344b6cee12514acfa3e544bc285c73984",
+      "source_sha256": "e68534ebdeb61078f70809f62ec36e7fe538ccaf9854bbf013a3a9b167de6f3d",
+      "rendered_row_sha256": "42454a451e4c4711c603255da6e56e9dd33abb3878cdbd5d48bcf89bdcbfbf92",
+      "model_input_characters": 976,
+      "full_source_characters": 237,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 279,
+          "native_prompt": 366
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 279,
+          "native_prompt": 328
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "macbre__sql-metadata-625_interface",
+      "base_commit": "425b46326d4a7b7e937f3ef19b321df0512b9163",
+      "function_id": "sql_metadata/ast_parser.py::ASTParser.__init__@29",
+      "file": "sql_metadata/ast_parser.py",
+      "qualified_name": "ASTParser.__init__",
+      "input_sha256": "1b31f2b687d5d8e376e38b634c207f6dbb38d44223512e4906f8973705b742e5",
+      "source_sha256": "dee74c39489dc548bb4b437009215d24e26ef1adf99da7059897ec39bf42ad03",
+      "rendered_row_sha256": "4014376e7a13f9bda7f4c4b3c286668fc05695f0048fb77962d1ddc1ff686b8c",
+      "model_input_characters": 988,
+      "full_source_characters": 270,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 240,
+          "native_prompt": 327
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 240,
+          "native_prompt": 289
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "BerriAI__litellm-16315",
+      "base_commit": "11508c03391305296a8938a83de33a0ca52d9a61",
+      "function_id": ".github/scripts/scan_keywords.py::_excerpt@67",
+      "file": ".github/scripts/scan_keywords.py",
+      "qualified_name": "_excerpt",
+      "input_sha256": "88ef9dddd8f4cf43786ff9be180f594dd5aaa09717f46664664cd98e2636f181",
+      "source_sha256": "07fa71a8610937fdd354ce48301b822a29b0169a6e6a3ff7dcc06275c08561e8",
+      "rendered_row_sha256": "850658d7e09979da46600dd57070a3fb4ba24dd8f8beab96edcbb7327161ca94",
+      "model_input_characters": 2582,
+      "full_source_characters": 209,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 690,
+          "native_prompt": 777
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 690,
+          "native_prompt": 739
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "pyvista__pyvista-7258",
+      "base_commit": "91711e56edc0ccf561e9188376783530864d7f13",
+      "function_id": "doc/source/conf.py::ResetPyVista.__call__@443",
+      "file": "doc/source/conf.py",
+      "qualified_name": "ResetPyVista.__call__",
+      "input_sha256": "3c2a157f56f1101c8cc102713f281c8fe5df4a522af2d7a400062c05ca16a7b0",
+      "source_sha256": "971a10aa71dde0b1ebad38a09b503ef4d2b9057ac07554e802bbd73a57e74544",
+      "rendered_row_sha256": "da987a6a55ae5c9037169fb314dfa1ea2b62ff2a6c295e90f9123acd0c162a03",
+      "model_input_characters": 1922,
+      "full_source_characters": 321,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 549,
+          "native_prompt": 636
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 549,
+          "native_prompt": 598
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "iterative__dvc-10844",
+      "base_commit": "29386a0dbba672881f4a729973ebc5fd95417cd3",
+      "function_id": "dvc/__pyinstaller/__init__.py::get_hook_dirs@4",
+      "file": "dvc/__pyinstaller/__init__.py",
+      "qualified_name": "get_hook_dirs",
+      "input_sha256": "9e816bc863158b7e0c965a7f72b1bc2f20d20563aec7c02f35ef00978f4899bc",
+      "source_sha256": "e229527c73423152c6820393b964e07578724d46f52097ae31ee01a171ee0f1e",
+      "rendered_row_sha256": "e48fe3ec26f254cc31a3d34ee35eb3bbd70d477f40be5cd68a8f4b9378acc55b",
+      "model_input_characters": 784,
+      "full_source_characters": 60,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 232,
+          "native_prompt": 319
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 232,
+          "native_prompt": 281
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "dstackai__gpuhunt-197",
+      "base_commit": "acfbc4744138e5ee4ba2926bcea25cc55e2d4eb1",
+      "function_id": "src/gpuhunt/__init__.py::__getattr__@44",
+      "file": "src/gpuhunt/__init__.py",
+      "qualified_name": "__getattr__",
+      "input_sha256": "115e69337cde8a5574c6314fd62417caa47087901512fd5d305aa5f2b0eb3b5e",
+      "source_sha256": "86ebaa21a8f0b5403838be1fc547624a0ec9d23315b58b147132b53623d158a9",
+      "rendered_row_sha256": "09d1c5f711b2218f695de20c1793ac2bf528fc762795fc862467521362a9016a",
+      "model_input_characters": 1088,
+      "full_source_characters": 322,
+      "neighbors_selected": 1,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 315,
+          "native_prompt": 402
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 315,
+          "native_prompt": 364
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "scipp__plopp-428",
+      "base_commit": "084c47363e896fd06135817bf4bea84bd2f7911c",
+      "function_id": "requirements/make_base.py::as_nightly@54",
+      "file": "requirements/make_base.py",
+      "qualified_name": "as_nightly",
+      "input_sha256": "8c8db0f9a9e30c57c0a9844e55101f0650cd34f360d6e638b296b02b83b73c3e",
+      "source_sha256": "5f2d4d29b92f68ad50f85befc324bca0b54e906d4d9787d365531ffe972582d1",
+      "rendered_row_sha256": "c7a78e179437e28917e25c170fa1008e33b22fd32894a06c04fe7478b43e78f7",
+      "model_input_characters": 1741,
+      "full_source_characters": 607,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 528,
+          "native_prompt": 615
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 528,
+          "native_prompt": 577
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "sdv-dev__SDV-2706",
+      "base_commit": "ab196b8153d10fb2b3427e4e3d0abdc29f4802bd",
+      "function_id": "docs/utils.py::is_valid@4",
+      "file": "docs/utils.py",
+      "qualified_name": "is_valid",
+      "input_sha256": "e11cb377f190078a1ca8e91a063af35da9cb2ef64f7231ce544c5320a7b0f5ba",
+      "source_sha256": "ad3f1ebf9a0b22f19f6b09736dc829d3e0f75379c9e2ed48c9a823f3b0e9397e",
+      "rendered_row_sha256": "b37ea19aefe87a98a3a4f8d940a7ddf09b7f58caae7920742eec37a7bdf95379",
+      "model_input_characters": 1050,
+      "full_source_characters": 240,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 249,
+          "native_prompt": 336
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 249,
+          "native_prompt": 298
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    },
+    {
+      "instance_id": "cs-si__eodag-2176",
+      "base_commit": "a058e6c2c7fb082c80bc5015e495dade6c87ae1b",
+      "function_id": "docs/conf.py::PatchedHTMLTranslator.visit_reference@295",
+      "file": "docs/conf.py",
+      "qualified_name": "PatchedHTMLTranslator.visit_reference",
+      "input_sha256": "a9172b4c43ee7f19ce33d2c7ec06624a6a2e3dd55ab58b4309111d648460a5b7",
+      "source_sha256": "3691c1e5fc36cea66bb4bcf5c16aafae97920b9b39818df7c90c5969e1d87d97",
+      "rendered_row_sha256": "2d4087716a2242d7d94058fec39bf5f6c5ba67701146f42665367983da0164bc",
+      "model_input_characters": 6488,
+      "full_source_characters": 1634,
+      "neighbors_selected": 0,
+      "token_budget_trimmed": false,
+      "token_counts": {
+        "Qwen3-Reranker-0.6B": {
+          "body": 2132,
+          "native_prompt": 2219
+        },
+        "Qwen2.5-Coder-7B-Instruct": {
+          "body": 2132,
+          "native_prompt": 2181
+        }
+      },
+      "all_fields_exact": true,
+      "skipped_unrenderable": []
+    }
+  ]
+}

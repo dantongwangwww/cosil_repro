@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv*/
+*.egg-info/
+build/
+dist/
+outputs/
+models/
+assets/
+checkpoints/
+*.tar.gz
+*.zip
+.env
+.env.*
+publication_receipt.local.json

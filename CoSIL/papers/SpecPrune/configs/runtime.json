@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "purpose": "Frozen paper execution contract; paths supplied by CLI, no hidden parent repository dependency",
+  "main_model": "Qwen/Qwen3-8B",
+  "main_revision": "b968826d9c46dd6066d109eabc6255188de91218",
+  "served_model": "qwen3-8b",
+  "endpoint": "http://127.0.0.1:7343/v1",
+  "arms": ["baseline", "hybrid_safe"],
+  "shared_file_stage": true,
+  "context_limit": 65536,
+  "output_tokens": 2048,
+  "temperature": 0.0,
+  "seed": 0,
+  "enable_thinking": false,
+  "max_search_iterations": 10,
+  "main_model_tensor_parallel": 2,
+  "main_model_dtype": "bfloat16",
+  "vllm_gpu_memory_utilization": 0.59,
+  "vllm_max_num_seqs": 1,
+  "hf_overrides": {
+    "max_position_embeddings": 65536,
+    "rope_parameters": {
+      "rope_type": "yarn",
+      "factor": 2.0,
+      "original_max_position_embeddings": 32768,
+      "rope_theta": 1000000.0
+    }
+  },
+  "local_judge": "resident Transformers+PEFT; sequential Unix RPC",
+  "class_or_render_identity_failure": "original Qwen relevance judge",
+  "scorer_transport_or_nonfinite_failure": "fail task explicitly, never convert failure to rejection",
+  "per_arm_timeout_seconds": 3600,
+  "cpu_only_worker": true,
+  "isolation": "bubblewrap allowlist; no unsandboxed fallback",
+  "historical_functionality": "byte-preserved agent factories with portable path bindings",
+  "dry_run": "synthetic replies only; not a new experimental result"
+}

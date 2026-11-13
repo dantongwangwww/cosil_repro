@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-13",
+  "gpu_used": false,
+  "model_inference_run": false,
+  "test_dataset_opened": false,
+  "api_used": false,
+  "commands": [
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m unittest discover -s tests -p 'test_training*.py' -v",
+      "passed": 7,
+      "skipped": 0
+    },
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m unittest discover -s tests -p 'test_scoring*.py' -v",
+      "passed": 5,
+      "skipped": 0
+    },
+    {
+      "command": "python -m specprune.training --validate-only",
+      "result": "8556 train / 487 val, issue isolation, row hashes and training/val weights verified"
+    },
+    {
+      "command": "CUDA_VISIBLE_DEVICES='' python -m specprune.training --validate-only --model-dir <local Qwen3-Reranker-4B>",
+      "result": "9043 rows tokenized CPU-only; train max5514, val max4952; no retruncation"
+    },
+    {
+      "command": "python -m specprune.scoring --validate-only --model-dir <local Qwen3-Reranker-4B>",
+      "result": "adapter weights/config + 10 base core artifacts match frozen hashes"
+    }
+  ],
+  "validation_receipts": [
+    "provenance/training_assets_validation.json",
+    "provenance/training_tokenizer_validation.json"
+  ],
+  "files_sha256": {
+    "specprune/training.py": "de23e381e6e0e299a97b12342a025437c6dc3b71643d2b5688d9ec40a6e5b3b3",
+    "specprune/scoring.py": "e96a8c4c1f08b9c282f99b35e2fecff11d2e933761386119e83699874d442ea5",
+    "specprune/input_format.py": "1ce78e096ffae30788ab344562bff09f7444d00057a3655c19b283e21f4179bc",
+    "specprune/codec.py": "fc0ee6284316785baf7a148a82cd9eadf2523f327cff6cb200a08432dc89e25c",
+    "specprune/metrics.py": "791b80a6a876b00f66d112225f80938194107d4c1d8743894eaa606fa7dfe09e",
+    "specprune/model_ops.py": "4dd0fe57c9d18299b8829e86c7aa459808c67167cabb01ca9d11b7115b316159",
+    "specprune/assessment.py": "b2df5da646c9232780e048aa07a70787fac362bd945dc8173655b7e5291db6f2",
+    "specprune/qualification.py": "857e3be3ea2222884df9080e93f2da2434de8d1cdf7149cb0756882176e24eef",
+    "configs/training.json": "7775dffa8d4d5d22a25e078ac2234d8d4271c47bd1a9e67fa6a747255714c561",
+    "configs/deployment.json": "8db35eb4afdfe67395b0b8a0734aa94be4b8a4e34fa2dc6e1e4746ee7926422f",
+    "tests/test_training_contract.py": "df0f71564848fdcd1683dbbf493f1fc432b673a43e330cdae09eb18695eb31fa",
+    "tests/test_scoring_contract.py": "a65c79ee48ebf81cd83d13dfc89412a827aad510a4d5f4a0279b9842659351d8",
+    "scripts/export_training_assets.py": "4de1735e2fc6bf7b5168af5de8b030dbd6b601c8d683e7994af9378d4be53345",
+    "docs/TRAINING.md": "09f1ac8330f0a7b61640f123d1327e8bfb4952b00d75cf5d45b756bb1885e1c0"
+  },
+  "limitations": [
+    "No new GPU training or GPU inference was run for packaging; CPU numerical tests use a toy torch model.",
+    "Portable trainer starts clean runs; original rolling resume/scheduler lives in source archive."
+  ]
+}
