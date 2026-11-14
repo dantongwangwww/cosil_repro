@@ -1,9 +1,0 @@
-openai
-httpx
-datasets
-transformers
-torch
-peft
-tiktoken
-PyYAML
-matplotlib

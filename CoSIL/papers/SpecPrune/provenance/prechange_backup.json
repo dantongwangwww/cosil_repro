@@ -1,8 +1,0 @@
-{
-  "repository": "https://github.com/dantongwangwww/cosil_repro",
-  "commit": "aef72a9c0a43d73c9baad70d1714054ffba604f6",
-  "date": "2026-11-13",
-  "note": "Relevant existing experimental Python sources verified against remote before edits; original files kept intact.",
-  "r2_gold_backup_commit": "777020b21bee37990e8ea12d562f9f9e228a3dee",
-  "r2_original_path": "ModelLoc/experiments/dsimple_evaluation_v2_delivery/dsimple_v2/gold.py"
-}
