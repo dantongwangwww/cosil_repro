@@ -125,7 +125,7 @@ def main_command(model_dir):
 
 
 def judge_command(model_dir, adapter_dir, socket_dir):
-    return [sys.executable, '-B', '-m', 'specprune.runner', 'judge-server',
+    return [sys.executable, '-B', '-m', 'code_sfpruner300_20261114.judge_launcher', 'judge-server',
         '--model-dir', str(model_dir), '--adapter-dir', str(adapter_dir),
         '--deployment', str(c.BUNDLE/'configs/deployment.json'),
         '--socket-dir', str(socket_dir), '--device', 'cuda:0']
@@ -179,7 +179,7 @@ def judge_rpc(socket_path, row):
         raise RuntimeError('Invalid judge health reply')
     result = json.loads(data)
     if not result.get('ok') or not math.isfinite(result['result']['logit_difference']):
-        raise RuntimeError('Judge capacity/health probe failed')
+        raise RuntimeError('Judge capacity/health probe failed: ' + str(result.get('error')))
     return result
 
 
@@ -220,6 +220,7 @@ class Queue:
         self.plan={'schema':1,'manifest':str(self.manifest),'run_dir':str(self.run_dir),
             'model_dir':str(self.model),'judge_dir':str(self.judge),'adapter_dir':str(self.adapter),
             'queue_code_sha256':c.sha(__file__),'controller_code_sha256':c.sha(Path(c.__file__)),
+            'judge_launcher_sha256':c.sha(Path(__file__).with_name('judge_launcher.py')),
             'runtime_sha256':c.sha(c.BUNDLE/'configs/runtime.json'),
             'deployment_sha256':c.sha(c.BUNDLE/'configs/deployment.json'),
             'idle_rule':{'seconds':90,'no_compute_process':True,'free_mib':23000,'utilization':0,
@@ -238,6 +239,7 @@ class Queue:
     def verify_plan_now(self):
         for key,path in [('queue_code_sha256',Path(__file__)),
                          ('controller_code_sha256',Path(c.__file__)),
+                         ('judge_launcher_sha256',Path(__file__).with_name('judge_launcher.py')),
                          ('runtime_sha256',c.BUNDLE/'configs/runtime.json'),
                          ('deployment_sha256',c.BUNDLE/'configs/deployment.json')]:
             if c.sha(path)!=self.plan[key]:raise ValueError('Queue execution code/config changed: '+key)
