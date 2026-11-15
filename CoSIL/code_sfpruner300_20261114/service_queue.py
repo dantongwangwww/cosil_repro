@@ -133,14 +133,23 @@ def judge_command(model_dir, adapter_dir, socket_dir):
 
 def service_environment(work, gpus):
     # Credentials and arbitrary application variables are not inherited.
-    allowed = ('PATH', 'LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CUDA_HOME', 'CUDA_PATH')
+    allowed = ('PATH', 'LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CUDA_HOME', 'CUDA_PATH',
+               'FLASHINFER_NVCC')
     result = {key: os.environ[key] for key in allowed if key in os.environ}
     short = Path('/tmp') / ('sfpq_' + c.digest(str(work))[:12])
     short.mkdir(mode=0o700, exist_ok=True)
     result.update(CUDA_VISIBLE_DEVICES=','.join(map(str, gpus)), HF_HUB_OFFLINE='1',
         TRANSFORMERS_OFFLINE='1', TOKENIZERS_PARALLELISM='false',
         OMP_NUM_THREADS='2', MKL_NUM_THREADS='2', PYTHONDONTWRITEBYTECODE='1',
-        HF_HOME=str(work/'hf_cache'), VLLM_CACHE_ROOT=str(work/'vllm_cache'),
+        # Restore the original 100-task service's actual sampling setting.  The
+        # credential whitelist must not accidentally enable a different sampler.
+        VLLM_USE_FLASHINFER_SAMPLER='0', MAX_JOBS='2', CUDA_DEVICE_ORDER='PCI_BUS_ID',
+        HF_HUB_DISABLE_XET='1', HF_HOME=str(work/'hf_cache'),
+        HF_HUB_CACHE=str(work/'hf_cache/hub'), TORCH_HOME=str(work/'torch_home'),
+        XDG_CACHE_HOME=str(work/'xdg_cache'), VLLM_CACHE_ROOT=str(work/'vllm_cache'),
+        FLASHINFER_WORKSPACE_BASE=str(work/'flashinfer'),
+        TRITON_CACHE_DIR=str(work/'triton_cache'), CUDA_CACHE_PATH=str(work/'cuda_cache'),
+        TORCH_EXTENSIONS_DIR=str(work/'torch_extensions'),
         TORCHINDUCTOR_CACHE_DIR=str(work/'torch_cache'), TMPDIR=str(short),
         VLLM_RPC_BASE_PATH=str(short), PYTHONPATH=str(c.BUNDLE))
     return result, short
@@ -349,6 +358,7 @@ class Queue:
         final_gpu_check(gpu_inventory(),chosen)
         with socket.socket() as port:port.bind(('127.0.0.1',7343))
         env,short=service_environment(self.out,chosen)
+        c.write(session/'runtime_environment.json',env,immutable=True)
         # Short Unix socket paths are required even when run paths are long.
         judge_transport=short/('judge_'+session.name[-12:])
         self.current_socket=judge_transport/'score.sock'

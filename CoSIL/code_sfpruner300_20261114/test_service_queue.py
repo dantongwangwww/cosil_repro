@@ -152,6 +152,19 @@ class QueueTests(unittest.TestCase):
             self.assertEqual(env['CUDA_VISIBLE_DEVICES'],'2,3')
             self.assertEqual(env['HF_HUB_OFFLINE'],'1')
 
+    def test_original_sampler_flag_survives_credential_scrubbing(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            with patch.dict(q.os.environ,{'VLLM_USE_FLASHINFER_SAMPLER':'1',
+                    'FLASHINFER_NVCC':'/verified/cu13/bin/nvcc','MAX_JOBS':'99',
+                    'DEEPSEEK_API_KEY':'must-not-leak'}):
+                env,_=q.service_environment(root,(2,3))
+            self.assertEqual(env['VLLM_USE_FLASHINFER_SAMPLER'],'0')
+            self.assertEqual(env['FLASHINFER_NVCC'],'/verified/cu13/bin/nvcc')
+            self.assertEqual(env['MAX_JOBS'],'2')
+            self.assertEqual(env['FLASHINFER_WORKSPACE_BASE'],str(root/'flashinfer'))
+            self.assertNotIn('DEEPSEEK_API_KEY',env)
+
     def test_local_scripts_do_not_shadow_standard_queue_for_pyarrow_or_requests(self):
         program='import queue,pyarrow,requests; assert hasattr(queue,"Empty") and hasattr(queue,"LifoQueue"); print(queue.__file__)'
         result=subprocess.run([sys.executable,'-B','-c',program],cwd=Path(__file__).parent,
