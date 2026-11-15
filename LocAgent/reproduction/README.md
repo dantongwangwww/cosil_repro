@@ -59,3 +59,11 @@ LocAgent使用每题两个独立样本，temperature=1.0、top_p=0.8、repetitio
 `worker.elapsed_seconds`从模块导入和PromptManager初始化之后才开始，不能标作单题端到端。评价器另读每题真实`runner_receipt.json.wall_seconds`作为`runner_wall_seconds`，包含隔离工作进程的导入和执行，均值、中位数与nearest-rank P90单列；probe、模型启动、构图仍分别说明。全局并行墙钟由`controller/full_launcher.json.started`至最终终态文件mtime计算；首3题此前金丝雀耗时及从canary launcher至最终终态的v2总跨度另列，不把累计单题时间当成并行实验墙钟。未全终态时不给伪造的最终墙钟。历史两臂硬件与计时边界不同，只作描述。
 
 本轮100题由指定280题父池确定性抽样；父池已按既有实验胜负排除18道基线优势题及2道双方未命中题。因此本轮属于条件化开发比较，不能表述为独立盲测，不能用其优势代替完整300题结果或推断总体优越性。不存在的LocAgent成绩必须保持待测，不能用论文原数、其他数据集或未执行任务填补。
+
+## 本轮最终交付与独立解析诊断
+
+100题正式v2已经全部终态。最终中文说明和本地证据路径见[`docs/qwen3-rebench100/实验报告_LocAgent_Qwen3_同题100_总览.md`](../docs/qwen3-rebench100/实验报告_LocAgent_Qwen3_同题100_总览.md)及[结果与复现索引](../docs/qwen3-rebench100/结果与复现索引.md)。实际100题包含31题`SWE-rebench-leaderboard@34d5a58864acf91613740a09ec5d205228dcfa39`和69题`SWE-rebench@89cdfbab4ab1bd8f5a658bb212d1b63624f4f881`，不是早期265题池的简单子集。
+
+native始终是冻结主结果；另表诊断只使用同一次真实推理的输出，不新增调用、不按题择优替换。`postprocess_compat.py`的格式视图保留原生行号映射；`postprocess_requested_file.py`的第三独立视图在格式归一化后，仅为行号映射加requested_file约束，逐sample重跑官方过滤/MRR。它不是最终排名mask，也不是完整AST/parser修复。旧部分视图及正式100题视图使用独立目录保存，均不覆盖原始输出；评分使用同一金标、库存、固定100题和冻结评价器。三个视图的usage来自同一次推理，不能相加。
+
+正式v2之外，v1工程阶段771132 token及无issue合成工具probe185 token单独记账；8次正式请求usage未知，仍为未知，不补零。服务外部付费API记录为0不等于电费或硬件成本为0。当前模型是通用Qwen3-8B，并非作者LocAgent专用微调权重；两个独立样本、采样参数和硬件与历史CoSIL一次轨迹不相同，结果应按这些条件解释。
