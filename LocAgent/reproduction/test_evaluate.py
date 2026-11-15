@@ -2,6 +2,7 @@
 import csv
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -202,6 +203,56 @@ class EvaluationTests(unittest.TestCase):
         self.write('private/graph_coverage.json', {'records': []})
         with self.assertRaisesRegex(ValueError, 'coverage roster differs'):
             self.evaluate()
+
+    def test_previous_engineering_usage_is_separate_and_does_not_change_scores(self):
+        before = self.evaluate()['summary']['metrics']
+        previous = tempfile.TemporaryDirectory(prefix='locagent-previous-', dir=self.run.parent)
+        self.addCleanup(previous.cleanup)
+        p = Path(previous.name) / 'outputs/repo-1/result.json'
+        p.parent.mkdir(parents=True)
+        p.write_text(json.dumps({'instance_id': 'repo-1', 'terminal': True, 'status': 'failed',
+            'samples': [{'status': 'empty_output'}, {'status': 'empty_output'}],
+            'usage': {'known_prompt_tokens': 7, 'known_completion_tokens': 3, 'known_total_tokens': 10,
+                      'unknown_usage_requests': 0, 'http_attempts': 2, 'completion_requests': 2, 'api_cost_usd': 0},
+            'elapsed_seconds': 4}))
+        self.write('protocol.json', {'protocol_version': 'native_finish_payload_v2',
+                                   'previous_engineering_run': previous.name})
+        result = self.evaluate()
+        self.assertEqual(result['summary']['metrics'], before)
+        previous_usage = result['summary']['context_audits']['previous_engineering_overhead']
+        self.assertEqual((previous_usage['tasks'], previous_usage['samples'], previous_usage['known_total_tokens']), (1, 2, 10))
+        self.assertFalse(previous_usage['counted_in_formal_locagent_metrics'])
+        self.assertIsNone(result['summary']['resources']['locagent']['known_total_tokens']['sum'])
+
+    def test_runner_wall_time_is_separate_from_worker_and_missing_is_unknown(self):
+        self.worker(0)
+        result = self.evaluate()
+        self.assertIsNone(result['summary']['resources']['locagent']['runner_wall_seconds']['sum'])
+        self.write('outputs/repo-1/runner_receipt.json', {'wall_seconds': 12.5, 'returncode': 0, 'timed_out': False})
+        result = self.evaluate()
+        resource = result['summary']['resources']['locagent']
+        self.assertEqual(resource['runner_wall_seconds']['mean'], 12.5)
+        self.assertEqual(resource['runner_wall_seconds']['median'], 12.5)
+        self.assertEqual(resource['runner_wall_seconds']['p90'], 12.5)
+        self.assertEqual(resource['elapsed_seconds']['mean'], 3)
+
+    def test_parallel_wall_uses_launch_and_terminal_timestamps_not_task_sum(self):
+        self.write('controller/canary_launcher.json', {'started': 100})
+        self.write('controller/full_launcher.json', {'started': 200})
+        rows = []
+        for iid, timestamp in [('a', 110), ('b', 120), ('c', 130), ('d', 250)]:
+            relative = f'outputs/{iid}/result.json'
+            self.write(relative, {})
+            os.utime(self.run / relative, (timestamp, timestamp))
+            rows.append({'terminal': True, 'receipt': relative})
+        wall = e.run_wall_clock(self.run, rows)
+        self.assertEqual(wall['canary_first3_wall_seconds'], 30)
+        self.assertEqual(wall['full_launcher_to_final_terminal_seconds'], 50)
+        self.assertEqual(wall['v2_first_canary_launch_to_final_terminal_seconds'], 150)
+        rows[-1]['terminal'] = False
+        pending = e.run_wall_clock(self.run, rows)
+        self.assertIsNone(pending['full_launcher_to_final_terminal_seconds'])
+        self.assertIsNone(pending['v2_first_canary_launch_to_final_terminal_seconds'])
 
 
 if __name__ == '__main__':

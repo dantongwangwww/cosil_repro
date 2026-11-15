@@ -33,6 +33,7 @@ ALLOWED_TOOLS = frozenset({
 })
 UPSTREAM_COMMIT = "4935b557326c154bad8e8dcf3747cc8d32d1f387"
 LOGICAL_MODEL = "openai/locagent-native"
+PROTOCOL = "official_search_native_function_calling_finish_payload_v2"
 
 
 class RunStop(BaseException):
@@ -329,6 +330,32 @@ def isolate_unused_package_exports(source_root: Path) -> None:
             sys.modules[name] = package
 
 
+def add_finish_result_channel(official_tools: list[dict]) -> list[dict]:
+    """Add only a native finish-result payload; preserve every retrieval schema.
+
+    The upstream native finish schema has no parameters and therefore permits
+    finish({}) with no assistant content. Its existing response_to_actions
+    already passes the first finish argument to FinishAction.thought. This
+    generic schema supplies that channel without changing the task or parser.
+    """
+    tools = copy.deepcopy(official_tools)
+    finish = [tool for tool in tools if tool["function"]["name"] == "finish"]
+    if len(finish) != 1:
+        raise ValueError("Exactly one official finish tool is required")
+    finish[0]["function"]["parameters"] = {
+        "type": "object",
+        "properties": {
+            "final_response": {
+                "type": "string",
+                "description": "Final localization result in the output format required by the task instruction.",
+            }
+        },
+        "required": ["final_response"],
+        "additionalProperties": False,
+    }
+    return tools
+
+
 def aggregate_usage(samples: list[dict]) -> dict:
     usages = [sample["usage"] for sample in samples]
     unknown = sum(u["unknown_usage_requests"] for u in usages)
@@ -394,8 +421,9 @@ def run_task(args) -> dict:
     from util.process_output import get_loc_results_from_raw_outputs, merge_sample_locations, parse_raw_loc_output
     # Match upstream prompt construction; native function-calling uses its official system prompt.
     prompt_manager = PromptManager(str(source_root / "util/prompts"), LocationToolsRequirement.documentation)
-    tools = function_calling.get_tools(codeact_enable_search_keyword=True,
+    official_tools = function_calling.get_tools(codeact_enable_search_keyword=True,
         codeact_enable_search_entity=True, codeact_enable_tree_structure_traverser=True, simple_desc=True)
+    tools = add_finish_result_channel(official_tools)
     functions = {name: getattr(repo_ops, name) for name in ALLOWED_TOOLS}
     def existing_base_snapshot(*, instance_data=None, **_kwargs):
         # The official BM25 code lazily calls setup_repo even when a graph
@@ -409,7 +437,7 @@ def run_task(args) -> dict:
     result = {
         **{key: instance[key] for key in ("instance_id", "repo", "base_commit")},
         "status": "failed", "terminal": True, "execution_status": "worker_error",
-        "upstream_commit": UPSTREAM_COMMIT, "protocol": "official_search_native_function_calling",
+        "upstream_commit": UPSTREAM_COMMIT, "protocol": PROTOCOL,
         "logical_upstream_model": LOGICAL_MODEL, "actual_request_model": args.model,
         "api_endpoint": endpoint, "thinking_enabled": False,
         "num_samples": 2, "ranking_method": "mrr", "soft_turn_limit": 20,
@@ -421,9 +449,20 @@ def run_task(args) -> dict:
         "prompt_manager_source_sha256": sha256(source_root / "util/prompts/prompt.py"),
         "official_postprocessing_source_sha256": sha256(source_root / "util/process_output.py"),
         "unused_package_exports_bypassed": ["repo_index.__init__", "repo_index.index.__init__"],
+        "finish_result_channel": {
+            "change": "Only the native finish schema gains required final_response:string; task prompt, retrieval schemas, search function, parser and MRR are unchanged.",
+            "official_schema": next(t for t in official_tools if t["function"]["name"] == "finish"),
+            "effective_schema": next(t for t in tools if t["function"]["name"] == "finish"),
+        },
         "samples": [], "raw_output_loc": [], "found_files": [], "found_modules": [], "found_entities": [],
         "graph_elapsed_seconds": args.graph_elapsed_seconds,
     }
+    write_json(output / "protocol.json", {
+        "protocol": PROTOCOL, "upstream_commit": UPSTREAM_COMMIT,
+        "finish_result_channel": result["finish_result_channel"], "tools": tools,
+        "supersedes": "native-v1 result-channel diagnostic only; historical outputs are not overwritten",
+        "native_v1_recovery_commit": "f7ba4a29e4b4b04c5f02f62eb13f832ca1f65185",
+    })
     write_json(output / "started.json", {**result, "terminal": False, "status": "running"})
     repo_ops.set_current_issue(instance_data=instance)
     try:

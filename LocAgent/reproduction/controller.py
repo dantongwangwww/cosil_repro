@@ -36,27 +36,56 @@ def sha(p):
 
 
 def recover_usage(work):
-    prompt = completion = started = finished = unknown = 0
+    prompt = completion = attempts = requests = unknown = malformed = 0
     for p in work.glob('samples/*/requests/http_ledger.jsonl'):
-        lines = []
+        identities = {}
+        bad = 0
         for raw in p.read_text().splitlines():
-            try: lines.append(json.loads(raw))
-            except ValueError: continue
-        starts = [x for x in lines if x.get('event') == 'started']
-        ends = [x for x in lines if x.get('event') == 'finished']
-        started += len(starts); finished += len(ends)
-        unknown += max(0, len(starts) - len(ends))
-        for x in ends:
-            usage = x.get('usage') or {}
-            if x.get('usage_known'):
-                prompt += usage['prompt_tokens']; completion += usage['completion_tokens']
-            else: unknown += 1
+            try:
+                x = json.loads(raw)
+                if not isinstance(x, dict): raise ValueError('Non-object ledger row')
+            except ValueError:
+                bad += 1
+                continue
+            if x.get('event') not in ('started', 'finished'): continue
+            request, attempt = x.get('completion_request'), x.get('http_attempt')
+            if any(not isinstance(v, int) or isinstance(v, bool) or v < 1 for v in (request, attempt)):
+                bad += 1
+                continue
+            entry = identities.setdefault((request, attempt), {'started': False, 'finished': []})
+            if x['event'] == 'started': entry['started'] = True
+            else: entry['finished'].append(x)
+        sample_unknown = 0
+        for entry in identities.values():
+            valid = set()
+            has_unknown = not entry['finished']
+            for x in entry['finished']:
+                usage = x.get('usage')
+                values = (usage.get('prompt_tokens'), usage.get('completion_tokens')) if isinstance(usage, dict) else (None, None)
+                known = x.get('usage_known') is True and all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in values)
+                if known: valid.add(values)
+                else: has_unknown = True
+            if len(valid) == 1:
+                pp, cc = next(iter(valid)); prompt += pp; completion += cc
+            elif len(valid) > 1:
+                # Conflicting duplicate receipts are unresolved, never summed.
+                has_unknown = True
+            if has_unknown: sample_unknown += 1
+        attempts += len(identities)
+        requests += len({key[0] for key in identities})
+        # An undecodable tail may be the missing event for an already-known
+        # attempt. Keep uncertainty without inventing a second paid request.
+        unknown += max(sample_unknown, bad)
+        malformed += bad
     return {'prompt_tokens': None if unknown else prompt,
             'completion_tokens': None if unknown else completion,
             'total_tokens': None if unknown else prompt + completion,
             'known_prompt_tokens': prompt, 'known_completion_tokens': completion,
             'known_total_tokens': prompt + completion, 'unknown_usage_requests': unknown,
-            'http_attempts': started, 'completion_requests': started,
+            'http_attempts': None if malformed else attempts,
+            'completion_requests': None if malformed else requests,
+            'known_http_attempts': attempts, 'known_completion_requests': requests,
+            'unparsed_ledger_records': malformed,
             'api_cost_usd': 0.0, 'recovered_from_durable_http_ledgers': True}
 
 
@@ -83,7 +112,10 @@ def failure(run, record, reason, elapsed=0.0):
 
 def execute(run, record):
     iid = record['instance_id']; work = run / 'outputs' / iid
-    if (work / 'result.json').exists(): return read(work / 'result.json')
+    if (work / 'result.json').exists():
+        previous = read(work / 'result.json')
+        if previous.get('terminal') is True: return previous
+        return failure(run, record, 'nonterminal_previous_attempt_not_replayed')
     if (work / 'controller_started.json').exists():
         return failure(run, record, 'interrupted_previous_attempt_not_replayed')
     graph = run / 'public/graph_index' / (iid + '.pkl')

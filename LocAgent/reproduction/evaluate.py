@@ -148,18 +148,44 @@ def aggregate_resources(rows, arm):
     fields = ('prompt_tokens', 'completion_tokens', 'total_tokens', 'known_prompt_tokens',
               'known_completion_tokens', 'known_total_tokens', 'unknown_usage_requests',
               'http_attempts', 'completion_requests', 'api_cost_usd', 'elapsed_seconds',
-              'comparable_elapsed_seconds', 'generation_seconds', 'tool_elapsed_seconds',
+              'runner_wall_seconds', 'comparable_elapsed_seconds', 'generation_seconds', 'tool_elapsed_seconds',
               'graph_elapsed_seconds', 'local_input_tokens')
     for key in fields:
         observed = [r[key] for r in values if r.get(key) is not None]
         out[key] = {'records': len(observed), 'sum': sum(observed) if observed else None,
                     'mean': statistics.mean(observed) if observed else None,
                     'median': statistics.median(observed) if observed else None,
+                    'p90': sorted(observed)[max(0, math.ceil(.9 * len(observed)) - 1)] if observed else None,
                     'all_recorded_tasks_known': bool(values) and len(observed) == len(values)}
     out['accounting_note'] = ('历史hybrid实际token不含共享文件阶段；CSV没有逐题文件token，不能直接与其他臂作全流程token比较。'
         '历史hybrid的comparable_elapsed_seconds补计同题文件时间。LocAgent独立完成文件与函数检索；'
         '各资源值保留实际记录数，不用未知值补零，不把历史复用计为本轮新增用量。')
     return out
+
+
+def run_wall_clock(run_dir, rows):
+    """Calendar timestamps, never a sum of parallel task times."""
+    def launch(name):
+        p = run_dir / 'controller' / name
+        return number(read(p).get('started')) if p.is_file() else None
+    first3 = rows[:3]
+    canary_start = launch('canary_launcher.json')
+    full_start = launch('full_launcher.json')
+    ready_canary = len(first3) == min(3, len(rows)) and all(r['terminal'] for r in first3)
+    canary_end = max((run_dir / r['receipt']).stat().st_mtime for r in first3) if ready_canary else None
+    all_terminal = all(r['terminal'] for r in rows)
+    final_end = max((run_dir / r['receipt']).stat().st_mtime for r in rows) if all_terminal else None
+    duration = lambda start, end: max(0., end-start) if start is not None and end is not None else None
+    return {'status': 'FINAL_TIMESTAMPS' if all_terminal else 'PENDING_FINAL_TERMINAL',
+        'canary_launcher_started_epoch': canary_start, 'canary_last_terminal_epoch': canary_end,
+        'canary_first3_wall_seconds': duration(canary_start, canary_end),
+        'full_launcher_started_epoch': full_start, 'all_tasks_last_terminal_epoch': final_end,
+        'full_launcher_to_final_terminal_seconds': duration(full_start, final_end),
+        'v2_first_canary_launch_to_final_terminal_seconds': duration(canary_start, final_end),
+        'first3_prior_canary_reused_without_new_calls': True,
+        'note': 'Terminal timestamp is immutable result.json mtime; full launcher advances the remaining97 after reusing first3. '
+                'V2 total span includes first3 and the gap before full launch; none of these is the sum of task times. '
+                'Model startup/graph preparation precede these launch points and are not silently counted as online work.'}
 
 
 def context_audits(run_dir, ids):
@@ -213,6 +239,50 @@ def context_audits(run_dir, ids):
             'note': ('本次服务GPU1和GPU3为跨NUMA的SYS链路；' if gpus in ([1, 3], [3, 1]) else '此部署拓扑需查阅自己的实际回执；')
                     + '与历史CoSIL部署及共卡评分配置不同，耗时只能按各自环境描述。'}
         out['source_sha256'][str(launch_path.relative_to(run_dir))] = sha(launch_path)
+    protocol_path = run_dir / 'protocol.json'
+    out['run_protocol'] = {'status': 'NOT_AVAILABLE'}
+    out['previous_engineering_overhead'] = {'status': 'NOT_AVAILABLE'}
+    if protocol_path.is_file():
+        protocol = read(protocol_path)
+        out['run_protocol'] = {k: protocol.get(k) for k in ('protocol_version', 'upstream_commit',
+            'prechange_checkpoint', 'model', 'inference', 'service_reused', 'reuse_assets_from')}
+        out['run_protocol']['status'] = 'FROZEN_PROTOCOL_RECEIPT'
+        out['source_sha256'][str(protocol_path.relative_to(run_dir))] = sha(protocol_path)
+        previous = protocol.get('previous_engineering_run')
+        if previous:
+            previous = Path(previous).resolve()
+            # Never follow arbitrary metadata to a training/test or unrelated project directory.
+            if previous.parent != run_dir.parent or previous == run_dir:
+                raise ValueError('Previous engineering run must be a distinct sibling experiment')
+            phase_results = []
+            for iid in ids:
+                result_path = previous / 'outputs' / iid / 'result.json'
+                if result_path.is_file():
+                    data = read(result_path)
+                    if data.get('instance_id') != iid or data.get('terminal') is not True:
+                        raise ValueError('Previous engineering receipt identity/terminal mismatch')
+                    phase_results.append(data)
+                    out['source_sha256'][str(result_path)] = sha(result_path)
+            overhead = {'status': 'READ_ONLY_PREVIOUS_PHASE_RECEIPTS', 'run_directory': str(previous),
+                'tasks': len(phase_results), 'samples': sum(len(r.get('samples', [])) for r in phase_results),
+                'task_ids': [r['instance_id'] for r in phase_results],
+                'counted_in_formal_locagent_metrics': False, 'old_predictions_reused': False}
+            for key in ('known_prompt_tokens', 'known_completion_tokens', 'known_total_tokens',
+                        'unknown_usage_requests', 'http_attempts', 'completion_requests', 'api_cost_usd'):
+                values = [number((r.get('usage') or {}).get(key)) for r in phase_results]
+                overhead[key] = sum(values) if values and all(v is not None for v in values) else None
+            seconds = [number(r.get('elapsed_seconds')) for r in phase_results]
+            overhead['worker_seconds_sum'] = sum(seconds) if seconds and all(v is not None for v in seconds) else None
+            overhead['time_note'] = 'Per-task worker seconds sum; not elapsed experiment wall time under concurrency.'
+            out['previous_engineering_overhead'] = overhead
+    finish_audit_path = run_dir / 'audits/finish_channel_audit.json'
+    if finish_audit_path.is_file():
+        data = read(finish_audit_path)
+        out['finish_channel_audit'] = {k: data.get(k) for k in ('status', 'same_first_request_pairs',
+            'only_input_delta', 'previous_outputs_reused_as_predictions_or_inference_context',
+            'actual_payloads_equal_recorded_locations', 'tool_events', 'successful_tool_events',
+            'delivered_tool_events', 'gold_read_for_audit', 'predictions_modified', 'postprocessing_distinction')}
+        out['source_sha256'][str(finish_audit_path.relative_to(run_dir))] = sha(finish_audit_path)
     return out
 
 
@@ -272,13 +342,24 @@ def build_evaluation(run_dir, *, evaluator_path=None, seed=20261110, draws=5000)
             if receipt['status'] == 'failed' and (arms['locagent']['predicted_files'] or arms['locagent']['predicted_functions']):
                 raise ValueError('Failed worker carries predictions; use terminal partial when a sample is usable')
             resource['locagent'] = resource_from_worker(receipt)
+            runner_receipt = result_path.parent / 'runner_receipt.json'
+            resource['locagent']['runner_wall_seconds'] = None
+            if runner_receipt.is_file():
+                runner = read(runner_receipt)
+                resource['locagent']['runner_wall_seconds'] = number(runner.get('wall_seconds'))
+                resource['locagent']['runner_receipt_sha256'] = sha(runner_receipt)
+                resource['locagent']['runner_returncode'] = runner.get('returncode')
+                resource['locagent']['runner_timed_out'] = runner.get('timed_out')
         else:
             arms['locagent'] = {'status': 'NOT_RUN', 'predicted_files': [], 'predicted_functions': []}
             resource['locagent'] = None
         predictions.append({'instance_id': iid, 'repo': task['repo'], 'base_commit': task['base_commit'], 'arms': arms})
         metadata[iid] = {'terminal': terminal, 'execution_status': execution_status,
                          'diagnostics': diagnostics, 'resources': resource,
-                         'receipt': str(result_path.relative_to(run_dir)) if receipt else None}
+                         'receipt': str(result_path.relative_to(run_dir)) if receipt else None,
+                         'locagent_prediction_status': receipt.get('prediction_status') if receipt else None,
+                         'locagent_sample_statuses': [s.get('status') for s in receipt.get('samples', [])] if receipt else [],
+                         'locagent_protocol': receipt.get('protocol') if receipt else None}
     scored = frozen.evaluate(predictions, gold, inventory, arms=ARMS, seed=seed, draws=draws)
     for row in scored['records']:
         iid = row['instance_id']
@@ -330,6 +411,7 @@ def build_evaluation(run_dir, *, evaluator_path=None, seed=20261110, draws=5000)
         inference_predictions_repaired_with_gold=False,
         statistical_note='探索性同题配对区间与精确检验未作多重比较校正；未显著不表示等效或非劣。')
     summary['context_audits'] = context_audits(run_dir, [r['instance_id'] for r in rows])
+    summary['wall_clock'] = run_wall_clock(run_dir, rows)
     for a, b in (('baseline', 'hybrid_safe'), ('baseline', 'locagent'), ('hybrid_safe', 'locagent')):
         if pending and 'locagent' in (a, b):
             summary['paired_comparisons'][a + '__' + b] = {'status': 'PENDING_FULL_ROSTER', 'n': None}
@@ -377,6 +459,18 @@ def report_text(result, run_dir):
         lines += [f'主模型文件核验：{identity["status"]}，{identity["files_verified"]}个核心文件／'
                   f'{identity["verified_bytes"]}字节匹配既有SHA清单；'
                   f'固定模型{identity["model_id"]}@{identity["revision"]}。API别名本身不作为权重身份依据。', '']
+    protocol = audits['run_protocol']
+    if protocol['status'] != 'NOT_AVAILABLE':
+        lines += [f'本报告的冻结协议版本：`{protocol.get("protocol_version")}`。模型与采样设置来自本run的protocol.json；'
+                  '如为native_finish_payload_v2，仅给原生finish增加必填final_response字符串传递既有格式的定位结果，'
+                  '不修改三个检索工具、任务提示词、搜索、实体解析或MRR规则。旧工程样本不回捞、不替换新预测。', '']
+    finish = audits.get('finish_channel_audit')
+    if finish:
+        lines += [f'结束通道只读核验：{finish["same_first_request_pairs"]}对新旧首请求除finish参数schema外逐字一致，'
+                  '实际payload与保存的raw_location逐字一致；无旧答案注入。'
+                  f'前3题{finish["tool_events"]}次工具执行成功，其中{finish["delivered_tool_events"]}次返回在后续请求中按tool_call_id核验送达。',
+                  '后处理区分两种事实：官方根目录Python文件提取存在通用局限；模型将path.py:Class写成文件头则不符合官方独立文件行格式。'
+                  '二者均保留原始输出并披露，不重新解析救分、不据gold补候选。', '']
     if s['pending_tasks']:
         lines += ['**实验尚未完成。以下固定名册LocAgent比例只是暂时交付下界，不是最终模型准确率；涉及LocAgent的配对显著性检验尚不进行。**', '',
                   f'已终态子集（n={s["terminal_tasks"]}）的函数Hit@5：'
@@ -403,19 +497,47 @@ def report_text(result, run_dir):
             four = ' / '.join(str(m[key]) for key in ('both_success', 'only_a', 'only_b', 'both_failure'))
             lines.append(f'| {LABELS[a]} → {LABELS[b]} | Hit@{k} | {four} | {100*m["b_minus_a"]:+.2f}pp | {ci_text(m["b_minus_a_ci95"])} | {m["exact_mcnemar_p"]:.6g} |')
     lines += ['', s['statistical_note'], '', '## Token、耗时与执行状态', '',
-              '| 记录 | 条件 | 有值题数 | 总量 | 均值 |', '|---|---|---:|---:|---:|']
+              '| 记录 | 条件 | 有值题数 | 总量 | 均值 | 中位数 | P90 |', '|---|---|---:|---:|---:|---:|---:|']
     for a in ARMS:
         resource = s['resources'][a]
         for field, label in (('known_prompt_tokens', '已知输入token下界'), ('known_completion_tokens', '已知输出token下界'),
                              ('known_total_tokens', '已知总token下界'), ('unknown_usage_requests', 'usage未知HTTP尝试'),
-                             ('elapsed_seconds', 'worker秒数（不含启动/构图）'), ('generation_seconds', 'HTTP生成秒数'),
+                             ('elapsed_seconds', 'worker内部秒数（不含导入/构图）'), ('generation_seconds', 'HTTP生成秒数'),
+                             ('runner_wall_seconds', 'runner隔离进程墙钟（含导入）'),
                              ('graph_elapsed_seconds', '构图秒数'), ('api_cost_usd', '记录的API美元费用')):
             m = resource[field]
             total = 'NA' if m['sum'] is None else f'{m["sum"]:.4f}'
             mean = 'NA' if m['mean'] is None else f'{m["mean"]:.4f}'
-            lines.append(f'| {label} | {LABELS[a]} | {m["records"]} | {total} | {mean} |')
+            median = 'NA' if m['median'] is None else f'{m["median"]:.4f}'
+            p90 = 'NA' if m['p90'] is None else f'{m["p90"]:.4f}'
+            lines.append(f'| {label} | {LABELS[a]} | {m["records"]} | {total} | {mean} | {median} | {p90} |')
     lines += ['', s['resources']['hybrid_safe']['accounting_note'],
+              'worker.elapsed_seconds从模块导入和PromptManager初始化之后计时，不能当作单题端到端时间；'
+              'runner_wall_seconds来自真实runner_receipt，包含隔离工作进程的模块导入及执行，'
+              '但不含此前隔离probe、模型启动或图预处理。各耗时缺失时保持NA。P90使用nearest-rank定义。',
               '各方法的历史/当前硬件、共享文件阶段和构图范围不同；上述记录不能直接等同受控加速或系统总计算减少。电费、折旧与模型预训练成本未测量。', '',
+              '## 并行实验墙钟', '']
+    wall = s['wall_clock']
+    fmt_time = lambda x: '待最终终态／未知' if x is None else f'{x:.2f}秒'
+    lines += [f'首3题金丝雀阶段墙钟：{fmt_time(wall["canary_first3_wall_seconds"])}。',
+              f'full_launcher.started至全部任务最终终态：{fmt_time(wall["full_launcher_to_final_terminal_seconds"])}；'
+              '该推进阶段复用此前3题，无新增调用。',
+              f'本v2从首3金丝雀launcher至全部最终终态的真实实验跨度：'
+              f'{fmt_time(wall["v2_first_canary_launch_to_final_terminal_seconds"])}。',
+              '以上来自launcher时间戳与原始终态文件mtime；并行任务耗时之和不能当成实际墙钟。'
+              '前置构图、模型启动和v1工程阶段另外计账。', '',
+              '## 前置工程阶段开销（与正式运行分列）', '']
+    overhead = audits['previous_engineering_overhead']
+    if overhead['status'] == 'NOT_AVAILABLE':
+        lines += ['本run没有可读取的前置工程阶段回执，不将未记录用量记为零。', '']
+    else:
+        lines += [f'前置原生v1阶段来自`{overhead["run_directory"]}`：{overhead["tasks"]}题／{overhead["samples"]}样本，'
+                  f'实际HTTP尝试{overhead["http_attempts"]}次；已知输入token {overhead["known_prompt_tokens"]}，'
+                  f'输出token {overhead["known_completion_tokens"]}，合计{overhead["known_total_tokens"]}，'
+                  f'usage未知尝试{overhead["unknown_usage_requests"]}次，记录的外部API费用${overhead["api_cost_usd"]}。',
+                  '这是结果通道修复前的真实工程消耗，与当前正式运行用量分开，不能因未计入正式模型指标而省略；'
+                  '没有把这3题的原输出合并为v2预测，当前全100题只采用同一v2协议下的输出。', '']
+    lines += [
               '## 未命中与异常', '', '| issue | 状态 | 可观察诊断 |', '|---|---|---|']
     for row in result['records']:
         if not row['terminal'] or not row['locagent_function']['hit5']:
@@ -441,7 +563,8 @@ def evaluate_run(run_dir, output_dir=None, *, evaluator_path=None, seed=20261110
     flat_rows = []
     for row in result['records']:
         flat = {key: row[key] for key in ('instance_id', 'repo', 'base_commit', 'function_scorable', 'gold_status',
-                 'gold_functions', 'gold_files', 'terminal', 'execution_status', 'receipt', 'diagnostics', 'locagent_diagnostic')}
+                 'gold_functions', 'gold_files', 'terminal', 'execution_status', 'receipt', 'diagnostics', 'locagent_diagnostic',
+                 'locagent_prediction_status', 'locagent_sample_statuses', 'locagent_protocol')}
         for a in ARMS:
             flat[a + '_status'] = row[a + '_status']
             for unit in ('file', 'function'):

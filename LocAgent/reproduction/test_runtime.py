@@ -13,7 +13,7 @@ from urllib.error import HTTPError, URLError
 
 from reproduction.worker import (
     ALLOWED_TOOLS, CompletionAdapter, RunStop, SafeToolDispatcher,
-    aggregate_usage, check_local_endpoint, load_public_instance, load_upstream_search,
+    add_finish_result_channel, aggregate_usage, check_local_endpoint, load_public_instance, load_upstream_search,
 )
 from reproduction.runner import build_command
 
@@ -281,6 +281,39 @@ class RuntimeTests(unittest.TestCase):
         with patch("reproduction.runner.shutil.which", return_value="/usr/bin/bwrap"):
             with self.assertRaises(ValueError):
                 build_command(**args)
+
+    def test_finish_channel_changes_only_finish_schema_without_mutating_upstream(self):
+        from util.runtime import function_calling
+        official = function_calling.get_tools(codeact_enable_search_keyword=True,
+            codeact_enable_search_entity=True, codeact_enable_tree_structure_traverser=True, simple_desc=True)
+        before = json.dumps(official, sort_keys=True)
+        adapted = add_finish_result_channel(official)
+        self.assertEqual(json.dumps(official, sort_keys=True), before)
+        for original, changed in zip(official, adapted):
+            if original["function"]["name"] != "finish":
+                self.assertEqual(original, changed)
+            else:
+                self.assertEqual(original["function"]["name"], changed["function"]["name"])
+                self.assertEqual(original["function"]["description"], changed["function"]["description"])
+                parameters = changed["function"]["parameters"]
+                self.assertEqual(parameters["required"], ["final_response"])
+                self.assertEqual(parameters["properties"]["final_response"]["type"], "string")
+                self.assertFalse(parameters["additionalProperties"])
+
+    def test_official_native_parser_accepts_finish_payload_verbatim(self):
+        from litellm import ModelResponse
+        from util.runtime.function_calling import response_to_actions
+        expected = "module.py\nfunction: Example.run\nfunction: nested.target"
+        response = ModelResponse(model="qwen3-8b", choices=[{
+            "index": 0, "finish_reason": "tool_calls", "message": {
+                "role": "assistant", "content": None,
+                "tool_calls": [{"id": "test_finish_payload", "type": "function", "function": {
+                    "name": "finish", "arguments": json.dumps({"final_response": expected})}}],
+            },
+        }], usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+        actions = response_to_actions(response)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].thought, expected)
 
 
 if __name__ == "__main__":
