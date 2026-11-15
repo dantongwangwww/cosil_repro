@@ -1,5 +1,6 @@
 """CPU-only isolation, fixed-cohort, namespace and restart-boundary checks."""
 import hashlib
+import ast
 import json
 from pathlib import Path
 import tempfile
@@ -38,6 +39,30 @@ class DataRunnerTests(unittest.TestCase):
                              ['Outer','Outer.Inner','Outer.Inner.run','Outer.Inner.run.local'])
             self.assertEqual(result['source.py'][2]['start_line'],3)
             self.assertEqual(errors[0]['path'],'broken.py')
+            self.assertTrue(worker._INVENTORY_PARSER_INFO['parser_version'].startswith('3.12.'))
+
+    def test_pep695_inventory_uses312_and_does_not_execute_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);marker=root/'MUST_NOT_EXIST'
+            code=('type Aliased[T] = list[T]\n'
+                  'def identity[T](value: T) -> T:\n    return value\n'
+                  f'open({str(marker)!r}, "w").write("repository execution")\n')
+            with self.assertRaises(SyntaxError):ast.parse(code)
+            (root/'generic.py').write_text(code)
+            values,errors=worker.inventory(root)
+            self.assertEqual(errors,[])
+            self.assertEqual([d['qualified_name'] for d in values['generic.py']],['identity'])
+            self.assertEqual(values['generic.py'][0]['start_line'],2)
+            self.assertFalse(marker.exists())
+
+    def test_inventory_helper_errors_do_not_fall_back_to311(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            failed=subprocess.CompletedProcess([],2,stdout='',stderr='interpreter failed')
+            with patch.object(worker.subprocess,'run',return_value=failed) as run:
+                with self.assertRaisesRegex(RuntimeError,'without fallback'):worker.inventory(directory)
+                command=run.call_args.args[0]
+                self.assertEqual(command[:2],['/usr/bin/python3.12','-I'])
 
     def test_source_materialization_preserves_bytes_and_refuses_drift(self):
         with tempfile.TemporaryDirectory() as directory:

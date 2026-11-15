@@ -2,14 +2,16 @@
 
 本包在当前GraphLocator源码上提供本地Qwen3传输、Gold-blind通用兼容补丁、修复前源码隔离、固定题集准备与严格评价。先执行既有280题稳定顺序的前20题；没有根据新预测选择题目。不是逐字官方复现，不使用作者或其他服务的付费模型，也不改原CIG算法。
 
+当前执行版本为v2，正式目录`experiments/qwen3_rebench280_v2_20261115`，冻结协议`graphlocator_qwen3_rebench280_goldblind_compat_v2`。v1原件及报告保留在`experiments/qwen3_rebench280_v1_20261115`；v2全部20题重新按同一新协议执行，不复用v1预测，也不按题择优。v2包含HTTP600、定长布尔schema及后续公开AST312解析对齐三项变化；第三项在已观察v1成绩后才补充，不伪称全部三项都在v1评分前预登记。详见[v2运行与解析对齐说明](../docs/qwen3-rebench280/v2_运行与解析版本对齐说明.md)。
+
 ## 已冻结的实际配置
 
 - 模型：`Qwen/Qwen3-8B@b968826d9c46dd6066d109eabc6255188de91218`，服务名`qwen3-8b`，显式`enable_thinking=false`。
 - GraphLocator单轨迹，temperature=0、n=1；SearchAgent `max_search_turn=5/top_k=5`，CausalAgent `max_turn=20`，保留原循环实际最多21次更新的行为。
 - 输入不静默截断；每次先调用精确`/tokenize`，容量65536，保留64 token安全余量，输出上限为`min(8192, 剩余容量)`。无剩余空间时在completion前停下；不利用参考补丁裁代码。
-- 最多一次传输异常重试，无语义重抽或答错重试；tokenize超时120秒，generation HTTP超时180秒，隔离runner单题上限1800秒。
-- 实际服务使用GPU2＋3，TP=2、BF16、`gpu_memory_utilization=0.59`、`max_num_seqs=2`、seed=0、eager与Hermes原生工具解析；worker自身不挂GPU。当前软件为Python3.11.17。
-- 65项整套CPU测试已实际通过，其中19项协议/通用兼容测试、25项评价契约测试；测试回执和54项源码/grammar绑定见本地run。源码冻结后再启动20题模型推理，CPU准备成功不当成定位成绩。
+- 最多一次传输异常重试，无语义重抽或答错重试；tokenize超时120秒，generation HTTP超时600秒，隔离runner单题上限1800秒。
+- 实际服务使用GPU2＋3，TP=2、BF16、`gpu_memory_utilization=0.59`、`max_num_seqs=2`、seed=0、eager与Hermes原生工具解析；worker自身不挂GPU。GraphLocator代理环境仍为Python3.11.17；公开函数身份库存统一由隔离的`/usr/bin/python3.12`（3.12.3）作静态解析，不回退3.11。
+- v2的71项整套CPU测试已实际通过，测试回执和55项源码/grammar绑定见本地v2 run；评价契约25项继续通过。v1的65项原回执独立保留，不把两个版本测试数相加当作一次整套测试。源码冻结后再启动20题模型推理，CPU准备成功不当成定位成绩。
 
 温度为0不保证所有实现完全确定性。与LocAgent的两次temperature=1样本MRR融合及其他历史条件相比，不宣称采样、搜索预算或硬件配置完全相同。
 
@@ -44,7 +46,7 @@ CUDA_VISIBLE_DEVICES=2,3 /absolute/path/to/vllm-env/bin/python -m vllm.entrypoin
 
 ## 准备、执行、评价
 
-在GraphLocator根目录；正式目录为`experiments/qwen3_rebench280_v1_20261115`。新复现必须使用新目录，不覆盖已有资产或结果。
+在GraphLocator根目录；正式目录为`experiments/qwen3_rebench280_v2_20261115`。新复现必须使用新目录，不覆盖已有资产或结果。
 
 ```bash
 source .venv/bin/activate
@@ -52,7 +54,7 @@ python -m unittest discover -s rebench_qwen3 -p 'test_*.py' -v
 
 python -m rebench_qwen3.prepare \
   --source-run ../LocAgent/experiments/qwen3_rebench280_unified_v2_20261115 \
-  --run experiments/NEW_GRAPH_RUN --phase all --limit 20 --workers 2 --timeout 1800
+  --run experiments/NEW_GRAPH_RUN --phase all --limit 20 --workers 2 --timeout 10800
 ```
 
 prepare固定全部280题元数据及前20题前缀，只先物化20题公开issue/base源码并建立官方Tree-sitter成员结构图，不预热调用依赖。Gold、库存和历史结果仅以`private/evaluation_sources.json`中的精确路径/SHA给离线评价器；准备不打开Gold文件，worker不挂载private。
@@ -61,12 +63,12 @@ prepare固定全部280题元数据及前20题前缀，只先物化20题公开iss
 
 ```bash
 python -m rebench_qwen3.controller \
-  --run experiments/qwen3_rebench280_v1_20261115 --phase pilot20 \
+  --run experiments/qwen3_rebench280_v2_20261115 --phase pilot20 \
   --workers 2 --runner-timeout 1800 --graph-wait-seconds 7200 --poll-seconds 5
 
 python -m rebench_qwen3.evaluate \
-  --run experiments/qwen3_rebench280_v1_20261115 --scope pilot20 \
-  --output experiments/qwen3_rebench280_v1_20261115/reports/pilot20_NEW
+  --run experiments/qwen3_rebench280_v2_20261115 --scope pilot20 \
+  --output experiments/qwen3_rebench280_v2_20261115/reports/pilot20_NEW
 ```
 
 `full280`不是本次20题的分母。后续全量执行须满足同协议技术金丝雀门及相应执行范围，已有20题不重复调用；全量评价也必须等待全部280题终态。单题排查可用`runner --run RUN --instance-id IID --phase inference --timeout 1800`，已有结果不以测试对错重跑。
@@ -75,6 +77,10 @@ python -m rebench_qwen3.evaluate \
 
 bubblewrap只读挂载本题白名单issue、`/source`修复前Python源码、官方图及其回执、必要框架源码和软件环境；`/work`可写。宿主home、Git、数据/历史结果、private、API凭据和GPU设备均不可见。runner在任何attempt marker或HTTP之前核对本题每份源码、图身份及builder SHA，并执行真实隔离probe；无bwrap不降级为宿主执行。构图worker也不执行仓库测试或安装仓库依赖。
 
-通用补丁在首次pilot推理前冻结：METHOD/FUNCTION/CONSTRUCTOR同族漏搜、UseBy/UsedBy拼写、Mermaid定义占位填充、严格等长布尔解析、相对路径与base AST精确身份映射，以及固定Qwen3非思考传输。使用问题无关源码规则及公开base库存，不利用参考补丁或Gold，不改CIG因子/插入次序，不引入替代检索、类展开或按成绩换版本。无法唯一映射的函数保留显式无效槽，严格评分时不补位。
+v1通用补丁在首次pilot推理前冻结：METHOD/FUNCTION/CONSTRUCTOR同族漏搜、UseBy/UsedBy拼写、Mermaid定义占位填充、严格等长布尔解析、相对路径与base AST精确身份映射，以及固定Qwen3非思考传输。v2在这些基础上增加同候选同顺序的一次定长JSON布尔schema和统一公开AST312身份解析；GraphRDFS图、issue及候选源码原字节不变，CIG算法/prompt/排序保持；v2的CIG是新执行输出，不承诺与v1输出字节相同。使用问题无关源码规则及公开base库存，不利用参考补丁或Gold，不改CIG因子/插入次序，不引入替代检索、类展开或按成绩换版本。无法唯一映射的函数保留显式无效槽，严格评分时不补位。
 
 评估只在scope全部终态后读取R2 Gold/库存和冻结LocAgent FINAL280的三个历史臂，并按同ID投影到20或280。输出中文报告、UTF-8 BOM CSV、CI/McNemar及真实资源账；无终态只进度、不读Gold、不算临时准确率。详见[评估说明](../docs/qwen3-rebench280/评估说明.md)。父池按历史结果事后构成，所有报告保留这一局限，不将其包装成独立盲测。
+
+公开AST兼容性预检先以3.11扫描全部67,451份Python源码，再只复检其中687个失败文件：3.12恢复632文件（5仓），55仍失败。它没有对其他3.11成功文件重新作3.12预检，也未证明恢复文件是Gold或会提升准确率。实际v2各题worker统一以3.12解析其每份公开源码，用于函数身份标准化；不执行源码、不按预测/Gold选文件、不增删数据或改模型证据。
+
+构图的`prepare --timeout`是纯CPU预备预算，与模型runner的1800秒不同。全280预备中大仓HA在1800秒内未完成，实际以独立CPU重试目录使用10800秒；旧失败回执不改，详情见[v2运行说明的CPU恢复](../docs/qwen3-rebench280/v2_运行与解析版本对齐说明.md)。新复现可直接给CPU预备10800秒，不必重演短预算失败。

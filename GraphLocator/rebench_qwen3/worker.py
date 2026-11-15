@@ -7,11 +7,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
 import time
-import tokenize
 import traceback
 
 PUBLIC_KEYS = frozenset(('instance_id', 'repo', 'base_commit', 'problem_statement'))
+_INVENTORY_PARSER_INFO = {}
 
 
 def sha(path):
@@ -44,31 +45,24 @@ def instance(path):
 
 
 def inventory(source):
-    """Public, base-only definitions; no imports or repository execution."""
+    """Keep the public schema; parse uniformly with isolated Python3.12 stdlib."""
+    global _INVENTORY_PARSER_INFO
     root = Path(source).resolve(strict=True)
-    result, errors = {}, []
-    for path in sorted(root.rglob('*.py')):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(root).as_posix()
-        definitions = []
-        try:
-            with tokenize.open(path) as f:
-                tree = ast.parse(f.read(), filename=relative)
-            def visit(node, parents):
-                scoped = isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-                if scoped:
-                    definitions.append({'kind': 'class' if isinstance(node, ast.ClassDef) else 'function',
-                        'qualified_name': '.'.join(parents + [node.name]),
-                        'start_line': node.lineno, 'end_line': node.end_lineno})
-                    parents = parents + [node.name]
-                for child in ast.iter_child_nodes(node):
-                    visit(child, parents)
-            visit(tree, [])
-        except (SyntaxError, UnicodeError, LookupError) as error:
-            errors.append({'path': relative, 'error': type(error).__name__, 'message': str(error)})
-        result[relative] = definitions
-    return result, errors
+    helper = Path(__file__).with_name('public_ast.py').resolve(strict=True)
+    completed = subprocess.run(['/usr/bin/python3.12', '-I', '-B', '-W', 'ignore',
+                                str(helper), '--source', str(root)],
+                               capture_output=True, text=True, timeout=180, check=False)
+    if completed.returncode:
+        raise RuntimeError('Public Python3.12 AST helper failed without fallback: ' + completed.stderr[-4000:])
+    value = json.loads(completed.stdout)
+    if (not isinstance(value.get('definitions'), dict) or not isinstance(value.get('errors'), list)
+            or not str(value.get('parser_version', '')).startswith('3.12.')
+            or value.get('source_root') != str(root) or value.get('gold_read') is not False):
+        raise ValueError('Unexpected public Python3.12 inventory schema')
+    _INVENTORY_PARSER_INFO = {k: value[k] for k in ('parser_version', 'parser_implementation', 'parser_protocol')}
+    _INVENTORY_PARSER_INFO.update(executable='/usr/bin/python3.12', isolated_mode=True,
+                                 helper_sha256=sha(helper), source_root=str(root))
+    return value['definitions'], value['errors']
 
 
 def usage_summary(work):
@@ -154,7 +148,8 @@ def inference(args, public):
     record = transport.record
     definitions, parse_errors = inventory(args.source)
     write(work / 'public_inventory.json', {'definitions': definitions, 'parse_errors': parse_errors,
-                                         'source_root': args.source, 'gold_read': False})
+                                         'source_root': args.source, 'gold_read': False,
+                                         'parser': dict(_INVENTORY_PARSER_INFO)})
     adaptation = compat.install_compat(public_inventory=definitions)
     write(work / 'compatibility_receipt.json', adaptation)
     import search_agent
@@ -192,6 +187,7 @@ def inference(args, public):
             'thinking_enabled': False, 'model': args.model, 'single_trajectory': True, 'samples': 1,
             'gold_read': False, 'public_instance_sha256': sha(args.instance),
             'graph_sha256': sha(args.graph), 'search_max_turn': 5, 'search_top_k': 5,
+            'public_inventory_parser': dict(_INVENTORY_PARSER_INFO),
             'causal_max_turn': 20, 'causal_actual_max_updates': 21,
             'causal_graph': serialize_cig(cig), 'inventory_parse_errors': parse_errors}
         result['found_functions'] = list(result['found_entities'])

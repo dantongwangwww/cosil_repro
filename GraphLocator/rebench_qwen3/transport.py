@@ -58,7 +58,8 @@ def configure(output_dir, endpoint='http://127.0.0.1:7353/v1', model='qwen3-8b',
               'opener':opener or urlopen, 'sequence':0, 'attempts':0}
     receipt = {'endpoint':_state['endpoint'],'model':model,'temperature':0.0,'n':1,
         'max_completion_tokens':8192,'service_context_limit':65536,'thinking':False,
-        'semantic_retries':0,'transport_retries':1,'tokenize_timeout':120,'http_timeout':180,
+        'semantic_retries':0,'transport_retries':1,'tokenize_timeout':120,'http_timeout':600,
+        'relevance_serialization':'One same-order JSON boolean array; exact candidate length via JSON schema',
         'context_policy':'Keep input unchanged; output=min(8192,capacity-input-64); fail if available<1'}
     _json(output/'transport_config.json', receipt)
     return receipt
@@ -73,7 +74,7 @@ def _exchange(path, payload, stem, phase):
     record('http_started',phase=phase,stem=stem,request_sha256=hashlib.sha256(raw).hexdigest())
     status, response_raw, error = None, b'', None
     try:
-        with _state['opener'](request, timeout=120 if phase=='tokenize' else 180) as response:
+        with _state['opener'](request, timeout=120 if phase=='tokenize' else 600) as response:
             status = int(response.status); response_raw = response.read()
     except HTTPError as exc:
         status = exc.code; response_raw = exc.read(); error = str(exc)
@@ -95,9 +96,11 @@ def _exchange(path, payload, stem, phase):
 
 
 def get_llm_response(model_name, messages, with_tool=False, tools=None,
-                     temperature=0.0, n=1, max_completion_tokens=8192):
+                     temperature=0.0, n=1, max_completion_tokens=8192, *, relevance_count=None):
     if _state is None: raise RuntimeError('configure() must run before any model request')
     if n != 1: raise ProtocolError('This frozen run permits one completion per agent request')
+    if relevance_count is not None and (type(relevance_count) is not int or relevance_count<0 or with_tool):
+        raise ProtocolError('A relevance schema requires a nonnegative exact candidate count and no tools')
     _state['sequence'] += 1
     number = _state['sequence']
     role = inspect.currentframe().f_back.f_code.co_name
@@ -119,8 +122,13 @@ def get_llm_response(model_name, messages, with_tool=False, tools=None,
     output_limit = min(8192,available)
     payload = {**params,'temperature':0.0,'n':1,'max_completion_tokens':output_limit,'stream':False}
     if with_tool: payload.update(tool_choice='auto',parallel_tool_calls=False)
+    if relevance_count is not None:
+        schema={'type':'array','items':{'type':'boolean'},'minItems':relevance_count,'maxItems':relevance_count}
+        payload['response_format']={'type':'json_schema','json_schema':{
+            'name':'relevance_flags','strict':True,'schema':schema}}
     record('model_request',request_id=number,caller=role,input_tokens=prompt_tokens,
-           model=_state['model'],thinking=False,max_output_tokens=output_limit,requested_output_tokens=8192)
+           model=_state['model'],thinking=False,max_output_tokens=output_limit,requested_output_tokens=8192,
+           relevance_count=relevance_count,response_format=payload.get('response_format'))
     for retry in range(2):
         _state['attempts'] += 1
         stem=f'{number:05d}_attempt_{retry+1}'

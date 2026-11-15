@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 from urllib.error import URLError
 
 import networkx as nx
@@ -29,7 +30,9 @@ def reply(content='OK'):
 
 class TransportTests(unittest.TestCase):
     def setUp(self): self.temp=tempfile.TemporaryDirectory();self.path=Path(self.temp.name)
-    def tearDown(self): self.temp.cleanup()
+    def tearDown(self):
+        transport._state=None
+        self.temp.cleanup()
     def setup(self,responses):
         self.payloads=[]
         def opener(request,timeout):
@@ -52,8 +55,27 @@ class TransportTests(unittest.TestCase):
             self.assertEqual(payload['tools'],tools)
         self.assertEqual(self.payloads[1][1]['max_completion_tokens'],8192)
         self.assertEqual(self.payloads[1][1]['temperature'],0)
+        self.assertEqual([p[2] for p in self.payloads],[120,600])
         self.assertEqual(transport.summary_usage()['known_total_tokens'],13)
         self.assertTrue(list(self.path.glob('*_response.json.gz')))
+    def test_relevance_schema_exact_n_with_identical_full_tokenize_and_generation_input(self):
+        self.setup([{'count':200,'max_model_len':65536},reply('[true,false]')])
+        messages=[{'role':'user','content':'issue full text\nfirst source\nsecond source'}]
+        transport.get_llm_response('x',messages,relevance_count=2)
+        schema=self.payloads[1][1]['response_format']
+        self.assertEqual(schema,{'type':'json_schema','json_schema':{'name':'relevance_flags','strict':True,
+            'schema':{'type':'array','items':{'type':'boolean'},'minItems':2,'maxItems':2}}})
+        self.assertEqual(self.payloads[0][1]['messages'],messages)
+        self.assertEqual(self.payloads[1][1]['messages'],messages)
+        self.assertEqual(transport.summary_usage()['completion_requests'],1)
+    def test_nonrelevance_request_has_no_schema_and_schema_never_applies_to_tools(self):
+        self.setup([{'count':200,'max_model_len':65536},reply()])
+        transport.get_llm_response('x',[{'role':'user','content':'Unchanged CIG Mermaid instruction'}])
+        self.assertNotIn('response_format',self.payloads[1][1])
+        before=len(self.payloads)
+        with self.assertRaises(transport.ProtocolError):
+            transport.get_llm_response('x',[],with_tool=True,tools=[],relevance_count=2)
+        self.assertEqual(len(self.payloads),before)
     def test_output_shrinks_but_input_is_not_truncated(self):
         self.setup([{'count':60000,'max_model_len':65536},reply()])
         messages=[{'role':'user','content':'keep entire source'}]
@@ -92,7 +114,7 @@ class BooleanTests(unittest.TestCase):
         for text in ('True\nFalse','```\nTrue\nFalse\n```','[true,false]','```json\n[true,false]\n```'):
             self.assertEqual(compat.strict_booleans(text,2),[True,False])
     def test_ambiguous_wrong_count_and_nonbooleans_never_become_all_false(self):
-        for text in ('True\nFalse\nTrue','[1,0]','True because important\nFalse','{"answer":[true,false]}',''):
+        for text in ('True\nFalse\nTrue','[true]','[1,0]','True because important\nFalse','{"answer":[true,false]}',''):
             with self.assertRaises(compat.RelevanceFormatError): compat.strict_booleans(text,2)
 
 
@@ -133,6 +155,34 @@ class CompatTests(unittest.TestCase):
         import search_agent
         self.assertNotIn("edge_type='UseBy'",search_agent.SearchEdgeTool['function']['description'])
         self.assertIn("edge_type='UsedBy'",search_agent.SearchEdgeTool['function']['description'])
+    def test_relevance_keeps_same_issue_candidates_order_and_one_request(self):
+        import search_agent
+        agent=search_agent.SearchAgent.__new__(search_agent.SearchAgent)
+        agent.model_name='qwen3-8b';agent.messages=[]
+        candidates=['#Node 1: full source FIRST','#Node 2: full source SECOND']
+        calls=[]
+        def fake(model,messages,**kwargs):
+            calls.append((model,copy.deepcopy(messages),kwargs))
+            return ([{'content':'[true,false]'}],['stop'],{'total_tokens':10})
+        namespace=search_agent.SearchAgent.is_relevant.__globals__
+        with mock.patch.dict(namespace,{'get_llm_response':fake}):
+            self.assertEqual(agent.is_relevant(candidates,'UNCHANGED ISSUE'),[True,False])
+        self.assertEqual(len(calls),1);self.assertEqual(calls[0][2]['relevance_count'],2)
+        context=calls[0][1][-1]['content']
+        self.assertIn('UNCHANGED ISSUE',context)
+        self.assertIn('\n'.join(candidates),context)
+        self.assertEqual(agent.messages,[])
+        instruction=calls[0][1][-2]['content']
+        self.assertIn('otherwise return **True**',instruction)
+        self.assertNotIn('Results should be separated by new lines',instruction)
+    def test_cig_runtime_patch_is_identical_to_frozen_v1(self):
+        self.assertEqual(self.receipt['patches']['mermaid_target_placeholder_definition']['after'],
+            '93a2da475255d1a10c8a27b94ddae0e3bb4de80398e24fc733ff6d55293e2c22')
+        root=Path(__file__).resolve().parents[1]
+        for name,expected in {
+            'causal_agent.py':'40b57d637774054681278605277f78e2cf6ec9157a72f85ad88605de5a6604de',
+            'prompts/causal_agent_prompt.py':'c5c886ac0824f58d23e9ec9b855566104925727873d8f2a63eaa1acb1869fc4a'}.items():
+            self.assertEqual(hashlib.sha256((root/name).read_bytes()).hexdigest(),expected)
     def test_mermaid_target_then_definition_restores_exact_model_binding(self):
         import causal_agent
         agent=causal_agent.CausalAgent('local',None)

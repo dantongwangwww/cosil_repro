@@ -109,10 +109,26 @@ def install_compat(public_inventory=None):
     anchor="    pattern = r'```(?:\\w+)?\\n(.*?)\\n```'"
     if anchor not in old: raise RuntimeError('Unexpected upstream relevance parser')
     new=old[:old.index(anchor)]+"    return strict_booleans(response[0][0].get('content'), len(node_list))\n"
+    request_anchor='get_llm_response(self.model_name, judge_messages, with_tool=False)'
+    if new.count(request_anchor)!=1: raise RuntimeError('Unexpected relevance request patch anchor')
+    new=new.replace(request_anchor,'get_llm_response(self.model_name, judge_messages, with_tool=False, relevance_count=len(node_list))')
+    # Change only the serialization sentences/example. The original task,
+    # relevance criterion, issue, entire candidate list and candidate order stay.
+    instruction=search_agent.IS_RELEVANT_INSTRUCTION
+    format_anchor='Results should be separated by new lines and wrapped with ```'
+    if instruction.count(format_anchor)!=1: raise RuntimeError('Unexpected relevance instruction format anchor')
+    instruction=instruction[:instruction.index(format_anchor)]+(
+        'Return exactly one JSON array containing one boolean for each code element, '
+        'in the supplied order. Use true for relevant and false for irrelevant. '
+        'The array length must equal the number of supplied code elements. '
+        'Do not use Markdown code fences, numbering, or explanations.\n')
+    search_agent.IS_RELEVANT_INSTRUCTION=instruction
     search_agent.SearchAgent.is_relevant=_compile(search_agent.SearchAgent.is_relevant,new,
         {'strict_booleans':strict_booleans,'get_llm_response':transport.get_llm_response})
     patches['strict_relevance_serialization']={'before':hashlib.sha256(old.encode()).hexdigest(),
-                                              'after':hashlib.sha256(new.encode()).hexdigest()}
+        'after':hashlib.sha256(new.encode()).hexdigest(),'response_schema':'Exact-length JSON boolean array',
+        'semantic_retry_requests':0,'same_issue_and_all_candidates_in_original_order':True,
+        'format_instruction_sha256':hashlib.sha256(instruction.encode()).hexdigest()}
     original=causal_agent.CausalAgent.parse_mermaid_to_networkx
     old=textwrap.dedent(inspect.getsource(original));new=old
     anchors={
@@ -126,7 +142,7 @@ def install_compat(public_inventory=None):
     causal_agent.CausalAgent.parse_mermaid_to_networkx=_compile(original,new,{})
     patches['mermaid_target_placeholder_definition']={'before':hashlib.sha256(old.encode()).hexdigest(),
                                                     'after':hashlib.sha256(new.encode()).hexdigest()}
-    _installed={'compat_version':'graphlocator_qwen3_generic_interface_v1','patches':patches,
+    _installed={'compat_version':'graphlocator_qwen3_generic_interface_v2','patches':patches,
         'python_function_search_family':['METHOD','FUNCTION','CONSTRUCTOR'],
         'original_agents_and_mermaid_algorithm_retained':True,'gold_read':False,
         'final_identity_rule':'Public base AST exact file, kind, definition start, original leaf name; ambiguous=invalid slot'}
