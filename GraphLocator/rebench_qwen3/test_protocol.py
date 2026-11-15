@@ -54,10 +54,32 @@ class TransportTests(unittest.TestCase):
             self.assertEqual(payload['model'],'qwen3-8b');self.assertFalse(payload['chat_template_kwargs']['enable_thinking'])
             self.assertEqual(payload['tools'],tools)
         self.assertEqual(self.payloads[1][1]['max_completion_tokens'],8192)
-        self.assertEqual(self.payloads[1][1]['temperature'],0)
+        self.assertEqual(self.payloads[1][1]['temperature'],0.7)
         self.assertEqual([p[2] for p in self.payloads],[120,600])
         self.assertEqual(transport.summary_usage()['known_total_tokens'],13)
         self.assertTrue(list(self.path.glob('*_response.json.gz')))
+    def test_fixed_non_thinking_profile_records_requested_and_actual_without_penalties(self):
+        receipt=self.setup([{'count':200,'max_model_len':65536},reply()])
+        transport.get_llm_response('ignored',[{'role':'user','content':'CIG request'}],temperature=0.0)
+        expected={'temperature':0.7,'top_p':0.8,'top_k':20,'min_p':0.0,'seed':0}
+        self.assertEqual(receipt['actual_sampling'],expected)
+        payload=self.payloads[1][1]
+        self.assertEqual({k:payload[k] for k in expected},expected)
+        self.assertNotIn('presence_penalty',payload);self.assertNotIn('repetition_penalty',payload)
+        events=[json.loads(s) for s in (self.path/'events.jsonl').read_text().splitlines()]
+        request=next(e for e in events if e['event']=='model_request')
+        self.assertEqual(request['caller_requested_temperature'],0.0)
+        self.assertEqual(request['actual_sampling'],expected)
+        self.assertIn('b968826d9c46dd6066d109eabc6255188de91218',request['sampling_profile_source'])
+    def test_relevance_and_search_use_same_fixed_profile_not_caller_temperature(self):
+        self.setup([{'count':200,'max_model_len':65536},reply('[true,false]'),
+                    {'count':200,'max_model_len':65536},reply()])
+        transport.get_llm_response('ignored',[],temperature=0.0,relevance_count=2)
+        transport.get_llm_response('ignored',[],with_tool=True,tools=[],temperature=0.2)
+        for _,payload,_ in (self.payloads[1],self.payloads[3]):
+            self.assertEqual({k:payload[k] for k in transport.FIXED_SAMPLING},transport.FIXED_SAMPLING)
+        events=[json.loads(s) for s in (self.path/'events.jsonl').read_text().splitlines()]
+        self.assertEqual([e['caller_requested_temperature'] for e in events if e['event']=='model_request'],[0.0,0.2])
     def test_relevance_schema_exact_n_with_identical_full_tokenize_and_generation_input(self):
         self.setup([{'count':200,'max_model_len':65536},reply('[true,false]')])
         messages=[{'role':'user','content':'issue full text\nfirst source\nsecond source'}]
@@ -93,6 +115,8 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(usage['http_attempts'],2);self.assertEqual(usage['completion_requests'],1)
         self.assertEqual(usage['unknown_usage_requests'],1);self.assertIsNone(usage['total_tokens'])
         self.assertEqual(usage['known_total_tokens'],13)
+        self.assertEqual(self.payloads[1][1],self.payloads[2][1])
+        self.assertEqual(self.payloads[1][1]['seed'],0)
     def test_semantic_malformed_choice_is_not_resampled(self):
         self.setup([{'count':100,'max_model_len':65536},{'choices':[],'usage':reply()['usage']}])
         with self.assertRaises(transport.ProtocolError): transport.get_llm_response('x',[])

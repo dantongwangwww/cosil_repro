@@ -17,6 +17,10 @@ class ProtocolError(RuntimeError): pass
 class ModelHTTPError(RuntimeError): pass
 
 _state = None
+# The non-thinking recommendation on the exact deployed Qwen3-8B revision.
+# seed=0 is the experiment's fixed request seed, not a model-card guarantee.
+FIXED_SAMPLING = {'temperature':0.7,'top_p':0.8,'top_k':20,'min_p':0.0,'seed':0}
+SAMPLING_PROFILE_SOURCE = 'https://huggingface.co/Qwen/Qwen3-8B/blob/b968826d9c46dd6066d109eabc6255188de91218/README.md'
 
 
 def _atomic(path, payload):
@@ -56,7 +60,9 @@ def configure(output_dir, endpoint='http://127.0.0.1:7353/v1', model='qwen3-8b',
         raise FileExistsError('Refusing to append new inference to an existing HTTP attempt directory')
     _state = {'output':output, 'endpoint':endpoint.rstrip('/'), 'model':model,
               'opener':opener or urlopen, 'sequence':0, 'attempts':0}
-    receipt = {'endpoint':_state['endpoint'],'model':model,'temperature':0.0,'n':1,
+    receipt = {'endpoint':_state['endpoint'],'model':model,**FIXED_SAMPLING,'n':1,
+        'actual_sampling':dict(FIXED_SAMPLING),'sampling_profile_source':SAMPLING_PROFILE_SOURCE,
+        'seed_policy':'Experiment-fixed request seed 0; not a claim of bitwise determinism',
         'max_completion_tokens':8192,'service_context_limit':65536,'thinking':False,
         'semantic_retries':0,'transport_retries':1,'tokenize_timeout':120,'http_timeout':600,
         'relevance_serialization':'One same-order JSON boolean array; exact candidate length via JSON schema',
@@ -120,7 +126,7 @@ def get_llm_response(model_name, messages, with_tool=False, tools=None,
         record('context_error',caller=role,input_tokens=prompt_tokens,capacity=capacity,output_reserved=8192)
         raise ContextBudgetExceeded(f'Input {prompt_tokens}+64 leaves no output within {capacity}; no generation sent')
     output_limit = min(8192,available)
-    payload = {**params,'temperature':0.0,'n':1,'max_completion_tokens':output_limit,'stream':False}
+    payload = {**params,**FIXED_SAMPLING,'n':1,'max_completion_tokens':output_limit,'stream':False}
     if with_tool: payload.update(tool_choice='auto',parallel_tool_calls=False)
     if relevance_count is not None:
         schema={'type':'array','items':{'type':'boolean'},'minItems':relevance_count,'maxItems':relevance_count}
@@ -128,6 +134,8 @@ def get_llm_response(model_name, messages, with_tool=False, tools=None,
             'name':'relevance_flags','strict':True,'schema':schema}}
     record('model_request',request_id=number,caller=role,input_tokens=prompt_tokens,
            model=_state['model'],thinking=False,max_output_tokens=output_limit,requested_output_tokens=8192,
+           caller_requested_temperature=temperature,actual_sampling=dict(FIXED_SAMPLING),
+           sampling_profile_source=SAMPLING_PROFILE_SOURCE,
            relevance_count=relevance_count,response_format=payload.get('response_format'))
     for retry in range(2):
         _state['attempts'] += 1

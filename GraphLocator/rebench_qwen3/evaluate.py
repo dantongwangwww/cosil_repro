@@ -37,6 +37,33 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def inference_metadata(run):
+    """Read only the public run receipt; omitted settings remain unknown."""
+    path = Path(run)/'protocol.json'
+    data = path.read_bytes() if path.is_file() else None
+    protocol = json.loads(data) if data is not None else {}
+    if not isinstance(protocol, dict):
+        raise ValueError('Public protocol must be an object')
+    inference = protocol.get('inference')
+    model = protocol.get('model')
+    inference = inference if isinstance(inference, dict) else {}
+    model = model if isinstance(model, dict) else {}
+    known = lambda values, key: values[key] if key in values and values[key] is not None else 'unknown'
+    return dict(protocol_path=str(path),
+        protocol_sha256=hashlib.sha256(data).hexdigest() if data is not None else None,
+        receipt_status='recorded' if data is not None else 'unknown',
+        protocol_version=known(protocol, 'protocol_version'),
+        sampling_profile=known(inference, 'sampling_profile'),
+        model={k:known(model,k) for k in ('id','revision','served_name','thinking_enabled',
+                                        'author_finetuned_weights')},
+        sampling={k:known(inference,k) for k in ('temperature','top_p','top_k','min_p','seed','n',
+                                                'one_trajectory_per_issue')},
+        budgets={k:known(inference,k) for k in ('workers','maximum_output_tokens','context_capacity',
+            'runner_timeout_seconds','http_generation_timeout_seconds','tokenize_timeout_seconds',
+            'search_turns','search_top_k','causal_max_turn_argument','actual_max_causal_updates',
+            'maximum_transport_retries','semantic_retries','input_truncation')})
+
+
 def number(value):
     if isinstance(value, bool) or value is None or value == '':
         return None
@@ -191,6 +218,7 @@ def build_evaluation(run_dir, scope, *, evaluator_path=None, seed=20261115, draw
     full, tasks, full_path, pilot_path = load_scope(run, scope, expected_full=expected_full,
                                                   expected_pilot=expected_pilot)
     rows, outputs, hashes = collect_results(run, tasks)
+    inference = inference_metadata(run)
     pending = [r['instance_id'] for r in rows if not r['terminal']]
     summary = dict(schema='graphlocator_scope_evaluation_v1', scope=scope, allocated=len(tasks),
         status='PARTIAL' if pending else 'FINAL', terminal_tasks=len(tasks)-len(pending),
@@ -201,7 +229,10 @@ def build_evaluation(run_dir, scope, *, evaluator_path=None, seed=20261115, draw
         source_sha256={'full_manifest': sha(full_path), 'pilot20': sha(pilot_path)},
         worker_result_sha256=hashes, new_evaluation_model_calls=0, sealed_training_test_opened=False,
         inference_predictions_repaired_with_gold=False, cohort_provenance=SCOPE_NOTE,
-        ranking_protocol=METHOD_NOTE, adapter_sha256=sha(__file__))
+        ranking_protocol=METHOD_NOTE, adapter_sha256=sha(__file__),
+        protocol_sha256=inference['protocol_sha256'], inference_metadata=inference)
+    if inference['protocol_sha256'] is not None:
+        summary['source_sha256']['protocol'] = inference['protocol_sha256']
     if pending:
         return {'summary': summary, 'records': rows}
     frozen, frozen_path = frozen_evaluator(evaluator_path)
@@ -265,8 +296,20 @@ def interval(value):return 'NA' if not value or value[0] is None else f'[{100*va
 
 def report_text(result, run):
     s=result['summary'];n=s['allocated']
-    lines=[f'# GraphLocator＋Qwen3-8B：同题{n}题评测','',
+    metadata=s.get('inference_metadata') or inference_metadata(run)
+    model_id=metadata['model']['id']
+    heading='GraphLocator' if model_id=='unknown' else 'GraphLocator＋'+str(model_id)
+    lines=[f'# {heading}：同题{n}题评测','',
         f"状态：**{s['status']}**；范围`{s['scope']}`，已终态{s['terminal_tasks']}/{n}，待完成{s['pending_tasks']}。",'',SCOPE_NOTE,'',METHOD_NOTE,'']
+    lines+=['## 本次运行的公开协议回执','',
+        f"协议SHA256：`{metadata['protocol_sha256'] or 'unknown'}`；版本：`{metadata['protocol_version']}`。",
+        f"采样profile：`{metadata['sampling_profile']}`。",'',
+        '| 项目 | 实际记录 |','|---|---|']
+    for group,label in [('model','模型'),('sampling','采样'),('budgets','预算')]:
+        for key,value in metadata[group].items():
+            lines.append('| '+label+'.'+key+' | `'+json.dumps(value,ensure_ascii=False)+'` |')
+    lines+=['','本表只读取该run的protocol.json；缺文件或字段标为unknown，不由其他版本或服务默认值推断。'
+        'seed固定不保证不同后端或并发推理绝对确定。','']
     if not s['scoring_performed']:
         return '\n'.join(lines+['未全部终态，只报告进度与已实际发生的GraphLocator资源；未读取Gold、库存或历史预测，'
             '不计算临时准确率，不将pending当模型失败。',f'运行目录：`{run}`。',''])
@@ -309,8 +352,9 @@ def report_text(result, run):
     lines+=['','阶段不等于唯一原因；工具真实执行、代码片段送达、函数完整可见及最终定位正确是不同事实。'
         '没有日志证据时不把未命中解释为模型不会工具。',
         '本轮基于当前GraphLocator源码加Gold-blind通用兼容补丁；保留CIG算法，不冒称逐字官方复现。'
-        'GraphLocator为temperature=0的单轨迹，LocAgent为两个temperature=1样本的MRR融合，'
-        '不宣称采样/搜索预算相同。均使用通用Qwen3-8B及显式非思考服务，不等同作者原模型。'
+        'GraphLocator的模型、采样、轨迹数及预算以本页公开协议回执为准；'
+        '历史LocAgent为两个temperature=1样本的MRR融合，不宣称采样/搜索预算相同。'
+        '当前模型不冒称作者微调权重，模型身份及思考开关缺回执时不推断。'
         '本轮只定位，不训练、生成补丁、运行修复测试或改写历史预测。','',
         '## 复现','',f'运行目录：`{run}`。','', '```bash','source .venv/bin/activate',
         f"python -m rebench_qwen3.evaluate --run {run} --scope {s['scope']} --output NEW_REPORT_DIRECTORY",'```','',

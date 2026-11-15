@@ -208,7 +208,68 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(set(result['summary']['metrics']),set(e.ARMS))
         self.assertEqual(set(result['summary']['paired_comparisons']),{a+'__graphlocator' for a in e.HISTORICAL})
         self.assertEqual(result['summary']['bootstrap_seed'],20261115)
-        self.assertIn('单轨迹',(self.run/'reports/final/final_report.md').read_text())
+        self.assertIn('公开协议回执',(self.run/'reports/final/final_report.md').read_text())
+
+    def test_actual_sampling_model_budgets_and_protocol_sha_are_reported(self):
+        protocol=dict(protocol_version='synthetic_v3',
+            model=dict(id='Qwen/Qwen3-8B',revision='frozen-revision',served_name='qwen3-8b',
+                       thinking_enabled=False,author_finetuned_weights=False),
+            inference=dict(temperature=.7,top_p=.8,top_k=20,min_p=0,seed=0,n=1,
+                one_trajectory_per_issue=True,sampling_profile='official_nonthinking_test',
+                maximum_output_tokens=8192,context_capacity=65536,
+                http_generation_timeout_seconds=600,runner_timeout_seconds=1800))
+        self.write('protocol.json',protocol);self.ready();result=self.evaluate();s=result['summary']
+        m=s['inference_metadata']
+        self.assertEqual(s['protocol_sha256'],e.sha(self.run/'protocol.json'))
+        self.assertEqual(s['source_sha256']['protocol'],s['protocol_sha256'])
+        self.assertEqual(m['sampling']['temperature'],.7)
+        self.assertEqual(m['sampling']['top_p'],.8);self.assertEqual(m['sampling']['top_k'],20)
+        self.assertEqual(m['sampling']['min_p'],0);self.assertEqual(m['sampling']['seed'],0)
+        self.assertEqual(m['sampling_profile'],'official_nonthinking_test')
+        self.assertEqual(m['model'],protocol['model'])
+        self.assertEqual(m['budgets']['http_generation_timeout_seconds'],600)
+        self.assertEqual(m['budgets']['runner_timeout_seconds'],1800)
+        text=e.report_text(result,self.run)
+        self.assertIn('sampling.temperature | `0.7`'.replace('sampling','采样'),text)
+        self.assertIn(s['protocol_sha256'],text)
+        self.assertNotIn('temperature=0的单轨迹',text)
+
+    def test_missing_protocol_or_fields_are_unknown_not_prior_defaults(self):
+        self.ready();s=self.evaluate()['summary'];m=s['inference_metadata']
+        self.assertIsNone(s['protocol_sha256']);self.assertNotIn('protocol',s['source_sha256'])
+        self.assertEqual(m['receipt_status'],'unknown')
+        self.assertTrue(all(v=='unknown' for v in m['sampling'].values()))
+        self.assertTrue(all(v=='unknown' for v in m['model'].values()))
+        self.write('protocol.json',dict(inference=dict(temperature=.7),model=dict(thinking_enabled=False)))
+        result=self.evaluate();m=result['summary']['inference_metadata']
+        self.assertEqual(m['sampling']['temperature'],.7)
+        self.assertEqual(m['sampling']['top_p'],'unknown')
+        self.assertEqual(m['sampling']['seed'],'unknown')
+        self.assertEqual(m['sampling']['n'],'unknown')
+        self.assertEqual(m['sampling_profile'],'unknown')
+        self.assertEqual(m['budgets']['maximum_output_tokens'],'unknown')
+        self.assertFalse(m['model']['thinking_enabled'])
+        self.assertNotIn('temperature=0的单轨迹',e.report_text(result,self.run))
+
+    def test_public_sampling_receipt_does_not_bypass_pending_gold_barrier(self):
+        self.write('protocol.json',dict(inference=dict(temperature=.7,top_p=.8)))
+        self.worker(0);(self.run/'private/evaluation_sources.json').unlink()
+        for p in (self.run/'assets').iterdir():p.unlink()
+        s=self.evaluate()['summary']
+        self.assertFalse(s['gold_read']);self.assertFalse(s['scoring_performed'])
+        self.assertEqual(s['inference_metadata']['sampling']['temperature'],.7)
+        self.assertEqual(s['protocol_sha256'],e.sha(self.run/'protocol.json'))
+
+    def test_sampling_metadata_cannot_change_scores_predictions_or_reference(self):
+        self.ready();before=self.evaluate()
+        self.write('protocol.json',dict(inference=dict(temperature=.7,top_p=.8,top_k=20,min_p=0,seed=0,n=1)))
+        after=self.evaluate()
+        self.assertEqual(before['records'],after['records'])
+        for key in ('metrics','paired_comparisons','file_denominator','function_denominator',
+                    'frozen_evaluator_sha256','bootstrap_seed','bootstrap_draws'):
+            self.assertEqual(before['summary'][key],after['summary'][key])
+        for key in ('gold','inventory','comparison','reference_evaluation'):
+            self.assertEqual(before['summary']['source_sha256'][key],after['summary']['source_sha256'][key])
 
     def test_no_historical_or_worker_file_is_modified(self):
         self.ready();paths=[p for p in self.run.rglob('*') if p.is_file()]
