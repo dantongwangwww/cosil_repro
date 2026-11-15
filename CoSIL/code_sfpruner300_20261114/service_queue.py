@@ -20,6 +20,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import controller as c
+import gpu_spare
 
 MAX_INFRA_ATTEMPTS = 2
 IDLE_SECONDS = 90
@@ -79,7 +80,7 @@ def identity(pid):
     try:
         result.update(argv=(proc/'cmdline').read_bytes().rstrip(b'\0').decode().split('\0'),
                       cwd=str((proc/'cwd').resolve(strict=True)))
-    except (FileNotFoundError, ProcessLookupError):
+    except (FileNotFoundError, ProcessLookupError, PermissionError):
         return None
     return result
 
@@ -207,12 +208,16 @@ def synthetic_judge_row(model_dir):
 
 
 class Queue:
-    def __init__(self, manifest, run_dir, queue_dir, model_dir, judge_dir, adapter_dir, *, poll_seconds=30):
+    def __init__(self, manifest, run_dir, queue_dir, model_dir, judge_dir, adapter_dir, *, poll_seconds=30,
+                 judge_gpu=None):
         if not 1<=poll_seconds<=30:
             raise ValueError('Queue poll interval must be 1–30 seconds')
         self.manifest=Path(manifest).absolute();self.run_dir=Path(run_dir).absolute()
         self.out=Path(queue_dir).absolute();self.model=Path(model_dir).resolve()
         self.judge=Path(judge_dir).resolve();self.adapter=Path(adapter_dir).resolve()
+        if judge_gpu is not None and (type(judge_gpu) is not int or judge_gpu<0):
+            raise ValueError('Separate judge GPU must be a nonnegative integer')
+        self.judge_gpu=judge_gpu
         if self.out==self.run_dir:
             raise ValueError('Queue metadata and paired-run output must be separate')
         self.poll=poll_seconds;self.processes=[];self.streams=[]
@@ -221,10 +226,14 @@ class Queue:
             'model_dir':str(self.model),'judge_dir':str(self.judge),'adapter_dir':str(self.adapter),
             'queue_code_sha256':c.sha(__file__),'controller_code_sha256':c.sha(Path(c.__file__)),
             'judge_launcher_sha256':c.sha(Path(__file__).with_name('judge_launcher.py')),
+            'gpu_spare_sha256':c.sha(Path(__file__).with_name('gpu_spare.py')),
+            'continuation_sha256':c.sha(Path(__file__).with_name('controller_continuation.py')),
             'runtime_sha256':c.sha(c.BUNDLE/'configs/runtime.json'),
             'deployment_sha256':c.sha(c.BUNDLE/'configs/deployment.json'),
             'idle_rule':{'seconds':90,'no_compute_process':True,'free_mib':23000,'utilization':0,
-                         'startup_max_used_mib':256,'physical_gpu_limit':2},
+                         'startup_max_used_mib':256,'physical_gpu_limit':3 if judge_gpu is not None else 2},
+            'separate_judge_gpu':judge_gpu,
+            'separate_judge_rule':'90s stable; zero utilization; >=16GiB free; no visible compute PID; preserve orphan contexts',
             'maximum_prebenchmark_infrastructure_attempts':2,'semantic_retries':0,
             'heartbeat_timeout_seconds':180,'main_command':main_command(self.model)}
 
@@ -240,6 +249,8 @@ class Queue:
         for key,path in [('queue_code_sha256',Path(__file__)),
                          ('controller_code_sha256',Path(c.__file__)),
                          ('judge_launcher_sha256',Path(__file__).with_name('judge_launcher.py')),
+                         ('gpu_spare_sha256',Path(__file__).with_name('gpu_spare.py')),
+                         ('continuation_sha256',Path(__file__).with_name('controller_continuation.py')),
                          ('runtime_sha256',c.BUNDLE/'configs/runtime.json'),
                          ('deployment_sha256',c.BUNDLE/'configs/deployment.json')]:
             if c.sha(path)!=self.plan[key]:raise ValueError('Queue execution code/config changed: '+key)
@@ -269,7 +280,7 @@ class Queue:
             except Exception as exception:rows=[];error=type(exception).__name__+': '+str(exception)
             return self.status('WAITING_INPUTS' if ctrl is None else 'OBSERVED_ONLY',
                  data_ready=ctrl is not None,gpus=rows,gpu_query_error=error,
-                 services_started=False,eligible_gpus=list(eligible(rows)))
+                 services_started=False,eligible_gpus=list(eligible([r for r in rows if r['index']!=self.judge_gpu])))
 
     def spawn(self, role, command, env, session):
         directory=session/role;directory.mkdir()
@@ -339,7 +350,7 @@ class Queue:
             raise RuntimeError('Unexpected old private judge transport')
 
     def controller_command(self,socket_path=None):
-        return [sys.executable,'-B',str(Path(c.__file__).resolve()),'--run',
+        return [sys.executable,'-B','-m','code_sfpruner300_20261114.controller_continuation','--run',
             '--manifest',str(self.manifest),'--out',str(self.run_dir),
             '--main-model-dir',str(self.model),'--judge-socket',str(socket_path or self.current_socket)]
 
@@ -358,6 +369,11 @@ class Queue:
         for record in ctrl.records:ctrl.verify_pair(record)
         self.verify_models(session)
         final_gpu_check(gpu_inventory(),chosen)
+        if self.judge_gpu is not None:
+            spare=gpu_spare.observe_spare(self.judge_gpu)
+            if self.judge_gpu in chosen or not spare['eligible']:
+                raise RuntimeError('Separate judge GPU changed before launch')
+            c.write(session/'separate_judge_gpu_prelaunch.json',spare,immutable=True)
         with socket.socket() as port:port.bind(('127.0.0.1',7343))
         env,short=service_environment(self.out,chosen)
         c.write(session/'runtime_environment.json',env,immutable=True)
@@ -377,7 +393,13 @@ class Queue:
                 if time.monotonic()>=deadline:raise RuntimeError('Main model startup deadline')
                 self.status('WAITING_MAIN_READY',selected_gpus=list(chosen));time.sleep(5)
         self.status('STARTING_JUDGE',selected_gpus=list(chosen))
-        judge_env,_=service_environment(self.out,(chosen[1],))
+        if self.judge_gpu is not None:
+            spare=gpu_spare.observe_spare(self.judge_gpu)
+            if not spare['eligible']:raise RuntimeError('Separate judge GPU changed while main loaded')
+            c.write(session/'separate_judge_gpu_before_judge.json',spare,immutable=True)
+        judge_device=chosen[1] if self.judge_gpu is None else self.judge_gpu
+        judge_env,_=service_environment(self.out,(judge_device,))
+        c.write(session/'judge_runtime_environment.json',judge_env,immutable=True)
         self.spawn('judge',judge_command(self.judge,self.adapter,judge_transport),judge_env,session)
         deadline=time.monotonic()+300
         while not (judge_transport/'ready.json').exists():
@@ -423,7 +445,7 @@ class Queue:
         with c.lock_output(self.out):
             c.write(self.out/'plan.json',self.plan,immutable=True)
             self.cleanup_prior()
-            gate=IdleGate();attempts=0
+            gate=IdleGate();spare_gate=gpu_spare.SpareGate();attempts=0
             while True:
                 ctrl=self.ready()
                 if ctrl is None:
@@ -438,9 +460,14 @@ class Queue:
                 except Exception as error:
                     self.status('GPU_QUERY_ERROR',error=str(error),services_started=False)
                     time.sleep(self.poll);gate=IdleGate();continue
-                observation=gate.observe(rows,time.monotonic())
-                self.status('WAITING_TWO_IDLE_GPUS',gpus=rows,**observation,services_started=False)
-                if not observation['ready']:time.sleep(self.poll);continue
+                observation=gate.observe([r for r in rows if r['index']!=self.judge_gpu],time.monotonic())
+                spare=None
+                if self.judge_gpu is not None:
+                    spare=spare_gate.observe(gpu_spare.observe_spare(self.judge_gpu),time.monotonic())
+                self.status('WAITING_TWO_IDLE_GPUS',gpus=rows,**observation,
+                    separate_judge=spare,services_started=False)
+                if not observation['ready'] or (spare is not None and not spare['ready']):
+                    time.sleep(self.poll);continue
                 attempts+=1
                 session=self.out/'sessions'/(time.strftime('%Y%m%dT%H%M%SZ',time.gmtime())+'_'+uuid.uuid4().hex[:12])
                 session.mkdir(parents=True)
@@ -465,7 +492,7 @@ class Queue:
                     if any(not x.get('leader_exited') for x in cleanup.values()):raise
                     self.status('RETRY_INFRA_BEFORE_BENCHMARK',attempt=attempts,
                                 maximum_attempts=MAX_INFRA_ATTEMPTS,semantic_retry=False)
-                    time.sleep(self.poll);gate=IdleGate()
+                    time.sleep(self.poll);gate=IdleGate();spare_gate=gpu_spare.SpareGate()
 
 
 def main():
@@ -479,9 +506,10 @@ def main():
     p.add_argument('--judge-model-dir',type=Path,default=c.ROOT/'models_v6/Qwen3-Reranker-4B')
     p.add_argument('--adapter-dir',type=Path,default=c.BUNDLE/'checkpoints/specprune_epoch1')
     p.add_argument('--poll-seconds',type=int,default=30)
+    p.add_argument('--judge-gpu',type=int,help='Separate judge on unused memory; requires conservative90s gate')
     args=p.parse_args()
     queue=Queue(args.manifest,args.run_dir,args.queue_dir,args.main_model_dir,args.judge_model_dir,
-                args.adapter_dir,poll_seconds=args.poll_seconds)
+                args.adapter_dir,poll_seconds=args.poll_seconds,judge_gpu=args.judge_gpu)
     if args.plan:print(json.dumps(queue.plan,ensure_ascii=False,indent=2))
     else:
         def graceful(signum,frame):raise SystemExit(128+signum)

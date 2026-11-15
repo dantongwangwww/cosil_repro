@@ -108,6 +108,16 @@ class QueueTests(unittest.TestCase):
         return q.Queue(root/'not-ready/manifest.json',root/'run',root/'queue',
                        root/'model',root/'judge',root/'adapter')
 
+    def test_separate_judge_gpu_is_excluded_from_main_pair(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            queue=q.Queue(root/'missing.json',root/'run',root/'queue',root/'model',root/'judge',root/'adapter',judge_gpu=1)
+            with patch.object(q,'gpu_inventory',return_value=[row(1,used=0),row(2,used=0),row(3,used=0)]):
+                result=queue.observe_once()
+            self.assertEqual(result['eligible_gpus'],[2,3])
+            self.assertEqual(queue.plan['idle_rule']['physical_gpu_limit'],3)
+            self.assertEqual(queue.plan['separate_judge_gpu'],1)
+
     def test_observe_once_with_missing_data_never_launches_services(self):
         with tempfile.TemporaryDirectory() as d:
             queue=self.make(Path(d))

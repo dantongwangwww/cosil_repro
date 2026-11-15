@@ -20,3 +20,13 @@
 32项通过。另在同隔离环境执行了零GPU烟测：ldconfig查询、真实Triton driver.c编译、libcuda链接发现全部通过；未加载生成模块或模型。实际回执另存`results/sfpruner300_20261114/judge_isolation_cpu_smoke_receipt.json`。CPU烟测不代表GPU模型健康检查已通过，后者由服务队列实际请求验证。
 
 本轮最新监督入口由`results/sfpruner300_20261114/active_execution.json`确定。不要在已有监督器存活时另启同端口服务或重复控制整批输出。
+
+## 独立判别器显存与续跑
+
+实际长输入健康检查后，判别器保留的显存会挤占共卡主模型的prefill空间。主模型的TP2/BF16/64K/0.59等原参数不变；可用`pipeline --judge-gpu 1`把同一判别器部署到第三张卡的剩余显存。主模型两卡仍要求完全无计算进程的90秒稳定门。
+
+第三卡的保守准入由`gpu_spare.py`实现：至少16GiB剩余、利用率0、无任何宿主可见计算PID、连续90秒稳定。仅允许事先核验的NVML残留PID1632241，要求名字[Not Found]且宿主/proc明确不存在；查询或权限错误一律拒绝。它不证明整卡独占或残留所有权，不发送信号、不重置显卡、不清理残留。启动main及judge前均复查。
+
+`controller_continuation.py`不改原controller源码与协议。它仅允许旧runtime回执的judge_socket变化，把新绑定追加到`runtime_continuations`；主模型revision、verified文件数、tokenizer库存与字节必须一致。已started的臂保持其真实终态，从不重放。首次运行没有旧runtime时直接使用原controller。
+
+本轮首题基线因共卡OOM中断，输出与usage不完整，保留分母并单独标为环境事件；没有据此换题或重新抽模型输出。新监督目录为`pipeline_sparejudge`与`service_queue_sparejudge`。新增资源门、续跑及集成检查共64项通过，论文另存稿分开披露原100与新增208的硬件范围。

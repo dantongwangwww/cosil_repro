@@ -157,6 +157,7 @@ class Pipeline:
         plan={'code_sha256':{str(path):c.sha(path) for path in files},
             'manifest':str(self.manifest),'run_dir':str(self.run_dir),'queue_dir':str(self.queue_dir),
             'reports':str(self.reports),'work':str(self.work),'python':self.python,
+            'separate_judge_gpu':getattr(self.args,'judge_gpu',None),
             'selection_sha256':c.sha(self.work/'selection/selection.json'),
             'automatic_stage_retries':0,'queue_prebenchmark_infrastructure_attempts':sq.MAX_INFRA_ATTEMPTS,
             'word_modified':False,'external_notifications':False}
@@ -260,8 +261,10 @@ class Pipeline:
                 gate=cpu_gate(self.work,self.manifest,anchor);c.write(self.out/'cpu_gate.json',gate,immutable=True)
                 base=[self.python,'-B','-m','code_sfpruner300_20261114.']
                 self.stage('prepare',[*base[:-1],base[-1]+'controller','--prepare-only','--manifest',str(self.manifest),'--out',str(self.run_dir)])
-                self.stage('queue',[*base[:-1],base[-1]+'service_queue','--wait','--manifest',str(self.manifest),
-                    '--run-dir',str(self.run_dir),'--queue-dir',str(self.queue_dir),'--poll-seconds',str(self.args.poll_seconds)])
+                queue_command=[*base[:-1],base[-1]+'service_queue','--wait','--manifest',str(self.manifest),
+                    '--run-dir',str(self.run_dir),'--queue-dir',str(self.queue_dir),'--poll-seconds',str(self.args.poll_seconds)]
+                if getattr(self.args,'judge_gpu',None) is not None:queue_command += ['--judge-gpu',str(self.args.judge_gpu)]
+                self.stage('queue',queue_command)
                 self.terminal_gate();verify_anchor(anchor)
                 self.stage('finalize',[self.python,'-B',str(c.ROOT/'code_sfpruner300_20261114/finalize.py'),
                     '--new-root',str(self.work),'--manifest',str(self.manifest),'--run-root',str(self.run_dir),
@@ -290,6 +293,7 @@ def main():
     p.add_argument('--queue-dir',type=Path);p.add_argument('--reports',type=Path)
     p.add_argument('--python',default=sys.executable);p.add_argument('--poll-seconds',type=int,default=20)
     p.add_argument('--stale-seconds',type=int,default=600)
+    p.add_argument('--judge-gpu',type=int,help='Use separate unused GPU memory for the frozen judge')
     args=p.parse_args();args.work=args.work.resolve()
     for field,suffix in [('pipeline_dir','pipeline'),('manifest','runtime/manifest.json'),
         ('builder_private','evaluator_private/runtime_build'),('archive_cache','archive_cache'),
