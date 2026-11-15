@@ -67,3 +67,24 @@ LocAgent使用每题两个独立样本，temperature=1.0、top_p=0.8、repetitio
 native始终是冻结主结果；另表诊断只使用同一次真实推理的输出，不新增调用、不按题择优替换。`postprocess_compat.py`的格式视图保留原生行号映射；`postprocess_requested_file.py`的第三独立视图在格式归一化后，仅为行号映射加requested_file约束，逐sample重跑官方过滤/MRR。它不是最终排名mask，也不是完整AST/parser修复。旧部分视图及正式100题视图使用独立目录保存，均不覆盖原始输出；评分使用同一金标、库存、固定100题和冻结评价器。三个视图的usage来自同一次推理，不能相加。
 
 正式v2之外，v1工程阶段771132 token及无issue合成工具probe185 token单独记账；8次正式请求usage未知，仍为未知，不补零。服务外部付费API记录为0不等于电费或硬件成本为0。当前模型是通用Qwen3-8B，并非作者LocAgent专用微调权重；两个独立样本、采样参数和硬件与历史CoSIL一次轨迹不相同，结果应按这些条件解释。
+
+
+## 统一280题的续跑评价
+
+剩余任务在独立正式目录`experiments/qwen3_rebench280_unified_v2_20261115`执行，先前100题只复用同一`requested_file`规则的真实结果。早期工程目录因tokenizer缓存未预热，在任何模型调用之前出现执行环境失败；工程原件保留，正式目录不覆盖或重试其结果。执行批次和解析修正如实记录，不将280题写成一次连续运行；没有改历史100报告或论文。
+
+新入口（CPU）：
+
+```bash
+source .venv/bin/activate
+python -m unittest reproduction.test_evaluate_extension -v
+python -m reproduction.evaluate_extension \
+  --run experiments/qwen3_rebench280_unified_v2_20261115 \
+  --output experiments/qwen3_rebench280_unified_v2_20261115/reports/unified_NEW
+```
+
+运行中只读取名册、真实raw回执、规范化回执及资源，不打开private gold/inventory/history，不计算暂时准确率。CSV保留全部固定任务和执行来源，未评分指标留空。只有280题全部规范化ready后，才使用既有冻结评价器和同一R2金标输出一个统一280题主表、逐题CSV、95%CI及配对McNemar；不拆执行批次的成绩表，也不把其他历史后处理版本放进新主表。2个历史CoSIL运行失败继续留分母。
+
+统一规则ID为`normalized_requested_file_v1`；底层规则沿用`postprocess_requested_file.py`，固定patch SHA `7984406d757f4d5fb9cda6fd5d4b2e47f033890eda9f37d7e019a20c92a8446f`。图中严格存在的序列化身份归一化和同文件行号约束一致应用所有题，不按每题金标、预测对错或得分选择版本。三个解析源文件均按SHA钉住；该规则不是完整AST/parser修复。旧100规范化结果必须逐字复制，并核对冻结manifest中的原raw/规范化SHA；新增题也须有原raw和原子写入的`normalization_receipt.json`才能评价。
+
+资源主表按280题的每个真实推理源各计一次，规范化副本不额外计账；新增期间的增量资源单独存`incremental_accounting.json`，不重收历史复用用量。单题时长取原runner回执，新增阶段墙钟取真实launcher和新raw终态时间，不能用规范化副本mtime或单题耗时之和冒称全部280题连续运行时间。
