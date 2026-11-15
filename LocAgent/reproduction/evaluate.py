@@ -24,6 +24,15 @@ LABELS = {'baseline': 'CoSIL-Qwen3', 'hybrid_safe': 'CoSIL-SFPruner', 'locagent'
 RANKING_NOTE = ('评价官方多样本MRR融合后的最终排名。官方在融合前已过滤不支持的图实体并归并重复；'
                 '本评价器只保持融合后排名的无效/重复槽位，不声称原始模型输出全过程保留原槽。'
                 '不以金标消歧，不将类扩展为其方法，不补入缺失构造函数。')
+PARSER_PROVENANCE_NOTE = ('原生get_module_from_line_number中按file_path限制候选节点的条件被注释，'
+    '行号解析会遍历全图函数。因此模型在某文件给出的line/lines可能被派生为另一文件的函数身份，'
+    '并进入官方过滤与MRR融合；这些是后处理派生候选，不能解释为模型明确推荐或实际检索过该函数。'
+    '主分仍照冻结native流程计算，不按该问题人工删除或替换候选。')
+COMPATIBILITY_VIEW_NOTE = ('离线compatible视图只诊断两类序列化损失：图中严格存在的path.py:QualifiedName整行形式，'
+    '以及已存在的顶层Python文件载体。其分数若报告必须与native另表，使用同一金标与任务分母；'
+    '不能按题择优、替换主分或宣称完成了完整parser修复。该视图保留原实体/行号派生及MRR行为，'
+    '只抑制原先不存在的新line-only派生，不修上述跨文件行号映射、构造函数遗漏或其他原生行为。'
+    'native与compatible复用同一次v2推理、没有新增模型调用，token和耗时不能重复相加。')
 SCOPE_NOTE = ('100题从已观察结果后构成的280题父池按固定哈希取出。父池排除了18道基线占优题和2道共同未命中题，'
               '因此不是独立盲测；不能用该同题比较推断未筛选总体上的方法优势。')
 ADAPTATION_NOTE = ('LocAgent按原生工具调用方式适配本地Qwen3：逻辑别名openai/locagent-native用于选择上游原生分支，'
@@ -459,6 +468,8 @@ def report_text(result, run_dir):
         lines += [f'主模型文件核验：{identity["status"]}，{identity["files_verified"]}个核心文件／'
                   f'{identity["verified_bytes"]}字节匹配既有SHA清单；'
                   f'固定模型{identity["model_id"]}@{identity["revision"]}。API别名本身不作为权重身份依据。', '']
+    lines += ['### 原生后处理与诊断视图的解释边界', '', PARSER_PROVENANCE_NOTE, '',
+              COMPATIBILITY_VIEW_NOTE, '']
     protocol = audits['run_protocol']
     if protocol['status'] != 'NOT_AVAILABLE':
         lines += [f'本报告的冻结协议版本：`{protocol.get("protocol_version")}`。模型与采样设置来自本run的protocol.json；'
