@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "status": "FINAL_ASYNC_EXECUTION_SOURCE_FREEZE",
+  "branch": "snapshots/locbench-async-reporting-execution-20261116",
+  "parent": "156f63f190d8d8140f000456be3cbda0210d8a62",
+  "sources": [
+    {
+      "path": "CoSIL/code_locbench_async_20261116/README.md",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/README.md",
+      "size": 3948,
+      "sha256": "a47c4995e0ca56a15ab02c77dc699bb07f58a2aa19af0dccfd5ac880d6234bd2",
+      "git_blob_sha": "b74812662e2829634fd4751a2064759ec1b9852e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/__init__.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/__init__.py",
+      "size": 75,
+      "sha256": "cd4a21eb991b956ad37187d4b11c0f53161f2f495f30f609715a1a6a4a22d872",
+      "git_blob_sha": "11d2c862176ea5e3d1db8e20d74947ddc2d82494",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/handoff_signal.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/handoff_signal.py",
+      "size": 3135,
+      "sha256": "57ce3e8d2e79047ea8865aaf8a3ced07e9f00bb9168736d4cb60fa05c9312e9a",
+      "git_blob_sha": "17840688e11b83ce6242404a9d2a6f409e816ccf",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/supervise.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/supervise.py",
+      "size": 16219,
+      "sha256": "1d5b8aaa2bcf8b17e23538212c82a82a851a46df0ca77625b38aed2bb7db98a5",
+      "git_blob_sha": "e885c5f4b5b5579792307837e2d324d36378273d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/test_supervise.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/test_supervise.py",
+      "size": 8848,
+      "sha256": "cdfc989866b0e110ebd5a5ca15a784e316b6bd71171f05d548107081376deaf9",
+      "git_blob_sha": "d20f8380188f2c3dfc3bea23a9eb0685a561ec7c",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/test_worker.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/test_worker.py",
+      "size": 10470,
+      "sha256": "db2d8a4c21dd652ce7da90488d7a450f0ad59b8d0764d7c532f7455b062c54f4",
+      "git_blob_sha": "0c5313d5e98831a4ceb2bb551072ead0e1288385",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/worker.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/worker.py",
+      "size": 11542,
+      "sha256": "2267b8bc4a658237b73d3de3fc3201de274ea39420f07063812ff991e5a87942",
+      "git_blob_sha": "65684be4aa03dbb475fe0ef0cb943b6d55057346",
+      "mode": "100644"
+    }
+  ],
+  "source_sha256": {
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/README.md": "a47c4995e0ca56a15ab02c77dc699bb07f58a2aa19af0dccfd5ac880d6234bd2",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/__init__.py": "cd4a21eb991b956ad37187d4b11c0f53161f2f495f30f609715a1a6a4a22d872",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/handoff_signal.py": "57ce3e8d2e79047ea8865aaf8a3ced07e9f00bb9168736d4cb60fa05c9312e9a",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/supervise.py": "1d5b8aaa2bcf8b17e23538212c82a82a851a46df0ca77625b38aed2bb7db98a5",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/test_supervise.py": "cdfc989866b0e110ebd5a5ca15a784e316b6bd71171f05d548107081376deaf9",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/test_worker.py": "db2d8a4c21dd652ce7da90488d7a450f0ad59b8d0764d7c532f7455b062c54f4",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_async_20261116/worker.py": "2267b8bc4a658237b73d3de3fc3201de274ea39420f07063812ff991e5a87942"
+  },
+  "publication_model_calls": 0,
+  "publication_GPU_jobs": 0,
+  "process_control_actions_by_publisher": 0,
+  "unit_test_evidence": {
+    "tests": 24,
+    "status": "PASS",
+    "log_sha256": "1bc5f3af280bce4dc7fbc2bad3e7de9dfdabc6fae6fbcf6b7829e0e19df8e67d",
+    "receipt_sha256": "e70c7fbc7657d8ab2f384b356b79640e0124949d27634032c4db640d3a461c85"
+  },
+  "independent_code_review": {
+    "status": "INDEPENDENT_ASYNC_CODE_REVIEW_PASS_BEFORE_PUBLICATION_AND_HANDOFF",
+    "sha256": "1b9538ad77979405419bf81c105d31883d37baa2fd0a624d1628eca98aba04bd"
+  },
+  "real_closed_old100_terminal_metadata_smoke": "PASS_300_receipts_metadata_only",
+  "old79_source_config_bindings_unchanged": true,
+  "actual_GPU_handoff_performed_by_this_publication": false,
+  "handoff_and_queue_adoption": "SEPARATE_OPERATIONAL_GATE_REQUIRED",
+  "uploaded_results_plan_data_gold_csv_rosters_logs_models_keys_manuscripts": false
+}
