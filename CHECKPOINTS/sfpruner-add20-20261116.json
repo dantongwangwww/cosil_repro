@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "parent": "efdf2a76584389599e53d0e95a75019ca5d09877",
+  "branch": "snapshots/sfpruner-add20-20261116",
+  "status": "FROZEN_FOR_EXECUTION",
+  "sources": [
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/README.md",
+      "size": 5615,
+      "sha256": "0c9e1de6f87d873d9d97599f5e874a8b140804a5dbf9569a11bbbc07752ef41e",
+      "git_blob_sha": "8d6945ddf94fbaa3bab611587a0830e29a037405",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/__init__.py",
+      "size": 89,
+      "sha256": "23c4166ca09f567e0d841f65891726778859aad7800f2f21f99326dc9a73ec68",
+      "git_blob_sha": "e7126bf0ef5c1655f17072cdbd16376700fb6d29",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/prepare.py",
+      "size": 23114,
+      "sha256": "a65ef432df54668336bc6fcf7142ff294037b813929b5300ab7f83d0a3c38e3c",
+      "git_blob_sha": "3737d0d447d6f27246cefbcc83c81f7cc0267073",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/report.py",
+      "size": 30504,
+      "sha256": "ebdff3348ea3fccaa001cab2a20d3a104267e9d78ffa029da0e1cd0d14133860",
+      "git_blob_sha": "500e46c2055eb143659933bf59caa0fe840c2a1f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/runtime.py",
+      "size": 4810,
+      "sha256": "d0183625a0c43d3054a841728b5df293a3d6ab50880bec057e428cab86fdb1d0",
+      "git_blob_sha": "34733e01838ad3127975a67f9a932d1d7cdde6b1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_prepare.py",
+      "size": 5661,
+      "sha256": "bd28af48dafdbdaa859ac39f518e97b1c6425ff0680cd8ae51559d79922aeebe",
+      "git_blob_sha": "6e7712c2ceb51c93e37bff2249185e2cb162c730",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_report.py",
+      "size": 15320,
+      "sha256": "f9ad8217d35fba70524da74e4352e68c0ffe9bf92523f882a5ef5b1e9cf25c57",
+      "git_blob_sha": "1357c0c7f3450128ecca3f98b07884a4812ac607",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_runtime.py",
+      "size": 1417,
+      "sha256": "c9e9a192df1f223887431d0dbf83128788965526dcef68e4c095e99362774d48",
+      "git_blob_sha": "7ece2ba2584742230ae9f80b2d0f448c9aa6c052",
+      "mode": "100644"
+    }
+  ],
+  "source_count": 8,
+  "test_evidence": {
+    "unit_tests": 23,
+    "unit_tests_status": "PASS",
+    "unit_tests_log_sha256": "f54bf310e2f0212097f290862dcc7b94cc7ea9992a19eca4bc9992e0831acb21",
+    "report_freeze_status": "FROZEN_BEFORE_EVALUATION",
+    "report_freeze_sha256": "155276e2236af50120a013ba8bf645b6de8e97884e8037f4c6c641056454f591",
+    "report_frozen_source_count_verified": 62,
+    "protocol_sha256": "ef015a35518c2cddfcf773d1dc82e0fa9f7f2976ec0fa6866229bb913a79d17f",
+    "prelaunch_gate_pass_verified_locally": true
+  },
+  "checkpoint_purpose": "Execution-source freeze before new20 model inference",
+  "publication_scope": "existing independent source, synthetic tests, README and this safe checkpoint metadata only",
+  "no_task_records_or_gold_uploaded": true,
+  "no_manuscripts_uploaded": true,
+  "prechange_ref_must_remain_unchanged": true
+}
