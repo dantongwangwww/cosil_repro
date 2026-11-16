@@ -1,0 +1,1492 @@
+{
+  "schema": 1,
+  "status": "PRE_ABLATION_EXISTING_CODE_RECOVERY_CHECKPOINT",
+  "branch": "snapshots/locbench-pre-ablation-20261117",
+  "parent": "961a83bf4f9a2b1fe5133b95edc52c3ba12f512e",
+  "parent_tree": "d4ee3beabe4cd91a45cfad18ea52e8e82d239a8c",
+  "verified_current_files": 183,
+  "verified_frozen_execution_bindings": 84,
+  "sources": [
+    {
+      "path": "CoSIL/code_rebench_qwen/__init__.py",
+      "sha256": "0b55316c53353f3a270ddb207cb80f69e7b0e670d9fcfabcccabfa96f837c8c4",
+      "git_blob_sha": "139ef07bb0fcc0fa74c115852cf0558330b6dbb8",
+      "mode": "100644",
+      "size": 61,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/audit.py",
+      "sha256": "8d8f49121ef137cccffb85cbbe034b0d8ca2cfec18f49f76935f0c0c676dc2c7",
+      "git_blob_sha": "4227406bc5a386357e3296eee7c660c46ffd638b",
+      "mode": "100644",
+      "size": 3396,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/bootstrap.py",
+      "sha256": "d5ba83660eb1d4b43f9c72976a00ae31b4edd8146f5e322fa6faa830e6348208",
+      "git_blob_sha": "42fe1c41dfd3499f14d813358dd4d51d6d86dffd",
+      "mode": "100644",
+      "size": 5702,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/common.py",
+      "sha256": "127beb93d5682315b4931870435d7dc4784a56cfdc948f2a395540a5f32c8348",
+      "git_blob_sha": "88443ce0bb2c2a9a1ce632712b026e1a0739ac38",
+      "mode": "100644",
+      "size": 2606,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/deploy.py",
+      "sha256": "8112a1b6cb6345fcd630695b76322aaae33be7ab6a57e05857d1af0e10e4a759",
+      "git_blob_sha": "d2fedfa8160813798501004b0f7268bd6c517166",
+      "mode": "100644",
+      "size": 18666,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/local_provider.py",
+      "sha256": "b74c735acb1ea39c69868bd6e599f458996fdad58224fd8d95d4c791495a035a",
+      "git_blob_sha": "9e6a4682278f4ffa51b67b2dd42382427edb277b",
+      "mode": "100644",
+      "size": 8913,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/pipeline.py",
+      "sha256": "7fdf2fbafa510e6b144567db9a8792282475625b0b7a0b399b21e8f6df0ea03d",
+      "git_blob_sha": "a0a1d431b1dd32e1f53d78bce41167e9b44156c4",
+      "mode": "100644",
+      "size": 4155,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/prepare.py",
+      "sha256": "c260c299234e0acddbea4d74b7757b3390f51b3964d200fd1b7aea643556fd7f",
+      "git_blob_sha": "7bff7d3c62fe7016dc4651c08e2627aae3d4df98",
+      "mode": "100644",
+      "size": 22279,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/reporting.py",
+      "sha256": "1bb3a9221ce44cf0f35fa617eb095834cc53791dc369e12d83e8508c0be37889",
+      "git_blob_sha": "be3f4742888d502be126a01f80c235b91ead2eec",
+      "mode": "100644",
+      "size": 43595,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/run.py",
+      "sha256": "f55b4e368abbf98e3dc19ef17aef73bf13dcf035e455b00edd84bf815211bb8b",
+      "git_blob_sha": "6320bc035addff470c55c21d57e83dc55b9381ec",
+      "mode": "100644",
+      "size": 9912,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/runner.py",
+      "sha256": "f15db7be8bd2d01b77f5071f592f80bb6e34268f40a548ce313db0ffbae9a880",
+      "git_blob_sha": "7280f6c9e0f9e09731a133b13d13fc0c5adda11e",
+      "mode": "100644",
+      "size": 17436,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/__init__.py",
+      "sha256": "d61fc1de3fad2a5d6e33071f0cf289a7ebe02c5a3e594bdd5fd2f9d83bce60e2",
+      "git_blob_sha": "361ae5cb5092b13785f07fecf6aae33ed39b1006",
+      "mode": "100644",
+      "size": 69,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_audit.py",
+      "sha256": "d3d9ecccd9393f63dca9a9f00754d026f209795abbe8379ea798baf69c5649ca",
+      "git_blob_sha": "9ede150bdfc78c83df94e5e4c42a14e0b0e2ccb7",
+      "mode": "100644",
+      "size": 1256,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_control.py",
+      "sha256": "c3e473e6c66a332c3a565a512544f41afec962208de3d70f84235361e55fb23e",
+      "git_blob_sha": "80a24445864cd57d211041586f499d663f22e7b6",
+      "mode": "100644",
+      "size": 10029,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_deploy.py",
+      "sha256": "d180d505ba3741b78c7f54cb0073358c3568e9e8e49fd9ea0ffe9f91c65a84d4",
+      "git_blob_sha": "2591ea7bb51e4123786d957fb7d2592ad636089f",
+      "mode": "100644",
+      "size": 7168,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_pipeline.py",
+      "sha256": "93d8d43b7994331ff7cb1a92588031f95aa4de1c07c5212a6e78c2af55547eaf",
+      "git_blob_sha": "c8cd3d4731ec992b5398873c220e6bab6e424349",
+      "mode": "100644",
+      "size": 8290,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_prepare.py",
+      "sha256": "d013bb0611e9e116d04d442789e597800ebae07f4836fc47a4b7f84049a3940e",
+      "git_blob_sha": "d647725cd82892706ad40246f5ffccdfa5643f7e",
+      "mode": "100644",
+      "size": 9432,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_reporting.py",
+      "sha256": "81200f7ecb82758c19bb243f67325ab50c236d42c2431aed96c83b040c0ab010",
+      "git_blob_sha": "4ba3156452176289a045dd303dbbd45a386542f3",
+      "mode": "100644",
+      "size": 17299,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_runner.py",
+      "sha256": "6fd468545b4d26f7fc77717285e44ac4bc24b919eb8c85a8c1b1f40836b23fde",
+      "git_blob_sha": "76521aa099cad593784b08f9f81896be4227782f",
+      "mode": "100644",
+      "size": 15635,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_BUILD_RUNTIME.md",
+      "sha256": "d58ee1782242007c74ca38883825a52655bd4dd6abec1ea55b79c4b27b605b19",
+      "git_blob_sha": "fe7761f0f2f4bcb12ea99ed5eaf67556bcb05204",
+      "mode": "100644",
+      "size": 3859,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_CONTROLLER.md",
+      "sha256": "0cb90e417bfe89046da902b1099e8e5676f48a4a797dee25b5b5709c5a49f232",
+      "git_blob_sha": "7266835e02ee9aa2073d8273063f68ff1ee1545e",
+      "mode": "100644",
+      "size": 5372,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_GIT_SOURCE_RECOVERY.md",
+      "sha256": "ae2a7dbd68ab61597ac567a0e2abd74eede89032f92f8c48bddde1c1e7759f00",
+      "git_blob_sha": "33921a26b3fe54ac0151b7afdf82fa3903581751",
+      "mode": "100644",
+      "size": 3797,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_JUDGE_RUNTIME.md",
+      "sha256": "5e802a1b7ec5bfebcb854ded607ee74ed0d8eec2e209c042ec9f44b158ec6b13",
+      "git_blob_sha": "19fa9fae5e87598a8a85867d51ad287402daf05e",
+      "mode": "100644",
+      "size": 3470,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_PIPELINE.md",
+      "sha256": "10ab20916b988d9df30f05a9592a70a2b02aafe3c1c87f7ca578cb0c60e9cb5a",
+      "git_blob_sha": "9f49b861040e762a5f5a033a68db6979336fe3be",
+      "mode": "100644",
+      "size": 3797,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_QUEUE.md",
+      "sha256": "bd3a154b933d8160b65a9fb23b615169a8ad662212e59db491598456854fc815",
+      "git_blob_sha": "66fc95fdc4fa8cca23c2fe70336fd81ec1b6c625",
+      "mode": "100644",
+      "size": 4798,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_REPORT.md",
+      "sha256": "711233a85d209507a5da1956083922cbb2c2534f6fbd8c40fc4ad453db4045f1",
+      "git_blob_sha": "b1f2f755e729c95daa61f9e369ff606bbe7c5cf2",
+      "mode": "100644",
+      "size": 5441,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/README_SOURCE_RECOVERY.md",
+      "sha256": "173cf39715bd75efd7be4e3531a6079f591df08fbf167cdd03ed1d147fa5bac2",
+      "git_blob_sha": "c8947f6146211a24ad1d6a88ec526cf35f1a2505",
+      "mode": "100644",
+      "size": 3739,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/build_runtime.py",
+      "sha256": "5e6d385138b66346c750038b1577c6afaf31bdac68813d91fb9d1e6c67a6a357",
+      "git_blob_sha": "02709103d92512a4bf724e745f588c9bd3df9d9d",
+      "mode": "100644",
+      "size": 23431,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/cache_decode_guard.py",
+      "sha256": "6d0a1026626dbf1b2602a8cb106dbd4ba182273fab9806e1703ecd972c565c01",
+      "git_blob_sha": "13780a9e7e97be71d231d4d74c2667dbd905454e",
+      "mode": "100644",
+      "size": 2808,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/controller.py",
+      "sha256": "3944093e5f36eb6135095462cec7433a7780c5f42674694b6ba2b5730e3fceb4",
+      "git_blob_sha": "4e5316b7627f891aed0c4428c9be8600ff977b66",
+      "mode": "100644",
+      "size": 25782,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/controller_continuation.py",
+      "sha256": "298eef83d8f52fa2e39263423d0740a623b4af68f205b5ce695af6746532a2df",
+      "git_blob_sha": "d23cbbf9211093d8b0c687bc8e467fb2962482de",
+      "mode": "100644",
+      "size": 6453,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/finalize.py",
+      "sha256": "b815d201ef28c40ea375997e327cc595b0ef536f9d5b8aa8a78aa350be1f5d5d",
+      "git_blob_sha": "a6c9263d3d4e39e5d1dbd8bf488f324a8720651e",
+      "mode": "100644",
+      "size": 38971,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/gpu_spare.py",
+      "sha256": "72326c1674f157b84656c5ad3e02ce3be6699991f36191cac8472fca5d8d67a4",
+      "git_blob_sha": "5d15996ec12c12711a22a7d63e001032d2eb771d",
+      "mode": "100644",
+      "size": 11428,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/judge_launcher.py",
+      "sha256": "a6bdb236d8d50d21d077801ba528d7848322d4de10a44c948c0282c0d63df6db",
+      "git_blob_sha": "36d9c99085286c8fc7cd75fc4edaef647d1d061e",
+      "mode": "100644",
+      "size": 1548,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/pipeline.py",
+      "sha256": "425d4c124d1577985ad7ea8ca9ee13d108f56669b3b8a2a5f5f815016ab715b5",
+      "git_blob_sha": "a7929149fd419a310bcd34d375dbb760fd488d5e",
+      "mode": "100644",
+      "size": 21274,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/prepare_candidates.py",
+      "sha256": "c5d6088579affbf8de8c09043188f9812915717c325218b6d495d4029b0b8b5f",
+      "git_blob_sha": "5eb5c4a107433e40f5b56d95f08e18564ff3ab18",
+      "mode": "100644",
+      "size": 13230,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/qualification.py",
+      "sha256": "3d62c2c0106b6dfedd7eb4a7fa12c433a35957443cd529c4b42fc610d68cf42b",
+      "git_blob_sha": "8f102e7555dea6e5cdbcebc4e35b2ebf0950761d",
+      "mode": "100644",
+      "size": 20848,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/recover_archive_links.py",
+      "sha256": "e9059e3e1cb699670676d2f43ce9dd52ba5f801d2915e80f7689febfb3d77e05",
+      "git_blob_sha": "19692d0c6b80cbbfcfe7b6b8370834d9fe2a6868",
+      "mode": "100644",
+      "size": 15872,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/recover_git_sources.py",
+      "sha256": "ef265d8c7cd81486544093ea6c5a61a373db98e68cfcf6e8a93403df70dbaddf",
+      "git_blob_sha": "abd444b3f4a18421790914fdb4a368e9ff95c0ef",
+      "mode": "100644",
+      "size": 14661,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/sample.py",
+      "sha256": "535feecb82f33d9d7c3d356778f3c6025acb794bf8390b08aa7a98bd5f27163c",
+      "git_blob_sha": "3e0a06cfd8fef68c87cfcc7f7d2e3770997cec09",
+      "mode": "100644",
+      "size": 11788,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/service_queue.py",
+      "sha256": "f7c247e3ee7deecd92018cfb3d0b1c22b330e8691f9b4b1bc95260b2115485b6",
+      "git_blob_sha": "35f691f5705b89c5a78a6349603f4554ca3804fc",
+      "mode": "100644",
+      "size": 30272,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_build_runtime.py",
+      "sha256": "4a5b1b9c317edca536da744f392bd06851df1c3c970790c60022c54f287ba54e",
+      "git_blob_sha": "0c6405af40e6301dd9e761513ade09cf6dc51984",
+      "mode": "100644",
+      "size": 10810,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_cache_decode_guard.py",
+      "sha256": "b70b7e58f2aca4916dd9f69dd5f79400b15e348aed4dd71c764b2a66979a0e04",
+      "git_blob_sha": "73fe6f74e408a54e022c2dbfc5a344c7fadfc08a",
+      "mode": "100644",
+      "size": 2836,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_controller.py",
+      "sha256": "774cd537144bda991b1ebd3d2b891fb1d00adf0f70121653df96d59dae6b674d",
+      "git_blob_sha": "69d683f2ee53f63d4a14448271d551cbefda156d",
+      "mode": "100644",
+      "size": 10085,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_controller_continuation.py",
+      "sha256": "886c7d83b25dd274d967da1df76532191d366ab17af5aa4c42a791e969863897",
+      "git_blob_sha": "a630a07d85fbad2714b5743559355b3796fc970d",
+      "mode": "100644",
+      "size": 9389,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_finalize.py",
+      "sha256": "840bd40edfdcdef00d14adf40047b74c865ffed0ac7936c6e2efc6cc625da6ac",
+      "git_blob_sha": "1ca11bd054c6c70c2b05981b78c23ce50ee7ad7f",
+      "mode": "100644",
+      "size": 14884,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_gpu_spare.py",
+      "sha256": "b6434cd15bde75abda12cdb12e37c5e375fc6162e7b8d33d268bce44afc3c427",
+      "git_blob_sha": "45e031b365f8276862a5239048b00359a7114c5c",
+      "mode": "100644",
+      "size": 6021,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_judge_launcher.py",
+      "sha256": "a4097b9ecffa49141517c2064689a8a2bb72e2d7e9c7326e8df4453f57edde07",
+      "git_blob_sha": "9c05e3cbbf51f77dfc80c0279b347e2816cc7884",
+      "mode": "100644",
+      "size": 2020,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_pipeline.py",
+      "sha256": "384fc778f2fb24d381be486e616ad87af5470abdf104e5bb92c6934dbffe6d42",
+      "git_blob_sha": "4b30a7fd360ab76c7d3ff44beb5c5679279fcab6",
+      "mode": "100644",
+      "size": 9031,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_qualification.py",
+      "sha256": "02438efc753b4d788e5ee10902cd2e2bfe763916c728af11fccb87572a4dfbfe",
+      "git_blob_sha": "14dc302e9b7e47e0647f87c25e37035c0cc3704a",
+      "mode": "100644",
+      "size": 7207,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_recover_archive_links.py",
+      "sha256": "2e98c4383fc80542544d7c355ef3770308b182a3cbf6c66f1ca8284f15f891d6",
+      "git_blob_sha": "23ee5330e18f41c11e323a535a608517fdd1663c",
+      "mode": "100644",
+      "size": 12153,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_recover_git_sources.py",
+      "sha256": "b2e9f137a2e522be0a68934f54b38e4ade1bad6e5e445d3d464528783269b8db",
+      "git_blob_sha": "9597470c419c7cc0618c78c2edaf15c1c4adf171",
+      "mode": "100644",
+      "size": 8120,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_sample.py",
+      "sha256": "f3943ac57fc9474b1893f3ef47e21c5cdeb914704eee776b23143d248b8f5af6",
+      "git_blob_sha": "a222470ac32fa0c6bc92f6bab8ca85342eabdb6c",
+      "mode": "100644",
+      "size": 6861,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner300_20261114/test_service_queue.py",
+      "sha256": "fcba0e6d538b48e6eded3055c97284a99140bd2c31e85fe45a420a9ae407a5f7",
+      "git_blob_sha": "b821b59ffab2daa05ebddfed27008e4635b192e2",
+      "mode": "100644",
+      "size": 13466,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/README.md",
+      "sha256": "6daeea5e7a682965809c0ae3b2fac7692aae34a1becc019c2c4d6c138eeba17f",
+      "git_blob_sha": "8849a297602c7caac81e8a2212ee49dd83433c34",
+      "mode": "100644",
+      "size": 6018,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/__init__.py",
+      "sha256": "23c4166ca09f567e0d841f65891726778859aad7800f2f21f99326dc9a73ec68",
+      "git_blob_sha": "e7126bf0ef5c1655f17072cdbd16376700fb6d29",
+      "mode": "100644",
+      "size": 89,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/prepare.py",
+      "sha256": "a65ef432df54668336bc6fcf7142ff294037b813929b5300ab7f83d0a3c38e3c",
+      "git_blob_sha": "3737d0d447d6f27246cefbcc83c81f7cc0267073",
+      "mode": "100644",
+      "size": 23114,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/report.py",
+      "sha256": "ebdff3348ea3fccaa001cab2a20d3a104267e9d78ffa029da0e1cd0d14133860",
+      "git_blob_sha": "500e46c2055eb143659933bf59caa0fe840c2a1f",
+      "mode": "100644",
+      "size": 30504,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/runtime.py",
+      "sha256": "d0183625a0c43d3054a841728b5df293a3d6ab50880bec057e428cab86fdb1d0",
+      "git_blob_sha": "34733e01838ad3127975a67f9a932d1d7cdde6b1",
+      "mode": "100644",
+      "size": 4810,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_prepare.py",
+      "sha256": "bd28af48dafdbdaa859ac39f518e97b1c6425ff0680cd8ae51559d79922aeebe",
+      "git_blob_sha": "6e7712c2ceb51c93e37bff2249185e2cb162c730",
+      "mode": "100644",
+      "size": 5661,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_report.py",
+      "sha256": "f9ad8217d35fba70524da74e4352e68c0ffe9bf92523f882a5ef5b1e9cf25c57",
+      "git_blob_sha": "1357c0c7f3450128ecca3f98b07884a4812ac607",
+      "mode": "100644",
+      "size": 15320,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_runtime.py",
+      "sha256": "c9e9a192df1f223887431d0dbf83128788965526dcef68e4c095e99362774d48",
+      "git_blob_sha": "7ece2ba2584742230ae9f80b2d0f448c9aa6c052",
+      "mode": "100644",
+      "size": 1417,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/docs/sfpruner-add20-20261116/完整统计表_新20与描述性组合300.md",
+      "sha256": "30fa921dd9dad2a0f6885f079de3ff34f3a3ad02bcbb42e5d52ad64352537617",
+      "git_blob_sha": "b5469f3dd5f5fcb78b92de3ca4b7a1c38b1e8dfa",
+      "mode": "100644",
+      "size": 7110,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/docs/sfpruner-add20-20261116/实验结果报告_随机20与组合300.md",
+      "sha256": "3c828784c27ab56386f6f1a6593ddc5dfb1dedb06b0dca17be0206fe0f60db20",
+      "git_blob_sha": "b74623cb0656dc34800a7318816fef3a2531e1eb",
+      "mode": "100644",
+      "size": 6042,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/NOTICE.md",
+      "sha256": "4881da6f63989cd8196e0cf3242491bc6ff7a0de338d6bc4a5b39f3d478e67c3",
+      "git_blob_sha": "63e63b8ae9ee3b7cfba594e50374629720a81561",
+      "mode": "100644",
+      "size": 1074,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/README.md",
+      "sha256": "592d1de2367ce67caedce124ff7ac9455a82f6700276b98d8ccaa0e909495664",
+      "git_blob_sha": "d87f0d6bb8671b305ce7c52973dc81476e59de0f",
+      "mode": "100644",
+      "size": 9917,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/configs/deployment.json",
+      "sha256": "8db35eb4afdfe67395b0b8a0734aa94be4b8a4e34fa2dc6e1e4746ee7926422f",
+      "git_blob_sha": "300c44989d49350b5dabfdf96556199e60a76bc3",
+      "mode": "100644",
+      "size": 2659,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/configs/runtime.json",
+      "sha256": "cbdfc9dbe7fe6c35281b84507117ff2aabb100c64b69c1783a4a3ad5f52b5820",
+      "git_blob_sha": "302ae69dc59a2804f720258fabb4855b13cca2d2",
+      "mode": "100644",
+      "size": 1395,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/configs/sampling.json",
+      "sha256": "38c1b20141d0aba5677d5a628ed88394130adaf82681718f4c8aa0d56fbc3cd1",
+      "git_blob_sha": "17b88bdc0583afd1737f6f72639014d87aba03a1",
+      "mode": "100644",
+      "size": 487,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/configs/training.json",
+      "sha256": "7775dffa8d4d5d22a25e078ac2234d8d4271c47bd1a9e67fa6a747255714c561",
+      "git_blob_sha": "a37cf235f30a8babd7fd1919d65f7a1ec6bae248",
+      "mode": "100644",
+      "size": 2873,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/provenance/main_model_files.json",
+      "sha256": "8ccb595dbf008194801c513c19cdb7a1e90b8708948166841623622eb5a2f21a",
+      "git_blob_sha": "c1e51f09e23100fae6057f595fdfc07f053c4db9",
+      "mode": "100644",
+      "size": 1881,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/provenance/model_files.json",
+      "sha256": "c91012b8ed11ba380456ec5cb2394065dea253e5fdfe933fbae3e8224ba6cebe",
+      "git_blob_sha": "2ce6d169be57cb418f57c7e11f5973ab39cc6cba",
+      "mode": "100644",
+      "size": 1409,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/pyproject.toml",
+      "sha256": "2c902c76801c53674fe5bc4f13e1ff3a9834f004ff0c95582a53946ec70e155a",
+      "git_blob_sha": "3908096459eb30e690066b24b117fdf4bc593474",
+      "mode": "100644",
+      "size": 487,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/requirements-agent.txt",
+      "sha256": "8c7bba6bb722199f0ea4d7ebda45653746c578aace0b03b962d1cce2f306548c",
+      "git_blob_sha": "bd61b08b83394dbda0a080b3ddf10e1cd12eacb6",
+      "mode": "100644",
+      "size": 211,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/requirements-analysis.txt",
+      "sha256": "48c6394aa908e69b48b30e54ad3edcb49140690e5631881430bc08ef47581203",
+      "git_blob_sha": "7706cedf7a26757d06c6c903ab09f3adc595eab8",
+      "mode": "100644",
+      "size": 109,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/requirements-model.txt",
+      "sha256": "a723467fadff50b00c7afd49f215a9c4b445ae6cb0c2ef8a1767060cdc8f1780",
+      "git_blob_sha": "91e7af272d893cfa553c61ebd6ffcdde97d66b8d",
+      "mode": "100644",
+      "size": 192,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/requirements-service.txt",
+      "sha256": "88b356dd972a31b554f124e32bbbc4fe4532179894c0fa4a415d40e132c5dd81",
+      "git_blob_sha": "05b39eee29e4dce39dc3012e0fb879c5371960eb",
+      "mode": "100644",
+      "size": 173,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/__init__.py",
+      "sha256": "1abe0e3dd623b95d046b3574c1d1fb98ff2cc12ccfe4bb3572e707753ee01403",
+      "git_blob_sha": "bcec033e8f214799b2a2d304d4f4979d3d2bc021",
+      "mode": "100644",
+      "size": 106,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/assessment.py",
+      "sha256": "b2df5da646c9232780e048aa07a70787fac362bd945dc8173655b7e5291db6f2",
+      "git_blob_sha": "23a06e07c4a4d26de5deb01d59dfd5a7eb44922c",
+      "mode": "100644",
+      "size": 2424,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/codec.py",
+      "sha256": "fc0ee6284316785baf7a148a82cd9eadf2523f327cff6cb200a08432dc89e25c",
+      "git_blob_sha": "5c4d402e88fd792919b0ca81d2cdb91b47d0b9e0",
+      "mode": "100644",
+      "size": 3183,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/collect.py",
+      "sha256": "cb20ffaed20774eec0bdd07e47d001e27e7a70c10eee4974e4da5373e1965bca",
+      "git_blob_sha": "f47cb4429c5f8e07157a43c97626bff60cd9665f",
+      "mode": "100644",
+      "size": 8146,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/doctor.py",
+      "sha256": "6d1644ae3c78d364ca0e68a4bb5a48c2ddee9085f9215fb0b86ea3c9b118c653",
+      "git_blob_sha": "ad248f9d3f975290b0d5e8d387bc2385b0880ac4",
+      "mode": "100644",
+      "size": 1324,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/evaluation.py",
+      "sha256": "22b6c4c8c24da8b88bc09c0191ffe830d5ba375183e1d98c00577007adffe5aa",
+      "git_blob_sha": "b630369e5aba7dfd4ff343de229c84761cf02346",
+      "mode": "100644",
+      "size": 10408,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/gold.py",
+      "sha256": "2c43ca5e4c1a89271fb106c10218050efe92fd452f12528ec1766a38e8906058",
+      "git_blob_sha": "7bb22005bec2638f6bea7a3fc0bbdb7f27272008",
+      "mode": "100644",
+      "size": 32297,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/input_format.py",
+      "sha256": "1ce78e096ffae30788ab344562bff09f7444d00057a3655c19b283e21f4179bc",
+      "git_blob_sha": "ad8abb11cc9a4ce9dbd7be2e26e55e5a4aab7974",
+      "mode": "100644",
+      "size": 2649,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/isolation.py",
+      "sha256": "4c9ee81aaf2c2f905cab2c4b17cfbee597f8e4b0c24336a199261f1f94ea7309",
+      "git_blob_sha": "958bb4a6262108d0cf36aa0ba8d91712c1db446c",
+      "mode": "100644",
+      "size": 3327,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/metrics.py",
+      "sha256": "791b80a6a876b00f66d112225f80938194107d4c1d8743894eaa606fa7dfe09e",
+      "git_blob_sha": "2d1b8845d39e62e50dd26f0b0f566cc5b5f23b0a",
+      "mode": "100644",
+      "size": 16517,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/model_ops.py",
+      "sha256": "4dd0fe57c9d18299b8829e86c7aa459808c67167cabb01ca9d11b7115b316159",
+      "git_blob_sha": "70d6fc30fcece0e016d49897565383ba34bd9a48",
+      "mode": "100644",
+      "size": 6094,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/prepare_runtime.py",
+      "sha256": "d9cb2532edc2cd5f08ff7024aef2a078af69d3607bc42724fa3d24d806139cd5",
+      "git_blob_sha": "55e8df7504189157873a6cdedf801dc55d442192",
+      "mode": "100644",
+      "size": 8086,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/provider.py",
+      "sha256": "8e19c46456f35e9ad6b904339ef8a1bf9b7a7ab509d2d7827d8f6c987207e291",
+      "git_blob_sha": "925fe394aa44a01bd06f42d7eda8ba2f7d9cdba3",
+      "mode": "100644",
+      "size": 2148,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/qualification.py",
+      "sha256": "857e3be3ea2222884df9080e93f2da2434de8d1cdf7149cb0756882176e24eef",
+      "git_blob_sha": "2843fbacf38fa1c4e92b5be7b87149858f55f657",
+      "mode": "100644",
+      "size": 1809,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/runner.py",
+      "sha256": "a76eb9623702e0beba3b78433e8f03fd454ee840c40a4ccadebd4431a38c3a01",
+      "git_blob_sha": "a6ea47f79446c574ab5bd533639885bcdae2c2da",
+      "mode": "100644",
+      "size": 20189,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/runtime_helpers.py",
+      "sha256": "76f12654bd401193f3f748194a3d978ef80d51e829186fde1e15c5d7afacce59",
+      "git_blob_sha": "9e2f5f0fda5570f8ce3d099f20923c8dab51cea0",
+      "mode": "100644",
+      "size": 2905,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/runtime_renderer.py",
+      "sha256": "0da608942cad40e5d6e4eebefd14b2f6434e9801631b62d2b8b03fd45511c610",
+      "git_blob_sha": "2b82b0c72936812eef87eeae21f4851ac0449c57",
+      "mode": "100644",
+      "size": 6706,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/sampling.py",
+      "sha256": "dac264212af68adbb38927a5347d77d24a77c98bdecf0b783942d32aa52b6112",
+      "git_blob_sha": "745d22cda7697bc189083d732fd8950d3d98b89c",
+      "mode": "100644",
+      "size": 3156,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/scoring.py",
+      "sha256": "e96a8c4c1f08b9c282f99b35e2fecff11d2e933761386119e83699874d442ea5",
+      "git_blob_sha": "3be5ca4e318e733163e47b6bcbf5305d3c8575f1",
+      "mode": "100644",
+      "size": 7736,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/training.py",
+      "sha256": "de23e381e6e0e299a97b12342a025437c6dc3b71643d2b5688d9ec40a6e5b3b3",
+      "git_blob_sha": "54062d1e4a3abe11b61479fe573d9bea44bd0f94",
+      "mode": "100644",
+      "size": 20091,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/specprune/verify.py",
+      "sha256": "e77f91ff019638786901c1de78ff3eaea542eb799e97f60f76d98b6e81525225",
+      "git_blob_sha": "f3b86b62d77d621201fef47d64fab088e3e268a2",
+      "mode": "100644",
+      "size": 3830,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_artifact_manifest.py",
+      "sha256": "09c15644ea13fadc44ab0d80b6967dd7b2e449f18409476dd7df66ff3ce5b31e",
+      "git_blob_sha": "2175bfc08cbe041f9138ec068bda5b9616221016",
+      "mode": "100644",
+      "size": 2149,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_evaluation.py",
+      "sha256": "e7bead068cda2903f947714ddf5f52f2df504e3f013add2a9e512c8b3ad64d87",
+      "git_blob_sha": "3b3b7595e1c3a5eb6bdbe4d2e77ec08cb43dd03b",
+      "mode": "100644",
+      "size": 4512,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_evaluation_collect.py",
+      "sha256": "1b24334d65146381d52c1edfcaac57ff22695b676cd7e7eb19eb981f70794f17",
+      "git_blob_sha": "cedeaa2a69066513ba52070a1980d2e0a05a7a07",
+      "mode": "100644",
+      "size": 4332,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_evaluation_gold.py",
+      "sha256": "a05cad2ac8fa346840f048f7a7883d13b46ab7cd1b16f6f0cc7a0cbcb0abb89b",
+      "git_blob_sha": "2f895b4e3f1ebfc313d3da72a59753aca219683e",
+      "mode": "100644",
+      "size": 2616,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_isolation.py",
+      "sha256": "c90d5483a24f1bbbd2030a492a9700dea2fa0866c843a89b70d5d278675bf5dd",
+      "git_blob_sha": "9ce6b6cd8d22cb6138f3efd77904b08c20b3ca41",
+      "mode": "100644",
+      "size": 2381,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_runtime.py",
+      "sha256": "2ead7db4e171657f6e77eb40339d048af606ef85192286cff07a6ef3adf080c9",
+      "git_blob_sha": "53f2f9b0db036f2259a298695769146d00a57573",
+      "mode": "100644",
+      "size": 5932,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_scoring_contract.py",
+      "sha256": "a65c79ee48ebf81cd83d13dfc89412a827aad510a4d5f4a0279b9842659351d8",
+      "git_blob_sha": "a6d337d3943827357cc5c8da31a2c1c7db073488",
+      "mode": "100644",
+      "size": 4525,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/tests/test_training_contract.py",
+      "sha256": "df0f71564848fdcd1683dbbf493f1fc432b673a43e330cdae09eb18695eb31fa",
+      "git_blob_sha": "9079b261647bed264b8bcf9420f7ea8fcedb4745",
+      "mode": "100644",
+      "size": 7115,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/SOURCE_MANIFEST.json",
+      "sha256": "230b353a492267f58b04a542e8ff89edfc1c3aef79bc448e6218344eb4b39a9a",
+      "git_blob_sha": "3277064687b0b760b18cc8d7bd2fe00bc248a935",
+      "mode": "100644",
+      "size": 9009,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/fl/FL_prompt.py",
+      "sha256": "245ca39dfb35ebddf3b9702c11ed8c70c11284a61173f650d711a1808b44954e",
+      "git_blob_sha": "26f5f79f6acbab6836eb5df1f62c8f5c154ad0c1",
+      "mode": "100644",
+      "size": 24348,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/fl/FL_tools.py",
+      "sha256": "2725c3799795defdc939d4514ece551d4525d0a9562f03c246c4c5d85422aa81",
+      "git_blob_sha": "8f503ab39be5058d7df86afde053e23ba331fb2f",
+      "mode": "100644",
+      "size": 4458,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/fl/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/util/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/util/api_requests.py",
+      "sha256": "5570564873d722274c7a052747e67d736a3129ef665bf0d50c344fd38754f7c6",
+      "git_blob_sha": "9b4c1583d579519212d686c1b26c35bda4cefd11",
+      "mode": "100644",
+      "size": 7609,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/util/model.py",
+      "sha256": "7f09f5e4f2444ed87b880de563606ff61f8457323e69b911d0f3d9cab7736172",
+      "git_blob_sha": "beb9e090a042ed7157b0e6932e68ca6b871ea104",
+      "mode": "100644",
+      "size": 17937,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/util/parse_global_var.py",
+      "sha256": "019c168505ff47d54f395d46b287f57048f521d603dde2a8beb69c1895abe115",
+      "git_blob_sha": "830b8d8b4bd7ff780e4c7b90326262f6aa249911",
+      "mode": "100644",
+      "size": 2493,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/util/postprocess_data.py",
+      "sha256": "7a0c26a41f6e443661f5498b95d83dcdd3ca0488ed972de9b2cd3330f8aee0b7",
+      "git_blob_sha": "e994af430097e703d15fe6cda9fba92ffe8306fe",
+      "mode": "100644",
+      "size": 35651,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/util/preprocess_data.py",
+      "sha256": "06094e03c59666d7248dffdd6373aaef842436220e8dca7dffa28b93307d5a25",
+      "git_blob_sha": "fc082bcd906c16c752c90082ff68e5ca99e84b40",
+      "mode": "100644",
+      "size": 32775,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/afl/util/utils.py",
+      "sha256": "de3313b609ff87dfdaf02c8a9d1cf99f32a83f7e80c818b37e96128556d88e77",
+      "git_blob_sha": "ef2b0d85ee63af207fbe1bfc739fba97a6d0de2e",
+      "mode": "100644",
+      "size": 2470,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4/config.py",
+      "sha256": "69978b42e002f300ec8eb6cdcd07bebd908742c83b563f678e83b7a31a6fe4e1",
+      "git_blob_sha": "36f8f92240c578c1da661d31a1bce3b97f8c6e84",
+      "mode": "100644",
+      "size": 2473,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4/judge.py",
+      "sha256": "80b817460e4ab6f3f7dfc939d626a9ea637b53c2e3033a1e1166c9fa3265e667",
+      "git_blob_sha": "be25049e346599ced8112d65c57d98e484fcde08",
+      "mode": "100644",
+      "size": 5412,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4/worker.py",
+      "sha256": "97b24114124d8585bbed99c4781649581aba199a3d887c153705d6d4c79c35a1",
+      "git_blob_sha": "2cd4034845f95cc1f09c6ed902677e2f4fbc4ca9",
+      "mode": "100644",
+      "size": 7824,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4_rebench100/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4_rebench100/config.py",
+      "sha256": "e3fda9b4e3f8f0b34ae5abd6c28def05420b8209581e236a5f723b2ad1de26e7",
+      "git_blob_sha": "282d38014a4365dfef6acd7543019923191690b2",
+      "mode": "100644",
+      "size": 2899,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4_rebench100/identity.py",
+      "sha256": "384aef0a8188ebf306c9f8f14e903692bb0103d2b4bc6bc4fa801b96a462bc33",
+      "git_blob_sha": "e84e5fccc31caa7e92c8c1070080cdc4f6ba1644",
+      "mode": "100644",
+      "size": 3851,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4_rebench100/render_cache.py",
+      "sha256": "37b7bc6226dfd6f5bf45c237d3f5af5655e6bdacf3f316ec762fc4e14896cfe4",
+      "git_blob_sha": "6a0f821d8092f1a214f81f6e559ccb5be35893f5",
+      "mode": "100644",
+      "size": 3967,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4_rebench100/rpc.py",
+      "sha256": "ac472fb0c321264b4d9d787eebd73b6de76aaba9d00b99a21dac7f51657d4489",
+      "git_blob_sha": "027bd9e33dffb1567c3fec2e46c6763546efc391",
+      "mode": "100644",
+      "size": 1976,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_qwen3_rr4_rebench100/worker.py",
+      "sha256": "747af66a1469e7e04084c4876d3a0f080cc1c6e3f5e4db9239fe8d850b9be676",
+      "git_blob_sha": "dd14c9a62b747cc46fa73756a2451144fa849194",
+      "mode": "100644",
+      "size": 8070,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_rebench_qwen/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_rebench_qwen/common.py",
+      "sha256": "127beb93d5682315b4931870435d7dc4784a56cfdc948f2a395540a5f32c8348",
+      "git_blob_sha": "88443ce0bb2c2a9a1ce632712b026e1a0739ac38",
+      "mode": "100644",
+      "size": 2606,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_rebench_qwen/local_provider.py",
+      "sha256": "b74c735acb1ea39c69868bd6e599f458996fdad58224fd8d95d4c791495a035a",
+      "git_blob_sha": "9e6a4682278f4ffa51b67b2dd42382427edb277b",
+      "mode": "100644",
+      "size": 8913,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_rebench_qwen/prepare.py",
+      "sha256": "c260c299234e0acddbea4d74b7757b3390f51b3964d200fd1b7aea643556fd7f",
+      "git_blob_sha": "7bff7d3c62fe7016dc4651c08e2627aae3d4df98",
+      "mode": "100644",
+      "size": 22279,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_rebench_qwen/runner.py",
+      "sha256": "f15db7be8bd2d01b77f5071f592f80bb6e34268f40a548ce313db0ffbae9a880",
+      "git_blob_sha": "7280f6c9e0f9e09731a133b13d13fc0c5adda11e",
+      "mode": "100644",
+      "size": 17436,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_rebench_qwen_repair/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_rebench_qwen_repair/compat.py",
+      "sha256": "2a94aefa4792438829ee1b232aae378932523a90696ffcd3c49cf841e472b468",
+      "git_blob_sha": "a6d313c422132070caa3ac0284e196a1ddfe0233",
+      "mode": "100644",
+      "size": 3377,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v3b/AFL_插桩版.py",
+      "sha256": "f767220c0ea53850ac299d250f611b0fd2aac1b08f51bfda7803c0f44be36e43",
+      "git_blob_sha": "244b79c6b37bd407c0bdf0078a3059eccdbc270f",
+      "mode": "100644",
+      "size": 48638,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v3b/FL_tools_注入版.py",
+      "sha256": "289a4b2c0a94a5059b7380bcd676bd8e8fdc7a10304096246e9f0c25f6251c63",
+      "git_blob_sha": "76b7d940d3730e2fe83cf6fb9af457034df676d0",
+      "mode": "100644",
+      "size": 9888,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v3b/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v3b/fixed_search.py",
+      "sha256": "6726903808880f2aa737b041da32dc0fae3d74c880864bb5234f64dbdd58103c",
+      "git_blob_sha": "d117803a14ac5809b8fbca06547e26f84064a563",
+      "mode": "100644",
+      "size": 14942,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v3b/qwen_model.py",
+      "sha256": "fed64e1667ae37630aeb37e8a685d84f7347880105e241933ead9d4e27c92427",
+      "git_blob_sha": "7d703c9a6fc83a0999ebce0e7e209ae46a8e7c41",
+      "mode": "100644",
+      "size": 1641,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v3b/tool_dispatch.py",
+      "sha256": "8c185bfb2bbebaf786aeb857a9655df8030ef23c447890153093a6aeef0f0fa6",
+      "git_blob_sha": "151b0d8e0f2c405c5a981d0f9c263628cddeb232",
+      "mode": "100644",
+      "size": 3969,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v5/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/code_v5/static_calls.py",
+      "sha256": "06abfb41ac155fcb5a04331c6ce9ff34e43758046a87b32de811206ac8a3f4c7",
+      "git_blob_sha": "68210c736392b8186a46718b14d90b61df212f31",
+      "mode": "100644",
+      "size": 39671,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/get_repo_structure/__init__.py",
+      "sha256": "e22f64b669d81780d60ecea31880d2986094c822d2685911ae7e6b8262c5bcf2",
+      "git_blob_sha": "c68c8d1d54a9b461c63168c7ff5e5f0c963dd900",
+      "mode": "100644",
+      "size": 67,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/get_repo_structure/get_patch_info.py",
+      "sha256": "a9d57e74ff2f63b1d62ccd62f03d440c4642bec3498e9d71157b3faefc1b79bf",
+      "git_blob_sha": "ac41a1238925571eba242092d455166fee30d84d",
+      "mode": "100644",
+      "size": 2516,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/papers/SFPruner/vendor/get_repo_structure/get_repo_structure.py",
+      "sha256": "48dbabe5009edf16cca50acd8c79c54b6bf09b8ef7f2e6f89eb300cfdabf3bb4",
+      "git_blob_sha": "fc5958584ab9c006ee76f0c4c450088eeb286f21",
+      "mode": "100644",
+      "size": 9779,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/README.md",
+      "sha256": "71c9492b15a04b27f3cad3106583cc43c1a69097d622c1fb82f29adac6dea9ab",
+      "git_blob_sha": "c6849b059e6e496ddc7f30ac9d9f9ec90ca5e9c4",
+      "mode": "100644",
+      "size": 6405,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/__init__.py",
+      "sha256": "94b1dc6146753163b228d26bde4b14481e644f9b8b2b546c8c01b09d4d4a2248",
+      "git_blob_sha": "7c8b69be48dc125aaf907fcb024afef46897bb5d",
+      "mode": "100644",
+      "size": 72,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/archive_links.py",
+      "sha256": "10fa2d81af711780decaec23def8ec5e3ce683f18cc1ffd0429ec01f7eed2e6e",
+      "git_blob_sha": "68acf1166753cb851f7b8a1c7893ad6a87e45b27",
+      "mode": "100644",
+      "size": 8972,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/parallel_controller.py",
+      "sha256": "899ad91d1a3e32705e5934c6a7cea35a2b650d462d6deb3ba9b88b86c2034df6",
+      "git_blob_sha": "90f5f594800d147371c2efb695e29f4b704c8d23",
+      "mode": "100644",
+      "size": 5215,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/pilot.py",
+      "sha256": "6affadbe1008ed22f5262767c9464eb04e73b1648ac8aff59932218d4b9ee684",
+      "git_blob_sha": "86a222bc339d308332fcb4ddf50f354974c2e7b4",
+      "mode": "100644",
+      "size": 7325,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/prepare.py",
+      "sha256": "7fc29ddc26c479498fb06a0a690e771967db681f5cee3be0935789c6e7b9604a",
+      "git_blob_sha": "defd593ac18e7a5c8c9ed32558f137b1d177141f",
+      "mode": "100644",
+      "size": 16080,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/queue.py",
+      "sha256": "85053401640262cdcfafc36b1486975f17f62a7b193a5cf728f197d5548a22af",
+      "git_blob_sha": "d8823e0f34e91bd03a05a3ee956220c38e8e8065",
+      "mode": "100644",
+      "size": 3847,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/report.py",
+      "sha256": "e107a0ed15b89baf224715bdeedf72ad945f14b3e1ad2546ff480922aaaade2a",
+      "git_blob_sha": "04720baf6491bd6f312f1f642ed70e62c10711bc",
+      "mode": "100644",
+      "size": 32828,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/runtime.py",
+      "sha256": "9010e9f243470ba6964eb9acdf52abc4ff529de8cac3417e596353e567ff3152",
+      "git_blob_sha": "ecaf0722cc4a624783db2c270dbc3b59fe8189e1",
+      "mode": "100644",
+      "size": 24589,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/supervise.py",
+      "sha256": "468c5db79a333a34685734a2562de9bcc5b037db8b0ee462308e42ba21330045",
+      "git_blob_sha": "d453443bbdf8affac7cc1cfa82cc7940f9807690",
+      "mode": "100644",
+      "size": 9533,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_archive_links.py",
+      "sha256": "85b82184fe4fb1fe2a03ed933006ee83883dc11c6ac8df15fd0f75f1105f7a05",
+      "git_blob_sha": "4da420f0788b74b635887de316174b2f88c8e425",
+      "mode": "100644",
+      "size": 7808,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_parallel_controller.py",
+      "sha256": "42cb9c0b481534e3b38511423b43307cc3c18bc9782b7d1c942d7befb4a32321",
+      "git_blob_sha": "f29b719f384551a86046ada7465beb4c4fadf31e",
+      "mode": "100644",
+      "size": 6796,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_pilot.py",
+      "sha256": "95756dca0c3483ec0e6695049ebec3e71bcdde30b3d048bef16a70b96d5f4b4c",
+      "git_blob_sha": "1a1013e560430d0e353b05186475007a12ce6027",
+      "mode": "100644",
+      "size": 1831,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_prepare.py",
+      "sha256": "b42756b339f0a5d0cc37b91a7540eb36dfee5063093a6a6616e4275deecfccc6",
+      "git_blob_sha": "741ea71894ae68a3ad831bb0004f473873e2d5ff",
+      "mode": "100644",
+      "size": 6162,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_report.py",
+      "sha256": "ac558c6e05da2f2a1175e10407029b4da197721957caedc5e961408685af973a",
+      "git_blob_sha": "717a916e9dab6d512aea6868e154d58a2569162a",
+      "mode": "100644",
+      "size": 17752,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_runtime.py",
+      "sha256": "cb07e2e40b980ffd88f4288332cc4d6bf150fa726e6dbcce89c3f2bb2f8cf8e1",
+      "git_blob_sha": "d0cdcb056fcaf415bbeafaf0911e7d949c2b82e2",
+      "mode": "100644",
+      "size": 8428,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_supervise.py",
+      "sha256": "1ac1dbf9268cb84e26b9b9dc24e479b934e546da469843d1dadadd9d34ed6a44",
+      "git_blob_sha": "930ab730070cd12c514289f8e6cf5d25271e73e2",
+      "mode": "100644",
+      "size": 2901,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/docs/locbench-qwen3-sfpruner100/实验报告_LocBench100_CoSIL与SFPruner.md",
+      "sha256": "c697000697255f24a2857ebef096919853a3450285898c15ed36bee528fb0403",
+      "git_blob_sha": "94192167785215889fb5d4bd3d7e42e5e24581fa",
+      "mode": "100644",
+      "size": 12038,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/README.md",
+      "sha256": "c12aeb646847592c057ddc75f7a6f8e83e42903e9f874fff22aabfea2ac598f9",
+      "git_blob_sha": "3c3b74483ac8114f1fd049beb3b77ba3e7744add",
+      "mode": "100644",
+      "size": 4411,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/__init__.py",
+      "sha256": "47ae9116f114a5b1ca674c54aeabcb7d6d3d9bf0e93506291babf4bcf1cc627d",
+      "git_blob_sha": "ee8d059b8e15fdafdbdcc2651900edc425fb11e6",
+      "mode": "100644",
+      "size": 82,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/prepare.py",
+      "sha256": "aca70b271169875de97e2b96ef42d213769f9902d9f80c4ebfc1a779d963214e",
+      "git_blob_sha": "e2c3ce4ec4eea47c28e2496ff3a887a16706f7f7",
+      "mode": "100644",
+      "size": 22644,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/recovery.py",
+      "sha256": "c6d230ccf94e424332ebece329b6c31f308cdaa93dc0fa2f9982c1f0da1d45b6",
+      "git_blob_sha": "aaec03f15e090e8085b9f744832a8e0a0ee78296",
+      "mode": "100644",
+      "size": 7449,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/report.py",
+      "sha256": "547de6f1f9d4934141a190371e95c98cfe7e3e3f3b21fc70fa47e0d569f03d47",
+      "git_blob_sha": "23c3183d67511a5fe111f920419d202837539778",
+      "mode": "100644",
+      "size": 26058,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/supervise.py",
+      "sha256": "31579706f6346754b4e6e93f248f7763c1362c02d1a812db25ee27ce7231b952",
+      "git_blob_sha": "65017afc8cf960762af166df2366b6f9b620f7b0",
+      "mode": "100644",
+      "size": 22602,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_prepare.py",
+      "sha256": "6fe8f507ab381ebad1714bfc8f8063baee056cbe637572b6ddc6b17acc474d4f",
+      "git_blob_sha": "59b75d7bfce85acbef3d2542f9d759eb9506f674",
+      "mode": "100644",
+      "size": 17384,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_recovery.py",
+      "sha256": "e4320af21081e7093896aa7139677c880137505bc59d16b81080edc827f6f82e",
+      "git_blob_sha": "35a1aab835c800284cae141fefe1a571fa83fc19",
+      "mode": "100644",
+      "size": 6366,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_report.py",
+      "sha256": "3e4ea56d905fa887d21082aa766c3484f38e9321ce8be3b13a3b145e10c51cf2",
+      "git_blob_sha": "7bffbc02f88eca00390dc651506acca0d30c362f",
+      "mode": "100644",
+      "size": 14530,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_supervise.py",
+      "sha256": "459340993eac9f48a5fe1adf1f1c77beec100cb31613cf5c363cab3396787fb6",
+      "git_blob_sha": "03f11a07c20c98662e837190a636680153caab72",
+      "mode": "100644",
+      "size": 8088,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/README.md",
+      "sha256": "a47c4995e0ca56a15ab02c77dc699bb07f58a2aa19af0dccfd5ac880d6234bd2",
+      "git_blob_sha": "b74812662e2829634fd4751a2064759ec1b9852e",
+      "mode": "100644",
+      "size": 3948,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/__init__.py",
+      "sha256": "cd4a21eb991b956ad37187d4b11c0f53161f2f495f30f609715a1a6a4a22d872",
+      "git_blob_sha": "11d2c862176ea5e3d1db8e20d74947ddc2d82494",
+      "mode": "100644",
+      "size": 75,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/handoff_signal.py",
+      "sha256": "57ce3e8d2e79047ea8865aaf8a3ced07e9f00bb9168736d4cb60fa05c9312e9a",
+      "git_blob_sha": "17840688e11b83ce6242404a9d2a6f409e816ccf",
+      "mode": "100644",
+      "size": 3135,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/supervise.py",
+      "sha256": "1d5b8aaa2bcf8b17e23538212c82a82a851a46df0ca77625b38aed2bb7db98a5",
+      "git_blob_sha": "e885c5f4b5b5579792307837e2d324d36378273d",
+      "mode": "100644",
+      "size": 16219,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/test_supervise.py",
+      "sha256": "cdfc989866b0e110ebd5a5ca15a784e316b6bd71171f05d548107081376deaf9",
+      "git_blob_sha": "d20f8380188f2c3dfc3bea23a9eb0685a561ec7c",
+      "mode": "100644",
+      "size": 8848,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/test_worker.py",
+      "sha256": "db2d8a4c21dd652ce7da90488d7a450f0ad59b8d0764d7c532f7455b062c54f4",
+      "git_blob_sha": "0c5313d5e98831a4ceb2bb551072ead0e1288385",
+      "mode": "100644",
+      "size": 10470,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/code_locbench_async_20261116/worker.py",
+      "sha256": "2267b8bc4a658237b73d3de3fc3201de274ea39420f07063812ff991e5a87942",
+      "git_blob_sha": "65684be4aa03dbb475fe0ef0cb943b6d55057346",
+      "mode": "100644",
+      "size": 11542,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/docs/locbench-qwen3-sfpruner560/实验协议与复现.md",
+      "sha256": "e56b87ffe3655b036f8a06d6ea2f60529c7371e9158a6c7f628319eddd692627",
+      "git_blob_sha": "39292f3493d40dfed22bb299d32c7e235cf6d564",
+      "mode": "100644",
+      "size": 8321,
+      "matches_parent": true
+    },
+    {
+      "path": "CoSIL/docs/locbench-qwen3-sfpruner560/实验报告_LocBench560_CoSIL与SFPruner.md",
+      "sha256": "3497db25a8674666d7d4cedc5a1eb134857eb263584f4ba74ef07c7ea36ed891",
+      "git_blob_sha": "b54a7a1afd320f39b9f6a1975e4956f5d85de39b",
+      "mode": "100644",
+      "size": 10213,
+      "matches_parent": true
+    }
+  ],
+  "missing_or_changed": [],
+  "official_scorer_recoverable_alias": {
+    "remote_path": "LocAgent/evaluation/eval_metric.py",
+    "git_blob_sha": "d1d8f043f2aa445385ee87a2211a096f0b781b15",
+    "sha256": "efbdd208f438f450cc7798fb09e88a8d1e6a1b092f295e19e38b67967f352187"
+  },
+  "new_ablation_implementation_included": false,
+  "code_modified": false,
+  "publication_model_calls": 0,
+  "publication_GPU_jobs": 0,
+  "publication_scope": "safe hash inventory and explanatory note only; existing source recovered by unchanged parent tree",
+  "all_existing_source_bytes_preserved": true,
+  "datasets_gold_raw_results_CSV_rosters_predictions_logs_modelweights_credentials_sealed_test_manuscripts_uploaded": false,
+  "original_upstream_git_and_old_refs_preserved": true,
+  "model_calls": 0,
+  "GPU_jobs": 0,
+  "new_experiment_implemented_or_run": false
+}
