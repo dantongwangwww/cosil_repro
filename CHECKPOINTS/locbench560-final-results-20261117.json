@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "status": "VERIFIED_FINAL_AGGREGATE_DOCS_READY",
+  "branch": "snapshots/locbench560-final-results-20261117",
+  "parent": "e9696d8ea790d9d993fb5f293acf68e40c13d461",
+  "documents": [
+    {
+      "path": "CoSIL/docs/locbench-qwen3-sfpruner560/实验协议与复现.md",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/docs/locbench-qwen3-sfpruner560/实验协议与复现.md",
+      "size": 8321,
+      "sha256": "e56b87ffe3655b036f8a06d6ea2f60529c7371e9158a6c7f628319eddd692627",
+      "git_blob_sha": "39292f3493d40dfed22bb299d32c7e235cf6d564",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/locbench-qwen3-sfpruner560/实验报告_LocBench560_CoSIL与SFPruner.md",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/docs/locbench-qwen3-sfpruner560/实验报告_LocBench560_CoSIL与SFPruner.md",
+      "size": 10213,
+      "sha256": "3497db25a8674666d7d4cedc5a1eb134857eb263584f4ba74ef07c7ea36ed891",
+      "git_blob_sha": "b54a7a1afd320f39b9f6a1975e4956f5d85de39b",
+      "mode": "100644"
+    }
+  ],
+  "source_sha256": {
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/docs/locbench-qwen3-sfpruner560/实验协议与复现.md": "e56b87ffe3655b036f8a06d6ea2f60529c7371e9158a6c7f628319eddd692627",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/docs/locbench-qwen3-sfpruner560/实验报告_LocBench560_CoSIL与SFPruner.md": "3497db25a8674666d7d4cedc5a1eb134857eb263584f4ba74ef07c7ea36ed891"
+  },
+  "independent_document_review": {
+    "status": "INDEPENDENT_FINAL_DOCUMENT_EVIDENCE_REVIEW_PASS",
+    "sha256": "147ef1bfe76009554f730b86129dbb219a9bc02412c706289388281230a34a06",
+    "checks": 17
+  },
+  "all84_execution_source_bindings_unchanged": true,
+  "scope": "two aggregate Chinese Markdown documents plus safe checkpoint notes only",
+  "whole560_denominators_retained": true,
+  "operational_complete_pairs": 557,
+  "preparation_blocked": 2,
+  "context_failed_and_dependency_blocked_zero_call_pair": 1,
+  "sensitive_scan": {
+    "credential_patterns": 0,
+    "literal_issue_IDs": 0,
+    "raw_patch_traceback_blocks": 0,
+    "manual_raw_predictions_Gold_log_payload_found": false
+  },
+  "publication_model_calls": 0,
+  "tests_reexecuted": 0,
+  "active_processes_touched": false,
+  "datasets_gold_raw_results_CSV_rosters_predictions_logs_weights_credentials_sealed_test_manuscripts_uploaded": false,
+  "old_branches_and_upstream_git_preserved": true
+}
