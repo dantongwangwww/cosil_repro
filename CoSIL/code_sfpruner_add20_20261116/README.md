@@ -39,10 +39,10 @@
   --out results/sfpruner_add20_20261116/paired_run
 
 .venv-v5/bin/python -B -m code_sfpruner_add20_20261116.report --freeze-only \
-  --freeze-file results/sfpruner_add20_20261116/controller/report_freeze.json \
+  --freeze-file results/sfpruner_add20_20261116/controller/report_freeze_cases_v2.json \
   --manifest results/sfpruner_add20_20261116/runtime/manifest.json \
   --run-root results/sfpruner_add20_20261116/paired_run \
-  --qualified-root results/sfpruner_add20_20261116/qualified \
+  --qualified-root results/sfpruner_add20_20261116/qualified/cases \
   --protocol results/sfpruner_add20_20261116/protocol.json \
   --history-evaluation ../GraphLocator/experiments/qwen3_rebench280_v3_20261116/reports/final_delivery/evaluation.json \
   --history-sha256 368e98c9ad97a9585aad3b15afebc81ecc5f9220fd7e387834d8c39f31bd9e78
@@ -58,11 +58,13 @@ FLASHINFER_NVCC=/home/wdt/miniconda3/envs/cosil/lib/python3.11/site-packages/nvi
 
 # 队列完成、服务关闭且40臂/20对终态完整后，写入全新报告目录：
 .venv-v5/bin/python -B -m code_sfpruner_add20_20261116.report \
-  --freeze-file results/sfpruner_add20_20261116/controller/report_freeze.json \
+  --freeze-file results/sfpruner_add20_20261116/controller/report_freeze_cases_v2.json \
   --out results/sfpruner_add20_20261116/reports/final
 ```
 
 不要运行旧 `pipeline.py` 或 `finalize.py` 的主入口：它们冻结的是旧208/308/300题规模及每仓一题条件。本扩展调用原构建器、控制器、队列与评分函数，采用单独名单和输出目录。
+
+路径说明：`runtime gate --qualified` 接收资格输出根 `qualified`；报告的 `--qualified-root` 则沿用原评分函数接口，接收直接包含各题目录的 `qualified/cases`。首次报告配置使用了上一级路径，原配置保留；`report_freeze_cases_v2.json` 仅纠正此离线报告路径，源码、名单、模型请求和评分规则均不变。
 
 ## 统计范围
 
