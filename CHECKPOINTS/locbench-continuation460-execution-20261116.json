@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "status": "FINAL_EXECUTION_SOURCE_FREEZE",
+  "branch": "snapshots/locbench-continuation460-execution-20261116",
+  "parent": "ae71a817890ec8387d73e28dfb7422097432b1d8",
+  "sources": [
+    {
+      "path": "CoSIL/code_locbench_full_20261116/README.md",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/README.md",
+      "size": 4411,
+      "sha256": "c12aeb646847592c057ddc75f7a6f8e83e42903e9f874fff22aabfea2ac598f9",
+      "git_blob_sha": "3c3b74483ac8114f1fd049beb3b77ba3e7744add",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/__init__.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/__init__.py",
+      "size": 82,
+      "sha256": "47ae9116f114a5b1ca674c54aeabcb7d6d3d9bf0e93506291babf4bcf1cc627d",
+      "git_blob_sha": "ee8d059b8e15fdafdbdcc2651900edc425fb11e6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/prepare.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/prepare.py",
+      "size": 22644,
+      "sha256": "aca70b271169875de97e2b96ef42d213769f9902d9f80c4ebfc1a779d963214e",
+      "git_blob_sha": "e2c3ce4ec4eea47c28e2496ff3a887a16706f7f7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/recovery.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/recovery.py",
+      "size": 7449,
+      "sha256": "c6d230ccf94e424332ebece329b6c31f308cdaa93dc0fa2f9982c1f0da1d45b6",
+      "git_blob_sha": "aaec03f15e090e8085b9f744832a8e0a0ee78296",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/report.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/report.py",
+      "size": 26058,
+      "sha256": "547de6f1f9d4934141a190371e95c98cfe7e3e3f3b21fc70fa47e0d569f03d47",
+      "git_blob_sha": "23c3183d67511a5fe111f920419d202837539778",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/supervise.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/supervise.py",
+      "size": 22602,
+      "sha256": "31579706f6346754b4e6e93f248f7763c1362c02d1a812db25ee27ce7231b952",
+      "git_blob_sha": "65017afc8cf960762af166df2366b6f9b620f7b0",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_prepare.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_prepare.py",
+      "size": 17384,
+      "sha256": "6fe8f507ab381ebad1714bfc8f8063baee056cbe637572b6ddc6b17acc474d4f",
+      "git_blob_sha": "59b75d7bfce85acbef3d2542f9d759eb9506f674",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_recovery.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_recovery.py",
+      "size": 6366,
+      "sha256": "e4320af21081e7093896aa7139677c880137505bc59d16b81080edc827f6f82e",
+      "git_blob_sha": "35a1aab835c800284cae141fefe1a571fa83fc19",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_report.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_report.py",
+      "size": 14530,
+      "sha256": "3e4ea56d905fa887d21082aa766c3484f38e9321ce8be3b13a3b145e10c51cf2",
+      "git_blob_sha": "7bffbc02f88eca00390dc651506acca0d30c362f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_full_20261116/test_supervise.py",
+      "absolute_path": "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_supervise.py",
+      "size": 8088,
+      "sha256": "459340993eac9f48a5fe1adf1f1c77beec100cb31613cf5c363cab3396787fb6",
+      "git_blob_sha": "03f11a07c20c98662e837190a636680153caab72",
+      "mode": "100644"
+    }
+  ],
+  "source_sha256": {
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/README.md": "c12aeb646847592c057ddc75f7a6f8e83e42903e9f874fff22aabfea2ac598f9",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/__init__.py": "47ae9116f114a5b1ca674c54aeabcb7d6d3d9bf0e93506291babf4bcf1cc627d",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/prepare.py": "aca70b271169875de97e2b96ef42d213769f9902d9f80c4ebfc1a779d963214e",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/recovery.py": "c6d230ccf94e424332ebece329b6c31f308cdaa93dc0fa2f9982c1f0da1d45b6",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/report.py": "547de6f1f9d4934141a190371e95c98cfe7e3e3f3b21fc70fa47e0d569f03d47",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/supervise.py": "31579706f6346754b4e6e93f248f7763c1362c02d1a812db25ee27ce7231b952",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_prepare.py": "6fe8f507ab381ebad1714bfc8f8063baee056cbe637572b6ddc6b17acc474d4f",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_recovery.py": "e4320af21081e7093896aa7139677c880137505bc59d16b81080edc827f6f82e",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_report.py": "3e4ea56d905fa887d21082aa766c3484f38e9321ce8be3b13a3b145e10c51cf2",
+    "/mnt/skygruop0/home/wdt/cosil_repro/CoSIL/code_locbench_full_20261116/test_supervise.py": "459340993eac9f48a5fe1adf1f1c77beec100cb31613cf5c363cab3396787fb6"
+  },
+  "upload_scope": "new package8 code/synthetic tests/README and safe checkpoint notes only",
+  "publication_model_calls": 0,
+  "publication_GPU_jobs": 0,
+  "unit_test_evidence": {
+    "tests": 56,
+    "status": "PASS",
+    "log_sha256": "7822a548e4b8f14c3008a3a0ad4ad8813323c73a2c307baa85c4866db041169b",
+    "receipt_sha256": "24ffa40eb53c8bdfaf1300f7781fc99f3e3640a309c06b419e007ae738a37fe8"
+  },
+  "independent_code_review_evidence": [
+    {
+      "name": "continuation460_code_review_readonly.json",
+      "status": "READ_ONLY_CODE_REVIEW_PASS_BEFORE_TRUE_PLAN_AND_GPU_GATE",
+      "sha256": "16440421c87e9f065156062de9a2371ca82b687ce745bdf9c6abebca1c84a7dd"
+    },
+    {
+      "name": "independent_continuation_code_gate.json",
+      "status": "PASS_CODE_AND_MEMBERSHIP_NOT_RUNTIME_GPU_QUALIFICATION",
+      "sha256": "de730b183ed49e79757875d5923ba3b30a83a2a3a8bd4ab1329422f82a0ffd7f"
+    }
+  ],
+  "all_old164_source_config_doc_files_unchanged": true,
+  "CPU_preparation_and_GPU_qualification": "separate_per_batch_gates_required",
+  "new460_inference_claimed_completed": false,
+  "reused_pilot100_not_rerun": true,
+  "uploaded_results_plan_roster_gold_csv_logs_models_keys_manuscripts": false
+}
