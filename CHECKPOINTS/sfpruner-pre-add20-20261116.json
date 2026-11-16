@@ -1,0 +1,254 @@
+{
+  "status": "PRECHANGE_CODE_ONLY",
+  "parent": "f26b2f14f7c6771d7b9902890b092ea4a9acea6a",
+  "sf300_execution_commit": "99a2ad3389a83877c0c0154fece8aff82fb37f7d",
+  "branch": "snapshots/sfpruner-pre-add20-20261116",
+  "purpose": "Make current root CPU preparation helpers and existing missing synthetic tests recoverable before new20 sampler/orchestration edits. No experiment code behavior changed by publisher.",
+  "existing_code_sfpruner300_files_verified": 35,
+  "existing_specprune_files_verified": 21,
+  "existing_vendor_files_verified": 39,
+  "existing_package_tests_verified": 8,
+  "new_code_files": 31,
+  "files": [
+    {
+      "path": "CoSIL/code_qwen3_rr4_rebench100/tests/test_continuation.py",
+      "bytes": 1790,
+      "sha256": "a0556459eb0de3219c4e850f5165740fba6f55b1217a9c0cd022eab490eb5bfb",
+      "git_blob_sha1": "5cea1d584f35279b14fda7452fc3d31ab2bc96b7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_qwen3_rr4_rebench100/tests/test_evaluation.py",
+      "bytes": 4395,
+      "sha256": "0b0cf7c685ea53234234ccf6a7010fd8ba5cb6780fdeb717ffecba43508e8e5e",
+      "git_blob_sha1": "5dbfec634be837bacc5f437091e3c03f4a577cd7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_qwen3_rr4_rebench100/tests/test_inherited_contracts.py",
+      "bytes": 14604,
+      "sha256": "c6e2f42127869c443f8f655e796e1b771e03439804dd8c15b84b4aeab0497edf",
+      "git_blob_sha1": "5ceec14a975c6b2dc85c2c638f138f42c27556c1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/__init__.py",
+      "bytes": 61,
+      "sha256": "0b55316c53353f3a270ddb207cb80f69e7b0e670d9fcfabcccabfa96f837c8c4",
+      "git_blob_sha1": "139ef07bb0fcc0fa74c115852cf0558330b6dbb8",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/audit.py",
+      "bytes": 3396,
+      "sha256": "8d8f49121ef137cccffb85cbbe034b0d8ca2cfec18f49f76935f0c0c676dc2c7",
+      "git_blob_sha1": "4227406bc5a386357e3296eee7c660c46ffd638b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/bootstrap.py",
+      "bytes": 5702,
+      "sha256": "d5ba83660eb1d4b43f9c72976a00ae31b4edd8146f5e322fa6faa830e6348208",
+      "git_blob_sha1": "42fe1c41dfd3499f14d813358dd4d51d6d86dffd",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/common.py",
+      "bytes": 2606,
+      "sha256": "127beb93d5682315b4931870435d7dc4784a56cfdc948f2a395540a5f32c8348",
+      "git_blob_sha1": "88443ce0bb2c2a9a1ce632712b026e1a0739ac38",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/deploy.py",
+      "bytes": 18666,
+      "sha256": "8112a1b6cb6345fcd630695b76322aaae33be7ab6a57e05857d1af0e10e4a759",
+      "git_blob_sha1": "d2fedfa8160813798501004b0f7268bd6c517166",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/local_provider.py",
+      "bytes": 8913,
+      "sha256": "b74c735acb1ea39c69868bd6e599f458996fdad58224fd8d95d4c791495a035a",
+      "git_blob_sha1": "9e6a4682278f4ffa51b67b2dd42382427edb277b",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/pipeline.py",
+      "bytes": 4155,
+      "sha256": "7fdf2fbafa510e6b144567db9a8792282475625b0b7a0b399b21e8f6df0ea03d",
+      "git_blob_sha1": "a0a1d431b1dd32e1f53d78bce41167e9b44156c4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/prepare.py",
+      "bytes": 22279,
+      "sha256": "c260c299234e0acddbea4d74b7757b3390f51b3964d200fd1b7aea643556fd7f",
+      "git_blob_sha1": "7bff7d3c62fe7016dc4651c08e2627aae3d4df98",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/reporting.py",
+      "bytes": 43595,
+      "sha256": "1bb3a9221ce44cf0f35fa617eb095834cc53791dc369e12d83e8508c0be37889",
+      "git_blob_sha1": "be3f4742888d502be126a01f80c235b91ead2eec",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/run.py",
+      "bytes": 9912,
+      "sha256": "f55b4e368abbf98e3dc19ef17aef73bf13dcf035e455b00edd84bf815211bb8b",
+      "git_blob_sha1": "6320bc035addff470c55c21d57e83dc55b9381ec",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/runner.py",
+      "bytes": 17436,
+      "sha256": "f15db7be8bd2d01b77f5071f592f80bb6e34268f40a548ce313db0ffbae9a880",
+      "git_blob_sha1": "7280f6c9e0f9e09731a133b13d13fc0c5adda11e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/__init__.py",
+      "bytes": 69,
+      "sha256": "d61fc1de3fad2a5d6e33071f0cf289a7ebe02c5a3e594bdd5fd2f9d83bce60e2",
+      "git_blob_sha1": "361ae5cb5092b13785f07fecf6aae33ed39b1006",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_audit.py",
+      "bytes": 1256,
+      "sha256": "d3d9ecccd9393f63dca9a9f00754d026f209795abbe8379ea798baf69c5649ca",
+      "git_blob_sha1": "9ede150bdfc78c83df94e5e4c42a14e0b0e2ccb7",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_control.py",
+      "bytes": 10029,
+      "sha256": "c3e473e6c66a332c3a565a512544f41afec962208de3d70f84235361e55fb23e",
+      "git_blob_sha1": "80a24445864cd57d211041586f499d663f22e7b6",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_deploy.py",
+      "bytes": 7168,
+      "sha256": "d180d505ba3741b78c7f54cb0073358c3568e9e8e49fd9ea0ffe9f91c65a84d4",
+      "git_blob_sha1": "2591ea7bb51e4123786d957fb7d2592ad636089f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_pipeline.py",
+      "bytes": 8290,
+      "sha256": "93d8d43b7994331ff7cb1a92588031f95aa4de1c07c5212a6e78c2af55547eaf",
+      "git_blob_sha1": "c8cd3d4731ec992b5398873c220e6bab6e424349",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_prepare.py",
+      "bytes": 9432,
+      "sha256": "d013bb0611e9e116d04d442789e597800ebae07f4836fc47a4b7f84049a3940e",
+      "git_blob_sha1": "d647725cd82892706ad40246f5ffccdfa5643f7e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_reporting.py",
+      "bytes": 17299,
+      "sha256": "81200f7ecb82758c19bb243f67325ab50c236d42c2431aed96c83b040c0ab010",
+      "git_blob_sha1": "4ba3156452176289a045dd303dbbd45a386542f3",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_rebench_qwen/tests/test_runner.py",
+      "bytes": 15635,
+      "sha256": "6fd468545b4d26f7fc77717285e44ac4bc24b919eb8c85a8c1b1f40836b23fde",
+      "git_blob_sha1": "76521aa099cad593784b08f9f81896be4227782f",
+      "mode": "100644"
+    },
+    {
+      "path": "ModelLoc/experiments/dsimple_evaluation_v2/dsimple_v2/__init__.py",
+      "bytes": 88,
+      "sha256": "89509ab0a05ee00195ce4b542b11b8e98ede26de7edca2893cda4ffe85359553",
+      "git_blob_sha1": "faed71a98c287f646ed3fea6a049d836bfff30e9",
+      "mode": "100644",
+      "original_local_source": "/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/dsimple_evaluation_v2/dsimple_v2/__init__.py"
+    },
+    {
+      "path": "ModelLoc/experiments/dsimple_evaluation_v2/dsimple_v2/common.py",
+      "bytes": 1584,
+      "sha256": "9a49e0a996a3d012258b243d83e769ba53e49429856d4fe92965ad9dfa7374f9",
+      "git_blob_sha1": "cfb671eb81140ed5fcb282746309c89bd5a241db",
+      "mode": "100644",
+      "original_local_source": "/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/dsimple_evaluation_v2/dsimple_v2/common.py"
+    },
+    {
+      "path": "ModelLoc/experiments/dsimple_evaluation_v2/dsimple_v2/screen.py",
+      "bytes": 29377,
+      "sha256": "a2db01731dd4891521a4f94632fcbae327403304a458b2abedfd692e3c3127af",
+      "git_blob_sha1": "a8afc697f83d6d714ebf393f737978012d97aa30",
+      "mode": "100644",
+      "original_local_source": "/mnt/skygruop0/home/wdt/cosil_repro/ModelLoc/experiments/dsimple_evaluation_v2/dsimple_v2/screen.py"
+    },
+    {
+      "path": "third_party/python-unidiff-0.7.5/unidiff/patch.py",
+      "bytes": 23930,
+      "sha256": "9f6843e8c16e514c2a5665801b5ce716a77de2a545bd95bb9118064992832d6c",
+      "git_blob_sha1": "0273e7aab534a017528e663274afc0ee623ec6cf",
+      "mode": "100644",
+      "original_local_source": "/tmp/external_lite_four_audit_unidiff075/unidiff/patch.py"
+    },
+    {
+      "path": "third_party/python-unidiff-0.7.5/unidiff/__init__.py",
+      "bytes": 1472,
+      "sha256": "8d2e3b93cba66e3db1cfc9ff9c910ed53edeb251e22c030a138801a34cb156e6",
+      "git_blob_sha1": "5f50cc2ed082664e60c29728be72114d0da6978e",
+      "mode": "100644",
+      "original_local_source": "/tmp/external_lite_four_audit_unidiff075/unidiff/__init__.py"
+    },
+    {
+      "path": "third_party/python-unidiff-0.7.5/unidiff/constants.py",
+      "bytes": 3079,
+      "sha256": "34d5974985c0f64c9b5db29f089767123a3401610fd6cd2df3c6d7443ca810c5",
+      "git_blob_sha1": "c206bc75223087b84d4cdcf4099c935ca278c0bf",
+      "mode": "100644",
+      "original_local_source": "/tmp/external_lite_four_audit_unidiff075/unidiff/constants.py"
+    },
+    {
+      "path": "third_party/python-unidiff-0.7.5/unidiff/errors.py",
+      "bytes": 1335,
+      "sha256": "2fb558a292259bbd4f21c603b3669fc70154bf091dd416bd20b333c5a5c4697a",
+      "git_blob_sha1": "dc71cca9bf10eba127e2d34dad083511db39e42b",
+      "mode": "100644",
+      "original_local_source": "/tmp/external_lite_four_audit_unidiff075/unidiff/errors.py"
+    },
+    {
+      "path": "third_party/python-unidiff-0.7.5/unidiff/__version__.py",
+      "bytes": 1170,
+      "sha256": "55b9aaccfeaf1e4196d8fc42054f03cffa2e7f984ee32ab1465a82e79af43fc9",
+      "git_blob_sha1": "bc76575e7e2d6491a67a15bc0db65a8fbb01cb2d",
+      "mode": "100644",
+      "original_local_source": "/tmp/external_lite_four_audit_unidiff075/unidiff/__version__.py"
+    },
+    {
+      "path": "third_party/python-unidiff-0.7.5/LICENSE",
+      "bytes": 1080,
+      "sha256": "437d5375ab9e5630f217061eafe8a7bc30cebfe791bdd77df5ffea5c844ff0cf",
+      "git_blob_sha1": "5502b3da7a70a69f203599dcc0708b83e1c9922c",
+      "mode": "100644",
+      "original_local_source": "/tmp/external_lite_four_audit_unidiff075/LICENSE"
+    }
+  ],
+  "secret_pattern_matches": [],
+  "datasets_raw_predictions_gold_models_test_manuscripts_uploaded": false,
+  "publisher_model_calls": 0,
+  "legacy_four_filter_screen_sha256": "a2db01731dd4891521a4f94632fcbae327403304a458b2abedfd692e3c3127af",
+  "unidiff_version": "0.7.5",
+  "unidiff_exact_upstream_git_blobs_verified": {
+    "patch.py": "0273e7aab534a017528e663274afc0ee623ec6cf",
+    "__init__.py": "5f50cc2ed082664e60c29728be72114d0da6978e",
+    "constants.py": "c206bc75223087b84d4cdcf4099c935ca278c0bf",
+    "errors.py": "dc71cca9bf10eba127e2d34dad083511db39e42b",
+    "__version__.py": "bc76575e7e2d6491a67a15bc0db65a8fbb01cb2d"
+  },
+  "third_party_license": "MIT; original LICENSE preserved",
+  "external_calls_not_for_models": true
+}
