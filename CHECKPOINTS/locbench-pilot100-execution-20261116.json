@@ -1,0 +1,151 @@
+{
+  "schema": 1,
+  "status": "FROZEN_EXECUTION_CODE_CPU_FINAL_GATE_PENDING",
+  "branch": "snapshots/locbench-pilot100-execution-20261116",
+  "parent": "a935213a9956369fe109b0b9d48ed287a05acdcd",
+  "sources": [
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/README.md",
+      "size": 6405,
+      "sha256": "71c9492b15a04b27f3cad3106583cc43c1a69097d622c1fb82f29adac6dea9ab",
+      "git_blob_sha": "c6849b059e6e496ddc7f30ac9d9f9ec90ca5e9c4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/__init__.py",
+      "size": 72,
+      "sha256": "94b1dc6146753163b228d26bde4b14481e644f9b8b2b546c8c01b09d4d4a2248",
+      "git_blob_sha": "7c8b69be48dc125aaf907fcb024afef46897bb5d",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/archive_links.py",
+      "size": 8972,
+      "sha256": "10fa2d81af711780decaec23def8ec5e3ce683f18cc1ffd0429ec01f7eed2e6e",
+      "git_blob_sha": "68acf1166753cb851f7b8a1c7893ad6a87e45b27",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/parallel_controller.py",
+      "size": 5215,
+      "sha256": "899ad91d1a3e32705e5934c6a7cea35a2b650d462d6deb3ba9b88b86c2034df6",
+      "git_blob_sha": "90f5f594800d147371c2efb695e29f4b704c8d23",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/pilot.py",
+      "size": 7325,
+      "sha256": "6affadbe1008ed22f5262767c9464eb04e73b1648ac8aff59932218d4b9ee684",
+      "git_blob_sha": "86a222bc339d308332fcb4ddf50f354974c2e7b4",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/prepare.py",
+      "size": 16080,
+      "sha256": "7fc29ddc26c479498fb06a0a690e771967db681f5cee3be0935789c6e7b9604a",
+      "git_blob_sha": "defd593ac18e7a5c8c9ed32558f137b1d177141f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/queue.py",
+      "size": 3847,
+      "sha256": "85053401640262cdcfafc36b1486975f17f62a7b193a5cf728f197d5548a22af",
+      "git_blob_sha": "d8823e0f34e91bd03a05a3ee956220c38e8e8065",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/report.py",
+      "size": 32828,
+      "sha256": "e107a0ed15b89baf224715bdeedf72ad945f14b3e1ad2546ff480922aaaade2a",
+      "git_blob_sha": "04720baf6491bd6f312f1f642ed70e62c10711bc",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/runtime.py",
+      "size": 24589,
+      "sha256": "9010e9f243470ba6964eb9acdf52abc4ff529de8cac3417e596353e567ff3152",
+      "git_blob_sha": "ecaf0722cc4a624783db2c270dbc3b59fe8189e1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/supervise.py",
+      "size": 9533,
+      "sha256": "468c5db79a333a34685734a2562de9bcc5b037db8b0ee462308e42ba21330045",
+      "git_blob_sha": "d453443bbdf8affac7cc1cfa82cc7940f9807690",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_archive_links.py",
+      "size": 7808,
+      "sha256": "85b82184fe4fb1fe2a03ed933006ee83883dc11c6ac8df15fd0f75f1105f7a05",
+      "git_blob_sha": "4da420f0788b74b635887de316174b2f88c8e425",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_parallel_controller.py",
+      "size": 6796,
+      "sha256": "42cb9c0b481534e3b38511423b43307cc3c18bc9782b7d1c942d7befb4a32321",
+      "git_blob_sha": "f29b719f384551a86046ada7465beb4c4fadf31e",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_pilot.py",
+      "size": 1831,
+      "sha256": "95756dca0c3483ec0e6695049ebec3e71bcdde30b3d048bef16a70b96d5f4b4c",
+      "git_blob_sha": "1a1013e560430d0e353b05186475007a12ce6027",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_prepare.py",
+      "size": 6162,
+      "sha256": "b42756b339f0a5d0cc37b91a7540eb36dfee5063093a6a6616e4275deecfccc6",
+      "git_blob_sha": "741ea71894ae68a3ad831bb0004f473873e2d5ff",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_report.py",
+      "size": 17752,
+      "sha256": "ac558c6e05da2f2a1175e10407029b4da197721957caedc5e961408685af973a",
+      "git_blob_sha": "717a916e9dab6d512aea6868e154d58a2569162a",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_runtime.py",
+      "size": 8428,
+      "sha256": "cb07e2e40b980ffd88f4288332cc4d6bf150fa726e6dbcce89c3f2bb2f8cf8e1",
+      "git_blob_sha": "d0cdcb056fcaf415bbeafaf0911e7d949c2b82e2",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_locbench_sfpruner_20261116/test_supervise.py",
+      "size": 2901,
+      "sha256": "1ac1dbf9268cb84e26b9b9dc24e479b934e546da469843d1dadadd9d34ed6a44",
+      "git_blob_sha": "930ab730070cd12c514289f8e6cf5d25271e73e2",
+      "mode": "100644"
+    }
+  ],
+  "source_count": 17,
+  "upload_scope": "package Python, synthetic tests, README, checkpoint notes only",
+  "no_results_datasets_gold_csv_predictions_logs_weights_keys_sealed_test_manuscripts": true,
+  "publication_model_calls": 0,
+  "publication_GPU_jobs": 0,
+  "unit_tests": 75,
+  "unit_tests_status": "PASS",
+  "unit_tests_log_sha256": "2e6fbc0d43d1958e1e315748d907e5ac4a2b2e4955576c357467f56916fea054",
+  "archive_adapter_validation_status": "REAL_ARCHIVE_LINK_BYTES_VALIDATION_PASS",
+  "archive_adapter_validation_sha256": "2856f15bd3a31023aa18f5664e10bd7a14a616aeb50a470d70ea5087d0c70cad",
+  "modified_paths_since_pre_archivefix": [
+    "CoSIL/code_locbench_sfpruner_20261116/README.md",
+    "CoSIL/code_locbench_sfpruner_20261116/runtime.py",
+    "CoSIL/code_locbench_sfpruner_20261116/test_runtime.py"
+  ],
+  "old146_sources_unchanged": true,
+  "CPU_runtime_preparation_status": "IN_PROGRESS",
+  "CPU_final_runtime_gate_status": "PENDING",
+  "CPU_final_runtime_gate_passed": false,
+  "model_inference_started": false,
+  "model_launch_authorized_by_this_receipt": false,
+  "separate_root_launch_ready_required": true,
+  "authorized_model_task_count": 100,
+  "remaining460_inference_authorized": false
+}

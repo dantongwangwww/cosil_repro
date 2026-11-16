@@ -6,12 +6,14 @@ keys are warmed once per repo/base before parallel per-issue construction.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import shutil
 import time
+import uuid
 
 from code_sfpruner300_20261114 import build_runtime as b
 from code_sfpruner300_20261114 import cache_decode_guard, controller as c
@@ -208,8 +210,77 @@ def allocation_ledger(allocation, selected, source_ledger, ready_records, build_
     return rows
 
 
-def build(work, *, workers=2, cache=None):
+def case_binding(record, row):
+    """Exactly the original build_one binding, without rewriting old receipts."""
+    return {'preparation_projection_sha256': b.digest(json.dumps(row, sort_keys=True, ensure_ascii=False).encode()),
+            'builder_sha256': b.sha(b.__file__),
+            'selected_record_sha256': b.digest(json.dumps(record, sort_keys=True, ensure_ascii=False).encode())}
+
+
+def import_completed_case(source, destination, runtime, record, row):
+    source, destination, runtime = Path(source), Path(destination), Path(runtime).resolve()
+    saved = b.read(source)
+    if saved['binding'] != case_binding(record, row):
+        raise ValueError('Old completed case has a different source/code binding')
+    for rel, wanted in saved['runtime_files_sha256'].items():
+        full = runtime / rel
+        if (full.is_symlink() or not full.resolve(strict=True).is_relative_to(runtime)
+                or b.sha(full) != wanted):
+            raise ValueError('Old completed runtime bytes changed')
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not destination.exists():
+        with source.open('rb') as origin, destination.open('xb') as output:
+            shutil.copyfileobj(origin, output)
+    elif destination.read_bytes() != source.read_bytes():
+        raise ValueError('Completed case import differs from preserved receipt')
+    return {'source': str(source.resolve()), 'source_sha256': b.sha(source),
+            'destination_sha256': b.sha(destination), 'files_verified': len(saved['runtime_files_sha256']),
+            'original_receipt_modified': False, 'model_calls': 0}
+
+
+def preserve_orphan_task(task, private):
+    """Keep a renamed-but-unreceipted CPU task instead of fabricating completion."""
+    task, private = Path(task), Path(private)
+    if task.is_symlink() or not task.is_dir():
+        raise ValueError('Unexpected interrupted task shape')
+    files = {}
+    for path in task.rglob('*'):
+        if path.is_symlink():
+            raise ValueError('Interrupted task contains an unexpected host symlink')
+        if path.is_file():
+            files[path.relative_to(task).as_posix()] = b.sha(path)
+    destination = private / 'preserved_orphans' / (task.name + '.' + uuid.uuid4().hex)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    original = str(task.resolve()); os.rename(task, destination)
+    value = {'original_path': original, 'preserved_path': str(destination.resolve()),
+             'files_sha256': files, 'reason': 'CPU source preparation interrupted before durable success receipt',
+             'model_calls': 0, 'deleted': False, 'synthetic_completion_receipt_created': False}
+    b.write(private / 'orphan_receipts' / (destination.name + '.json'), value)
+    return value
+
+
+def cached_archive_only(row, cache):
+    key = b.archive_key(row['repo'], row['base_commit'])
+    if not (Path(cache)/(key+'.receipt.json')).is_file():
+        raise ValueError('Process builder cannot initiate cold network downloads')
+    return b.download_archive(row, cache)
+
+
+def build_one_spawn(payload):
+    """Top-level spawn entry: each clean CPU interpreter has private adapters."""
+    from . import archive_links
+    record, row, runtime, private, cache = payload
+    with archive_links.enabled(), cache_decode_guard.enabled():
+        return b.build_one(record, row, runtime, private, cache,
+                           python_ast='/usr/bin/python3.12', downloader=cached_archive_only)
+
+
+def build(work, *, workers=4, cache=None):
+    if workers not in range(1, 5):
+        raise ValueError('At most four independent CPU processes')
     work = check_work(work)
+    if any((work/'paired_run').glob('pairs/*/*/started.json')):
+        raise ValueError('CPU preparation recovery cannot modify a started model run')
     count = len(roster(work)); cache = Path(cache).resolve() if cache else work/'archive_cache'
     warm = b.read(work / 'archive_prewarm/summary.json')
     if warm['status'] != 'PREWARM_FINAL' or warm['unique_archives'] != len(unique_archives(roster(work))):
@@ -217,7 +288,20 @@ def build(work, *, workers=2, cache=None):
     selection = work / 'selection/selection.json'
     preparations = work / 'evaluator_private/preparation_records.private.json'
     selected, prep = b.load_inputs(selection, preparations)
-    runtime, private = work / 'runtime', work / 'evaluator_private/runtime_build'
+    runtime = work / 'runtime'
+    private = work / 'evaluator_private/runtime_build_process_v2'
+    old_private = work / 'evaluator_private/runtime_build'
+    from . import archive_links
+    generation = {'schema': 1, 'stage': 'CPU-only process builder with archive-member link resolution',
+                  'runtime_wrapper_sha256': b.sha(__file__), 'original_builder_sha256': b.sha(b.__file__),
+                  'archive_adapter_sha256': b.sha(archive_links.__file__),
+                  'render_adapter_sha256': b.sha(cache_decode_guard.__file__),
+                  'protocol_sha256': b.sha(work/'protocol.json'),
+                  'source_selection_sha256': b.sha(selection), 'source_preparations_sha256': b.sha(preparations),
+                  'process_start_method': 'spawn', 'workers': workers,
+                  'old_generation_preserved': str(old_private.resolve()),
+                  'network_downloads_in_builders': False, 'model_calls': 0, 'gpu_used': False}
+    b.write(private/'generation.json', generation)
     warm_by_key = {r['archive_key']: r for r in warm['records']}
     buildable, archive_errors = [], {}
     for row in selected['records']:
@@ -236,11 +320,37 @@ def build(work, *, workers=2, cache=None):
     build_preparations = work / 'evaluator_private/build_preparations.private.json'
     b.write(build_selection, {**selected, 'n': len(buildable), 'records': buildable})
     b.write(build_preparations, {'records': [prep[r['instance_id']] for r in buildable]})
-    # The adapter is the same as the preceding frozen experiment and preserves raw files.
-    with cache_decode_guard.enabled():
-        result = b.build(build_selection, build_preparations, runtime, private, cache,
-                         workers=workers, python_ast='/usr/bin/python3.12')
-    receipts = {}; errors = dict(archive_errors)
+    receipts = {}; errors = dict(archive_errors); imported = {}
+    runtime.mkdir(parents=True, exist_ok=True)
+    for record in buildable:
+        iid = record['instance_id']; target = private/'cases'/(iid+'.json')
+        source = old_private/'cases'/(iid+'.json')
+        if source.is_file():
+            imported[iid] = import_completed_case(source,target,runtime,record,prep[iid])
+            b.write(private/'case_imports'/(iid+'.json'), imported[iid])
+        stable_task = runtime/'tasks'/iid
+        if stable_task.exists() and not target.is_file():
+            preserve_orphan_task(stable_task,private)
+    def progress():
+        value={'selected':len(selected['records']),'complete':len(receipts),'blocked':errors,
+               'execution':'ProcessPoolExecutor(spawn)','workers':workers,'model_calls':0,'gpu_used':False,
+               'reused_completed_cases':len(imported),'utc':time.time()}
+        b.write(private/'progress.json',value,immutable=False)
+    progress()
+    with ProcessPoolExecutor(max_workers=workers,mp_context=multiprocessing.get_context('spawn')) as pool:
+        futures={pool.submit(build_one_spawn,(record,prep[record['instance_id']],str(runtime),str(private/'cases'),str(cache))):record['instance_id']
+                 for record in buildable}
+        for future in as_completed(futures):
+            iid=futures[future]
+            try:
+                receipts[iid]=future.result()
+            except Exception as error:
+                errors[iid]={'type':type(error).__name__,'error':str(error)}
+                b.write(private/'errors'/(iid+'.json'),errors[iid],immutable=False)
+            progress()
+            print(json.dumps({'instance_id':iid,'complete':len(receipts),'blocked':len(errors),
+                              'generation':'process_v2'}),flush=True)
+    result={'status':'PROCESS_POOL_READY' if not errors else 'PROCESS_POOL_PARTIAL'}
     for row in selected['records']:
         iid = row['instance_id']; path = private / 'cases' / (iid + '.json')
         if iid in archive_errors:
@@ -272,6 +382,9 @@ def build(work, *, workers=2, cache=None):
              'source_preparation_ledger_sha256': b.sha(source_path),
              'runtime_manifest_sha256': b.sha(runtime / 'runnable_manifest.json'),
              'builder_sha256': b.sha(b.__file__), 'runtime_wrapper_sha256': b.sha(__file__),
+             'build_generation_path':str(private.resolve()),'build_generation_sha256':b.sha(private/'generation.json'),
+             'archive_adapter_sha256':b.sha(archive_links.__file__),
+             'reused_completed_cpu_cases':len(imported),
              'raw_builder_status': result['status'], 'model_calls': 0, 'gpu_used': False}
     b.write(runtime / 'allocation_status.json', value)
     return value
@@ -314,7 +427,7 @@ def main():
     if a.action == 'prewarm':
         value = prewarm(a.work, workers=a.workers or 4, legacy=a.legacy_cache)
     elif a.action == 'build':
-        value = build(a.work, workers=a.workers or 2, cache=a.archive_cache)
+        value = build(a.work, workers=a.workers or 4, cache=a.archive_cache)
     else:
         value = gate(a.work)
     print(json.dumps({k: v for k, v in value.items() if k != 'records'}), flush=True)
