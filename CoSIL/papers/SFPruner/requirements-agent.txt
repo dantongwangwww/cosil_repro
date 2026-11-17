@@ -1,0 +1,9 @@
+# Host-side CoSIL inference imports; vLLM belongs in a separate service environment.
+openai==2.54.0
+anthropic==1.11.0
+tiktoken==0.14.0
+pandas==3.0.6
+tqdm==4.70.1
+transformers==5.18.0
+httpx==0.28.1
+libcst==1.9.0

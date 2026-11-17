@@ -1,0 +1,11 @@
+{
+  "dataset": "nebius/SWE-rebench-leaderboard",
+  "dataset_revision": "34d5a58864acf91613740a09ec5d205228dcfa39",
+  "frozen_eligible_pool": 265,
+  "unique_pool_repositories": 173,
+  "sample_n": 100,
+  "seed": 20261110,
+  "algorithm": "SHA256(utf8(str(seed)+\":\"+instance_id)), then instance_id; first per repo.casefold()",
+  "selection_reads_gold_or_outcomes": false,
+  "scope": "Already frozen 265-task development pool; sampling does not rebuild filtering or unseal held-out data"
+}

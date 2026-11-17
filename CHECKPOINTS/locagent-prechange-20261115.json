@@ -1,0 +1,31 @@
+{
+  "checkpoint": "locagent-prechange-20261115",
+  "parent_commit": "99a2ad3389a83877c0c0154fece8aff82fb37f7d",
+  "scope": "Existing SFPruner code and documentation before LocAgent same-backbone adaptation; independent publication snapshot; original upstream Git untouched",
+  "verified_parent_file_count": 184,
+  "unchanged_parent_file_count": 182,
+  "new_files": [
+    {
+      "path": "CoSIL/AGENTS.md",
+      "sha256": "0ce932f307296926141eec1cd8c5623bbbb9a93564370f2b8b03f411e98afd06"
+    },
+    {
+      "path": "CoSIL/docs/qwen3-reranker4b-rebench300/执行进度.md",
+      "sha256": "3924ec31f1e7b3977a0b8b6a42939df43e9c2a77e3328fbaf25baaa2835f6dfc"
+    },
+    {
+      "path": "CoSIL/docs/qwen3-reranker4b-rebench300/扩展至300题_条件核查.md",
+      "sha256": "37ee0a0133e33f5b79f0defef4026ce75760fbdcff02b3c0599a90dda64df59f"
+    },
+    {
+      "path": "CoSIL/docs/qwen3-reranker4b-rebench300/实验结果报告_SpecPrune_300函数任务.md",
+      "sha256": "9c1e0be9b9c17031757647706fc9d0eef26615fc702704a1a5fd9d55cf35ed0e"
+    }
+  ],
+  "raw_datasets_included": false,
+  "test280_csv_included": false,
+  "model_weights_included": false,
+  "secrets_included": false,
+  "unpublished_manuscript_included": false,
+  "verified_parent_files_record": "Full local SHA-256 verification is retained in local_manifest.json; repository paths are recoverable from parent_commit."
+}

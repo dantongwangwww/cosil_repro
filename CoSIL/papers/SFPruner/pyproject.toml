@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "specprune-artifact"
+version = "1.0.0"
+description = "SpecPrune function pruning for CoSIL: reproducible training, routing and evaluation"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools]
+packages = ["specprune"]
+
+# Use editable installation from the complete artifact folder. Models, assets,
+# configs and the vendor source tree deliberately remain outside the wheel.

@@ -1,0 +1,779 @@
+{
+  "parent_commit": "5c9dca19d5f6420cf3efce615a920777f372346a",
+  "upstream_locagent_commit": "4935b557326c154bad8e8dcf3747cc8d32d1f387",
+  "upstream_tracked_diff_empty": true,
+  "files": [
+    {
+      "path": "LocAgent/.gitignore",
+      "sha256": "d077dd65f82e4b740b7868c4b157124a53301841e02e247a8c01ed2bbb42be49",
+      "git_blob_sha1": "219379be02d08a130e86206e48a590f20c8dadb2",
+      "bytes": 3089,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/CONTRIBUTING.md",
+      "sha256": "d7d0bf3b303cd208fbbbfea458654d9dabd31223183d097f10a09a5226775ab0",
+      "git_blob_sha1": "8bf4a72511563e21dd97f07cf681f6ba5db21e2f",
+      "bytes": 3199,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "git_blob_sha1": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "bytes": 11357,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/README.md",
+      "sha256": "2f85a7222c51c7d52873e6acfaf94c9333b4b1f0016f1bf5c6352effa7d19454",
+      "git_blob_sha1": "c6d7ebeef4b6813d57820292c2904e4e883d788e",
+      "bytes": 6520,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/auto_search_main.py",
+      "sha256": "173595e1c399d5b76b85e8564c1faf98ca27794bf52133bb33b1e737c36232b9",
+      "git_blob_sha1": "b49e87c9e136da95db8a7adbdd312c0578cb50e0",
+      "bytes": 27574,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/build_bm25_index.py",
+      "sha256": "88f9363f5b300d67df6320722b62bae1b3295b2eba40dc4cb386c414eaccd18c",
+      "git_blob_sha1": "bcbfbc5a7c8f9257210cde9ba99895fe341fc246",
+      "bytes": 4973,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/dependency_graph/__init__.py",
+      "sha256": "406016a645ee2aac18099b67e3dfec564569fba7bc7403e6b6eaf34676767f65",
+      "git_blob_sha1": "cb58bd0fce9346bc6bd8493f9c20df1f6c9839f7",
+      "bytes": 363,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/dependency_graph/batch_build_graph.py",
+      "sha256": "776a7c44cf827589eb24b03ebf9d09c47999baf7ee94a07f52cf9e8720959386",
+      "git_blob_sha1": "ba092c4c115fd211ffe1e350e94074b446317e35",
+      "bytes": 4682,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/dependency_graph/build_graph.py",
+      "sha256": "261c0db9b8865f003c5f6ce32ff4ce879876e15d390b0f3ffdb2a47e5119e291",
+      "git_blob_sha1": "dba88435b02d504a903a5318c0194c035a800c5d",
+      "bytes": 30447,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/dependency_graph/traverse_graph.py",
+      "sha256": "08fd1194136885eee1ec93abf223cccdb2d6c1605019e4607e61af5b05e2316d",
+      "git_blob_sha1": "de447c107fe38916d239ce0b102aba9da8e171b7",
+      "bytes": 21114,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/docs/qwen3-rebench100/实验报告_LocAgent_Qwen3_同题100_总览.md",
+      "sha256": "624743767133f89e0e63bba2b45e9a0f468121e88d4ceb74e35ca0e0bd52e53c",
+      "git_blob_sha1": "6b68a0b10d7df901af52f94c072013d7240609b7",
+      "bytes": 17254,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/docs/qwen3-rebench100/执行进度.md",
+      "sha256": "0efc3ff95bdc4ca0ea5d3607110e8002f98e3cf2e206b448682a3745c04ccbf6",
+      "git_blob_sha1": "eb093f9010ca7f0c578ed81ad5c1703d98910964",
+      "bytes": 1369,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/docs/qwen3-rebench100/结果与复现索引.md",
+      "sha256": "127af3d8ec2e70af18b9144b8bdfaa3f9c8ce0d813a7604d792572418930508e",
+      "git_blob_sha1": "2f8d70d46be37330745e97dbce33947ce4718f80",
+      "bytes": 8241,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/evaluation/eval_metric.py",
+      "sha256": "efbdd208f438f450cc7798fb09e88a8d1e6a1b092f295e19e38b67967f352187",
+      "git_blob_sha1": "d1d8f043f2aa445385ee87a2211a096f0b781b15",
+      "bytes": 15262,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/__init__.py",
+      "sha256": "0d3da097dc900a5e7c948b0fcb2b4c7a1b09302956bb58fa55ceb12a26f1227e",
+      "git_blob_sha1": "289755db17aa97af8d2aa48f60deb6b6ca5691ea",
+      "bytes": 546,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/__init__.py",
+      "sha256": "74a7c51121349a1ccc715abab1aef0df00c7d9b2f0ceedce2724f28f0033b5a7",
+      "git_blob_sha1": "45b205b68d9cfc15671b86f1983b1e0410704852",
+      "bytes": 370,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/locationtools.py",
+      "sha256": "f90f977601cf8eeea003bfddfb4f0f54863fa3afe07fcfec3d0e980b26b2a017",
+      "git_blob_sha1": "78b2f2cbfffce9924fa2480f43a33d4d60333485",
+      "bytes": 896,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/repo_ops/__init__.py",
+      "sha256": "4e49a235fae4d15795e1b81e9dd2fbc2d96a18cace7c9e0292d652b4bdfc1488",
+      "git_blob_sha1": "98f1b58536699052c7dfc396dcd5a80eb673816d",
+      "bytes": 249,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/repo_ops/repo_ops.py",
+      "sha256": "0d738ec9f7db91c348765dcaa8e989b39f8750072efd8cfb616f888b18c8caa3",
+      "git_blob_sha1": "0629068a85e0d8133c490c78642c332f92d9260f",
+      "bytes": 48332,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/retriever/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/retriever/bm25_retriever.py",
+      "sha256": "5874d8c1a22541bae663d511d7f341e548456004ccf5321082048c4e2e2b4a7a",
+      "git_blob_sha1": "b2019881bc80e22af30bbdfc1d86400ca565a9da",
+      "bytes": 5284,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/retriever/fuzzy_retriever.py",
+      "sha256": "d554a907dc511cb2bbcc4aa9b522fa0a6aca722a28e1341f24e9f888a19e03ad",
+      "git_blob_sha1": "9e6c972548c8f3e8b5ba5ef4d169330bf44aa846",
+      "bytes": 2184,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/utils/compress_file.py",
+      "sha256": "0563ab2fa02b317c096b7cfb681fac44c4985ac416de13da8eb40582c67cd6c0",
+      "git_blob_sha1": "f55232c5ac28fc05b72d50f46ca11a69c2afb80e",
+      "bytes": 2625,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/utils/dependency.py",
+      "sha256": "b7cf674442a5f1d83dc31fa87b99e909e75a76cf1c350cd52a7f9b70a3d663b0",
+      "git_blob_sha1": "1ff1636fb545a9a2c7b5d98199169105f83bd577",
+      "bytes": 353,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/utils/result_format.py",
+      "sha256": "e2bd77313ee904f120d5dfdb1974e16af3a2dc7c4fcb9d56fb874817180199b0",
+      "git_blob_sha1": "4a590e70fecb23d03be4cc33aa3ecfaf539f552b",
+      "bytes": 7771,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/location_tools/utils/util.py",
+      "sha256": "2c646db304b144f1c363591ee5eaebccfdc060eda493cd8a1b47a59712508316",
+      "git_blob_sha1": "e469b745928efef64eafba6fecdd8c3d6f23f3a9",
+      "bytes": 2554,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/plugins/requirement.py",
+      "sha256": "162a9ca650b4a4a4c4882e3c15fa0aa15bf9843010386d65fd89aaef56153ac2",
+      "git_blob_sha1": "f24542cfc32fc7202385f3c1764eedd670a681e1",
+      "bytes": 692,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/__init__.py",
+      "sha256": "70c6b75a851aefc825a36aacc980e6c083896b550aef243e6f4c2a3b8ee3b58f",
+      "git_blob_sha1": "d0ac373362fac1983e9b08f100fe195c9f164e71",
+      "bytes": 135,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/__init__.py",
+      "sha256": "db86e05497cb891c840bd5ffe62709791e276da2b3d0db619fc4b8ff1f1f9f64",
+      "git_blob_sha1": "ef884a684b4828f7d231db501f00c368c671b35f",
+      "bytes": 502,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/codeblocks.py",
+      "sha256": "a7ce82714680576d66b44a09906bdbfcc464952644ad1b8c7cab05e98dc436d7",
+      "git_blob_sha1": "bb64e4ee00f876ac0edf7c0c4cb352921a25a8a8",
+      "bytes": 44473,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/module.py",
+      "sha256": "ccf63abf18ff701ae9767b18cd9b4bc0df3abdea05f8e43928dd8df0b1ff29e9",
+      "git_blob_sha1": "493dbee19dd45a66cab65f94833e4bdb180bd29a",
+      "bytes": 3158,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/parser/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/parser/comment.py",
+      "sha256": "f1c87e858e3efb6762eda35a6949d347dc7274f7f4eb439597a938ac9c4e447c",
+      "git_blob_sha1": "205c8bdbd8b732c8be71b993b040407497c85015",
+      "bytes": 1610,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/parser/create.py",
+      "sha256": "e1af1d74e172f72b89a1b3c6190220c1c31dd7e426c9b589d776a128e0edf3be",
+      "git_blob_sha1": "386fe8bf90ab6bed6622ddd385743da7edd9b60a",
+      "bytes": 472,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/parser/java.py",
+      "sha256": "902ebb60daea22439dfdc41cb2ccb7bf3494fe35f314756e0d5939ed0bfe81f3",
+      "git_blob_sha1": "b35895b1b72b81c449987cb8853e5c2b15d51481",
+      "bytes": 439,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/parser/parser.py",
+      "sha256": "46957c14520d1bc0744d6c47f1f397be7a7c5fa13988b8993470ab2147de8714",
+      "git_blob_sha1": "76d7023b4fec0b10ebeda845dd0f4be1ea4d2b43",
+      "bytes": 32416,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/parser/python.py",
+      "sha256": "ba30dd8f30bd27ba77c0813543c4a658a55f810b29a1e11eeb9da96b1a4729a7",
+      "git_blob_sha1": "b5880788c7554b01215649fb580983b021c5b2b4",
+      "bytes": 4901,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/codeblocks/parser/queries/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/file_context.py",
+      "sha256": "b739cb01f9efcef2800a420f45ed9f9c5809cf7540730ffa1103bdc4d9618410",
+      "git_blob_sha1": "476462de4cc8e771fb87a3222747c883fbb83e38",
+      "bytes": 23380,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/__init__.py",
+      "sha256": "6f42327b7a5d0612aac92fbd3dd82cb120c0dcc73759dbde8ded71d01ce5a7e7",
+      "git_blob_sha1": "c8ebd73eb18b80d26e8006a574c4d23cf3581a49",
+      "bytes": 235,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/code_index.py",
+      "sha256": "fc626c04ccd6113cc76a3b785c0bc308eff93339bc9253701b0705bad642fbf7",
+      "git_blob_sha1": "63323560d58b8e0139f39d50242e70df0ad3be07",
+      "bytes": 29961,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/code_node.py",
+      "sha256": "f574be6dc9d986f7cad3f9ccf25295abb343cd932e311891fb62aa89b599a55a",
+      "git_blob_sha1": "488bd2e307fc2eca0c46e3502ca49b8cfde0c638",
+      "bytes": 507,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/embed_model.py",
+      "sha256": "e62449de5cd04e1b7c249ca92c78318865057302982f22486fee0f04f4b4c331",
+      "git_blob_sha1": "46d467d6216f1a2387b8f5aa43d8f98b59c15d01",
+      "bytes": 1255,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/epic_split.py",
+      "sha256": "a4c158f9707ac03165a2cda6edf5f344d084fcb46f21fcb761c34c814e081fd2",
+      "git_blob_sha1": "9abca2188f59d0599ccfe672e2aaae55500e2212",
+      "bytes": 19570,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/settings.py",
+      "sha256": "afd181f39bc74daf490e18238ec6faf5293338555504c51a31d587497821aa8e",
+      "git_blob_sha1": "6860443a99410ea611f4bb0bd301e7942eff6f5f",
+      "bytes": 1728,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/simple_faiss.py",
+      "sha256": "8a87f526e65295d7a21ef72712f7a4b71adb364c14df9b7d6b8077e16713232e",
+      "git_blob_sha1": "a096d85501c631753c3079eee7bd3b460b44d828",
+      "bytes": 9801,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/index/types.py",
+      "sha256": "68ce10fd5354ac812d67333c9a284f393c87ea0bc6ca3c2b8c40efc9ec97eb75",
+      "git_blob_sha1": "e9e7346f89c61d386cae4425c2a806c831fd5d1c",
+      "bytes": 1909,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/repository.py",
+      "sha256": "8127f33bdc64ffce10f50421e25d19090b03d9a18ac28d7e363debd210d2a3fb",
+      "git_blob_sha1": "e21e7215bd4ad10de82a6b5f061d49d3b171f329",
+      "bytes": 10638,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/types.py",
+      "sha256": "e7596b1c143f4f6d33c91febf88ed239cf325f1a241c58094b0230e498a60782",
+      "git_blob_sha1": "b483f2bf79ef3626768f6df373995eba3888ec14",
+      "bytes": 2040,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/utils/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/utils/colors.py",
+      "sha256": "839afdf5e3e71f01c33defb128f97d6fd10f729572a7b4ca2cd23133aab0a65d",
+      "git_blob_sha1": "4c3d30dae7fe4ef6ceb2fb4f3e0feb3b11a819db",
+      "bytes": 218,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/utils/repo.py",
+      "sha256": "b3b24e47618b083fc462a8df2234f4ca78f3a4d88e1f14524b61d0fce66575bc",
+      "git_blob_sha1": "51a3498acd828c5ce195a1ad9d074b8059f9094a",
+      "bytes": 4650,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/utils/tokenizer.py",
+      "sha256": "a1014771a82b66702c723b3cf8dc4707f37713f3ac8c39df81fb2c189db04523",
+      "git_blob_sha1": "854f338d1ad566a435c7c50d627efa48e84f05fa",
+      "bytes": 1350,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/utils/xml.py",
+      "sha256": "e7c6338cf86d6ab3003f498444cedf19520eb2452b7c237d0eb01c7cc7388241",
+      "git_blob_sha1": "a89fde4e90313daa2441ad0c463150bff710491b",
+      "bytes": 506,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/repo_index/workspace.py",
+      "sha256": "89f2c22a15d63448ad4a3e1344fad2b8223cc9fed5fab0d6f0f31d71a6cce37c",
+      "git_blob_sha1": "e753cd561549164989fce583e58f3c402396fc61",
+      "bytes": 1926,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/README.md",
+      "sha256": "92007c9e08e51416084f7ffaccf955dcf2484a6c2d10d92239e48a620651ec00",
+      "git_blob_sha1": "c5f910150c3dd5b9288cd7127b2f0c60c5731bd3",
+      "bytes": 10642,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/audit_failures.py",
+      "sha256": "22f50d57a88c61461e5dc6bf1c7566c1d30c28646e416dabb546b2a6e95c533c",
+      "git_blob_sha1": "9835cf3c40eedf3820a31f98e497227829e481ed",
+      "bytes": 22321,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/audit_tools.py",
+      "sha256": "8669797ccb0c340d8a750daddceeac754bc20a6c3a21335e1f4406254e6b09e3",
+      "git_blob_sha1": "09606d8d42bc72c80e172919963b46e427d1420f",
+      "bytes": 32984,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/controller.py",
+      "sha256": "c4b41a9d79fa89acdad6ccbf50134bbf98f10b1cc9562c3dc446addfd457d420",
+      "git_blob_sha1": "47d1a2302caa177b90af989abe890a3270ba9f5f",
+      "bytes": 12255,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/evaluate.py",
+      "sha256": "79b3fbd84e130de9956b7e5898831b47467afd156e859a066bfefd6850e01318",
+      "git_blob_sha1": "04f07cc2302b64ea026ca351fe98a3db6e7a1647",
+      "bytes": 42576,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/index_graphs.py",
+      "sha256": "22f93c6bd5c5a127b7d90b438ebe4aa38da4a276dc348b10d469fd0755859984",
+      "git_blob_sha1": "6832f1aff03562262741dd54f6d558a66a7b5a61",
+      "bytes": 15016,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/postprocess_compat.py",
+      "sha256": "1df7718e46a4f6b09d5d31afa22741612af4a07e01b6c9f0bdb51eccafabcc44",
+      "git_blob_sha1": "fc71f6fbeb1cb81e86b780c55b8dee8747994b7b",
+      "bytes": 17538,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/postprocess_requested_file.py",
+      "sha256": "7fb38794351cd962615de2206bb285b981404684a61a30a4c5a4069ff59597fa",
+      "git_blob_sha1": "70bbb9e731d554037b65e0d45b68045e800d01fa",
+      "bytes": 16563,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/prepare.py",
+      "sha256": "12ef9a9e130026adf8d29d1e2cb71da3ddaa6a9d5d4397a039cf29ab7c769053",
+      "git_blob_sha1": "d1b736a39b1c0922bd9a3b87760ec73ca0dffbd9",
+      "bytes": 13884,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/requirements-runtime.txt",
+      "sha256": "712e2b007fd95e87485ae89e9ce147a8f2133ffb3e64a3173fe715064488a76e",
+      "git_blob_sha1": "8263957b3c30b2cd50a0df95f039bd0d7f534164",
+      "bytes": 911,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/runner.py",
+      "sha256": "cb8c927066ef4049c6f4ac715cc6d436655ab97972d36ad25fc54eebcc580f27",
+      "git_blob_sha1": "7b3bfb6473cc055cd38b701f4cc13ef2b99e6300",
+      "bytes": 9032,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/service.py",
+      "sha256": "31b9e65bc483aeb85b1947c36da23bc6c4f6a4847546c9836b5e9d88a188c318",
+      "git_blob_sha1": "3c62aa51efca4339e542bfc84a6259b7f5893083",
+      "bytes": 7273,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_audit_failures.py",
+      "sha256": "b998a4eb61426e8366e2f60cc146f34c7eb5cb74774387f757d64b76038e3ad8",
+      "git_blob_sha1": "b7957c8d1a9ba27730c79602244eacf046e8beae",
+      "bytes": 4691,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_audit_tools.py",
+      "sha256": "9324f82bb952c67b61636aba4808a6cc9b4a9980a3f5eab085e87d6e9f7448f2",
+      "git_blob_sha1": "d2921b142f865b0a9d2205b95b5472e8f0b9de36",
+      "bytes": 9742,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_controller.py",
+      "sha256": "dd0bc75c4f9d64001c5deff64922cbebdf0d2944bbbe3c2d45751046d609d052",
+      "git_blob_sha1": "0c35e526f1a1ec8750bcdf88979eef7c6d7d6a7c",
+      "bytes": 17213,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_evaluate.py",
+      "sha256": "3bd3c1e539606a8f6b7e86eb6ceb3ce81d264770725e3e45e3d6a7ce48e8b8ae",
+      "git_blob_sha1": "89f08fcc1f3aaf0e9badd73b06a37919fb2da698",
+      "bytes": 14417,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_index_graphs.py",
+      "sha256": "adebc45d9e7b20dabcd4ace55e04544aaf04bc0de3c1c10d0f9360a80b11b33d",
+      "git_blob_sha1": "ab13a3292723d768982bed90c0b076bf71e8dc6f",
+      "bytes": 5068,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_postprocess_compat.py",
+      "sha256": "2b8dab2259efd0c42c6d2d9ea2adced3ae7d7e78bf7aacfefcc43da578337794",
+      "git_blob_sha1": "b922f9cb8f1e1d043206a79d5cc954356ba58819",
+      "bytes": 8342,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_postprocess_requested_file.py",
+      "sha256": "65f21647b11df38b65109d125d7fa608ba4ba100f1b5d9f351d6f041c99a29c6",
+      "git_blob_sha1": "ca9c4aa84b2d1e96e44b7234e5944f4138ffb7aa",
+      "bytes": 7528,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_prepare.py",
+      "sha256": "2489f6e89602e9333db3e88e562ed3a938555423e6d0b773b0f78e5f2815f6ae",
+      "git_blob_sha1": "998216abf8e63353fb9ec2b57957c4b302379e8a",
+      "bytes": 9745,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/test_runtime.py",
+      "sha256": "e2c895aba790f017ac51a182f2e36dba2dddd24cdb12e6dbf619b425f02a01b6",
+      "git_blob_sha1": "81304d7927fa475a65ba19698369df552be3da71",
+      "bytes": 16148,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/reproduction/worker.py",
+      "sha256": "b1b50ddf238491550db80caf736c9335fcc7d4088e0a29cff1f7215565fb3ac7",
+      "git_blob_sha1": "aa72fdd5441e7873e18bb45cd82e24be92e5acc7",
+      "bytes": 30983,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/requirements.txt",
+      "sha256": "6d488fdcfda1b0633aaecd1c95ff699143b7a7982d993087f76b110e63feddbd",
+      "git_blob_sha1": "b1b21dea7f192a2fb7b61ea747bfcb760ae69a8d",
+      "bytes": 3247,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/scripts/gen_bm25_index.sh",
+      "sha256": "e351e0d92a7d33947643eb3560f69b6f9936615051873d3b29d7e3466bce14cb",
+      "git_blob_sha1": "b2cb85652aaf7ce3333e53de97c222fb16dd1833",
+      "bytes": 231,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/scripts/gen_graph_index.sh",
+      "sha256": "e73461ffc68d0f9a024733abb46a475de5b4729fd75693bb7561c65c1e221c4d",
+      "git_blob_sha1": "934a3c7a3c7856a39309fb33be83f4dddd096a82",
+      "bytes": 541,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/scripts/run.sh",
+      "sha256": "6bba3de1dce75c01e4f74feb49bc9ecdca2690793530155bca08687c75d7101e",
+      "git_blob_sha1": "5d529e12ff2275176d16a0029ecaa36d57e76e07",
+      "bytes": 690,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/sft_train.py",
+      "sha256": "726ec4482e9b6c9cf60b2112e082aa0f2c64198cdc6fe767db9e34380efa7ca6",
+      "git_blob_sha1": "f1f8f5ee6094f9541aa8e95652f33b02ed50ca67",
+      "bytes": 6900,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/actions/action.py",
+      "sha256": "9c1d7498caac99414a368008c70586af647fb9ec7b989df6bbd1dfdf6a203080",
+      "git_blob_sha1": "1ca0ce50f92dbee92f02c7f7c23bd434fee95caa",
+      "bytes": 1106,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/actions/action_parser.py",
+      "sha256": "3763d374e0d8bcdfd56a67fb992e916f5fd580193a2d389a868e42e063be2076",
+      "git_blob_sha1": "f68c77cfe8bdb82b391ed4d454232592b76cf177",
+      "bytes": 5762,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/benchmark/gen_oracle_locations.py",
+      "sha256": "d1238463432d40fff90f780710db17cb44ef448ce99208e1922ef7add01398e5",
+      "git_blob_sha1": "6e2151f66c3ea1de8c81bbdd46846dff9653096d",
+      "bytes": 22891,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/benchmark/git_repo_manager.py",
+      "sha256": "fe0cb8fe9e8d75885b7f7356f0355b46ca716b632a2e473c3fe7015ea4f54327",
+      "git_blob_sha1": "26b3c866fcec4c48833cd043b2e3aa0190812081",
+      "bytes": 5108,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/benchmark/parse_patch.py",
+      "sha256": "a959b3448ce458096bcc359abb328a5a85725add3a8d2ecfc1c71d0a43d8786f",
+      "git_blob_sha1": "31692e5242473e2b18b36c3db4b2e9a0b4619160",
+      "bytes": 7913,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/benchmark/parse_python_file.py",
+      "sha256": "d92fa8a2143b76bb1a74df256e2aae02ea457f1157c056aeb51fd9c187775568",
+      "git_blob_sha1": "63da4fc427b93bc5dd588c9663ba7697b0ec1f10",
+      "bytes": 10200,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/benchmark/setup_repo.py",
+      "sha256": "2862d2e7fc51f4b91a36d826b863a9c96ad8f744256173b64aa3ea1a7944cd7c",
+      "git_blob_sha1": "a52ba09e8a15f790f811a012d17d03a8141d95b5",
+      "bytes": 2289,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/classify_issue.py",
+      "sha256": "979369231a5577636cc3854655174db9ef144bd48e576c6be3a12c1bc19a26ac",
+      "git_blob_sha1": "c5683c4dfe54ae840b83e90d7ef348dc26d2a3c2",
+      "bytes": 6070,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/cost_analysis.py",
+      "sha256": "c662e350761ce77ab8630964ca33bf38cb460b4c27d726c3a19503078284b0a0",
+      "git_blob_sha1": "bc95b005dd212c519c57df62eb63bdc7c9d2e544",
+      "bytes": 3992,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/extract_entity_from_issue.py",
+      "sha256": "d62aad71a6adb2f393c324ab87d87ef0953c169d2214e9c4d503615d5aea375a",
+      "git_blob_sha1": "637a85ca7b2761ed71de6f5eb1d309c660a74acf",
+      "bytes": 9936,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/process_output.py",
+      "sha256": "a5bbbdd7dff4215f6408abd5b345bde650cfe54c4167fa5e58289ad74ce37355",
+      "git_blob_sha1": "adb5bf37c023c772891552a6fc582fb63644ffcc",
+      "bytes": 15622,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/prompts/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob_sha1": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "bytes": 0,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/prompts/general_prompt.py",
+      "sha256": "7516e0d645c14bbe002e2b145baf3237f113032b1c68fa2a360c271071b17b82",
+      "git_blob_sha1": "954c23868e395ecea1e0c24553964790b2263a88",
+      "bytes": 859,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/prompts/pipelines/auto_search_prompt.py",
+      "sha256": "4ef036ed68f0f10b8b33e297e708de9b1f930d29b8623957b3a61d98f772786a",
+      "git_blob_sha1": "22a9d17904276c2e76723b8a325439f6b47beee0",
+      "bytes": 3709,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/prompts/pipelines/simple_localize_pipeline.py",
+      "sha256": "1475d0a594ddefe0e88ea422b00d7cab5688a5a068a3d76e98f0928552b04c9c",
+      "git_blob_sha1": "54ccaaba89310b4a847877c49d3f09c45f4e352a",
+      "bytes": 1866,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/prompts/prompt.py",
+      "sha256": "af9c7629b532dccd3a5a1ffa7bcbd1aab228fcd8c783178baf81089ad1ccce2f",
+      "git_blob_sha1": "69fd815ddb31b9d0740a8ebfa670f7be6c929316",
+      "bytes": 2338,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/runtime/content_tools.py",
+      "sha256": "d79aa8b18fae915172c36073256f74bc3ecd535a954c534644a81c0df4666267",
+      "git_blob_sha1": "85b34f504da603d21c5ce584c976ce92bf063297",
+      "bytes": 4365,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/runtime/exceptions.py",
+      "sha256": "e7d0eaed28e5be7e9ed0ae42377d98f4339bf0696a9bee5bd690dc914b87cfd0",
+      "git_blob_sha1": "bf5a29f60752a29d2588ebb0ac6c4d48c0690066",
+      "bytes": 3754,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/runtime/execute_ipython.py",
+      "sha256": "d652545aecb26e061de50f10b9961deac0e8f7c37865c498673777664f0e2c2e",
+      "git_blob_sha1": "1a69e08a521298fb7bcac0a149b1d564c920fa42",
+      "bytes": 1296,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/runtime/finish.py",
+      "sha256": "c163007482564d1ad2b72381e0dbc142d4807703035a7b77d6f5b18a9e23676b",
+      "git_blob_sha1": "9f362efee2ea10ba878c7daeebfebe86d3ab34ab",
+      "bytes": 415,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/runtime/fn_call_converter.py",
+      "sha256": "fdc4fd43f1473f7bc0e76d1a50c7b74cd7a07516a42feacfd44817248dc6ffd5",
+      "git_blob_sha1": "201dea04199c14d504cfe3a9d8d7700a57b58221",
+      "bytes": 32526,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/runtime/function_calling.py",
+      "sha256": "8b239552235e4ee81f6ffa46b8e15758b242927ea21da90a276c248146b86dcf",
+      "git_blob_sha1": "1803bacf8d4b80648be2df86fe2fe5e8edceb762",
+      "bytes": 4270,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/runtime/structure_tools.py",
+      "sha256": "e0a3c45be070b2e1a19f387dec7fc615971f36cc9a8b615f6361c3c6358c0743",
+      "git_blob_sha1": "c1c9007ce73ce512036c223acc8d2319e8ad5026",
+      "bytes": 6967,
+      "mode": "100644"
+    },
+    {
+      "path": "LocAgent/util/utils.py",
+      "sha256": "45c172b4d2ce949bf2d4f25f3a6a0c7ca018768bcedb1af2dd4a8b9169e53c9d",
+      "git_blob_sha1": "efc0a690b5fbb09c2b44e32f35f4f4df18f5b032",
+      "bytes": 2258,
+      "mode": "100644"
+    }
+  ],
+  "source_file_count": 107,
+  "source_bytes": 917073,
+  "tests": {
+    "whole_suite_tests": 117,
+    "exit_code": 0,
+    "unittest_seconds": 4.456,
+    "wall_seconds": 7.0930304527282715,
+    "tested_python_files_sha_unchanged": true
+  },
+  "secrets_scan": "PASS; token/private-key and credential assignment patterns",
+  "model_calls_by_publication": 0,
+  "experiments_or_raw_data_included": false,
+  "private_or_logs_included": false,
+  "weights_or_credentials_included": false,
+  "unpublished_manuscript_included": false,
+  "derived_reports_included": true,
+  "primary_protocol": "native_finish_payload_v2",
+  "offline_views_separately_reported": [
+    "compatible",
+    "requested_file"
+  ],
+  "outcome_selected_parent_scope_disclosed": true,
+  "native_primary_not_replaced": true
+}

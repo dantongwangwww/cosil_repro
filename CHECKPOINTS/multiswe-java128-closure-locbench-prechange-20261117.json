@@ -1,0 +1,33 @@
+{
+ "checkpoint": "multiswe-java128-closure-locbench-prechange-20261117",
+ "utc": "2026-11-17T14:42:37+00:00",
+ "previous_snapshot_commit": "74d11a83d7dd6cfb576aaa4abb744ec94075d971",
+ "previous_snapshot_tree": "ae37d4992f4842329a5551d023ef817f7075ed59",
+ "java128_status": "ALL_STAGES_CLOSED_THREE_AUDITS_PASS",
+ "protected_assets_recheck": {
+  "sha256_checks": 841,
+  "mismatches": 0,
+  "stat_only_sealed": 5,
+  "stat_mismatches": 0,
+  "sealed_content_opened": false
+ },
+ "new_aggregate_docs": [
+  "CoSIL/docs/multiswe-java128/实验报告_Java128_三模型总览_规范化v2.md",
+  "CoSIL/docs/multiswe-java128/原解析与规范化v2_同题对照.md",
+  "CoSIL/docs/multiswe-java128/时间与token开销_规范化v2.md"
+ ],
+ "new_code": [
+  "CoSIL/map5_derived_view_20261117.py"
+ ],
+ "excluded_by_policy": [
+  "逐题CSV",
+  "逐题错例明细",
+  "results/原始产物",
+  "gold",
+  "日志",
+  "模型",
+  "封存test"
+ ],
+ "next_experiment_planned": "locagent-locbench560 (protocol frozen in checkpoint md)",
+ "new_model_calls": 0
+}

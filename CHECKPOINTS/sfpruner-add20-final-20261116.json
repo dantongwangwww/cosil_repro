@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "status": "FINAL_DOCUMENTATION_CHECKPOINT",
+  "branch": "snapshots/sfpruner-add20-final-20261116",
+  "parent": "3617c3554cd303519bf33b87946cb34e4b67b873",
+  "prechange": "efdf2a76584389599e53d0e95a75019ca5d09877",
+  "publication_scope": "README report-path correction and two final Chinese summary documents only; no source modification",
+  "unchanged_execution_python_files": [
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/__init__.py",
+      "size": 89,
+      "sha256": "23c4166ca09f567e0d841f65891726778859aad7800f2f21f99326dc9a73ec68",
+      "git_blob_sha": "e7126bf0ef5c1655f17072cdbd16376700fb6d29",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/prepare.py",
+      "size": 23114,
+      "sha256": "a65ef432df54668336bc6fcf7142ff294037b813929b5300ab7f83d0a3c38e3c",
+      "git_blob_sha": "3737d0d447d6f27246cefbcc83c81f7cc0267073",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/report.py",
+      "size": 30504,
+      "sha256": "ebdff3348ea3fccaa001cab2a20d3a104267e9d78ffa029da0e1cd0d14133860",
+      "git_blob_sha": "500e46c2055eb143659933bf59caa0fe840c2a1f",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/runtime.py",
+      "size": 4810,
+      "sha256": "d0183625a0c43d3054a841728b5df293a3d6ab50880bec057e428cab86fdb1d0",
+      "git_blob_sha": "34733e01838ad3127975a67f9a932d1d7cdde6b1",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_prepare.py",
+      "size": 5661,
+      "sha256": "bd28af48dafdbdaa859ac39f518e97b1c6425ff0680cd8ae51559d79922aeebe",
+      "git_blob_sha": "6e7712c2ceb51c93e37bff2249185e2cb162c730",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_report.py",
+      "size": 15320,
+      "sha256": "f9ad8217d35fba70524da74e4352e68c0ffe9bf92523f882a5ef5b1e9cf25c57",
+      "git_blob_sha": "1357c0c7f3450128ecca3f98b07884a4812ac607",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/test_runtime.py",
+      "size": 1417,
+      "sha256": "c9e9a192df1f223887431d0dbf83128788965526dcef68e4c095e99362774d48",
+      "git_blob_sha": "7ece2ba2584742230ae9f80b2d0f448c9aa6c052",
+      "mode": "100644"
+    }
+  ],
+  "documents": [
+    {
+      "path": "CoSIL/code_sfpruner_add20_20261116/README.md",
+      "size": 6018,
+      "sha256": "6daeea5e7a682965809c0ae3b2fac7692aae34a1becc019c2c4d6c138eeba17f",
+      "git_blob_sha": "8849a297602c7caac81e8a2212ee49dd83433c34",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/sfpruner-add20-20261116/实验结果报告_随机20与组合300.md",
+      "size": 6042,
+      "sha256": "3c828784c27ab56386f6f1a6593ddc5dfb1dedb06b0dca17be0206fe0f60db20",
+      "git_blob_sha": "b74623cb0656dc34800a7318816fef3a2531e1eb",
+      "mode": "100644"
+    },
+    {
+      "path": "CoSIL/docs/sfpruner-add20-20261116/完整统计表_新20与描述性组合300.md",
+      "size": 7110,
+      "sha256": "30fa921dd9dad2a0f6885f079de3ff34f3a3ad02bcbb42e5d52ad64352537617",
+      "git_blob_sha": "b5469f3dd5f5fcb78b92de3ca4b7a1c38b1e8dfa",
+      "mode": "100644"
+    }
+  ],
+  "checks": [
+    {
+      "name": "independent_data_gate.json",
+      "status": "INDEPENDENT_CPU_DATA_GATE_PASS",
+      "sha256": "59120b09f8814c204d8525abc965940b94902af77c40308819af9fcf9905ee51"
+    },
+    {
+      "name": "independent_results_gate.json",
+      "status": "INDEPENDENT_RESULTS_GATE_PASS",
+      "sha256": "1d68cf94ec9d26809a71978750dec822bc394f6a290b8bc52d4ceb0227d0bca5"
+    },
+    {
+      "name": "independent_runtime_gate.json",
+      "status": "INDEPENDENT_RUNTIME_GATE_PASS",
+      "sha256": "f48bc5a7e099f7d798abe9a0dce1a08dbbc3cd6cec8cbbc9254d3068b797d300"
+    },
+    {
+      "name": "independent_service_release.json",
+      "status": "PASS_WITH_PRESERVED_CLEANUP_WARNING",
+      "sha256": "06c9c1d8bf24b119b0e371caa93a33ac17f9b2f89cc9211f8a879002bcc06e11"
+    }
+  ],
+  "published_raw_data_gold_predictions_csv_logs_models_credentials_manuscripts": false,
+  "publication_process_model_calls": 0,
+  "publication_process_GPU_jobs": 0,
+  "execution_branch_must_remain_unchanged": true,
+  "original_upstream_git_preserved": true,
+  "qualifier_path_correction_only": "report --qualified-root accepts qualified/cases while runtime gate --qualified accepts qualified",
+  "scope_statement": "New20 sampled before prediction; original historical280 is posthoc; combined300 descriptive only"
+}

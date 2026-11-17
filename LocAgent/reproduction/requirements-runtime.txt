@@ -1,0 +1,34 @@
+# CPU-only runtime subset of upstream requirements.txt (commit 4935b557).
+# The reproduction loads the original search functions without the CLI's
+# unused torch/evaluation imports. No torch, CUDA or model weights required.
+bm25s==0.2.3
+datasets==3.1.0
+huggingface-hub==0.26.2
+httpx==0.27.2
+Jinja2==3.1.4
+libcst==1.5.0
+# Upstream 1.52.1 is absent from official PyPI. The closest available 1.53.1
+# is used only for schema/message wrappers, not provider/network dispatch.
+litellm==1.53.1
+llama-index-core==0.11.22
+llama-index-retrievers-bm25==0.4.0
+llama-index-readers-file==0.3.0
+matplotlib==3.9.2
+networkx==3.4.2
+nltk==3.9.1
+numpy==1.26.4
+openai==1.54.3
+pandas==2.2.3
+pyarrow==18.0.0
+pydantic==2.9.2
+python-dateutil==2.9.0.post0
+PyStemmer==2.2.0.3
+rapidfuzz==3.10.1
+scipy==1.14.1
+SQLAlchemy==2.0.36
+tiktoken==0.8.0
+tokenizers==0.20.3
+toml==0.10.2
+tqdm==4.67.0
+tree-sitter==0.21.3
+tree-sitter-languages==1.10.2

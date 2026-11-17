@@ -1,0 +1,6 @@
+inputs/
+scores*/
+document/
+reports/
+__pycache__/
+*.log
